@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/Surge.iml" filepath="$PROJECT_DIR$/.idea/Surge.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/optimisation-python.iml" filepath="$PROJECT_DIR$/.idea/optimisation-python.iml" />
     </modules>
   </component>
 </project>
