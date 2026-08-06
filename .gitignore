@@ -1,1 +1,102 @@
+.vscode/
+
+# ==========================================
+# 1. JETBRAINS / INTELLIJ IDEA (.idea & modules)
+# ==========================================
+# Default IDE folder and project files
 .idea/
+*.iml
+*.ipr
+*.iws
+*.idb
+*.iws.bak
+*.iml.bak
+
+# IntelliJ compiled output
+out/
+
+# JetBrains Shelf (local stashed changes)
+.shelf/
+
+# Local history and workspace files
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/dictionaries
+.idea/shelf/
+.idea/contentModel.xml
+.idea/dataSources/
+.idea/dataSources.ids
+.idea/dataSources.local.xml
+.idea/sqlDataSources.xml
+.idea/dynamic.xml
+.idea/uiDesigner.xml
+.idea/dbnavigator.xml
+
+# IntelliJ Gradle / Maven cache inside .idea
+.idea/modules.xml
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/libraries/
+
+# ==========================================
+# 2. ENVIRONMENT VARIABLES & SECRETS
+# ==========================================
+.env
+*.env
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+
+# ==========================================
+# 3. JAVA / SPRING BOOT (backend-java)
+# ==========================================
+.gradle/
+build/
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+!gradle-wrapper.jar
+!maven-wrapper.jar
+# ==========================================
+# 4. PYTHON / ML & GIS ENGINE (optimisation-python)
+# ==========================================
+
+
+
+# ==========================================
+# 5. NODE / REACT / VITE (web-map)
+# ==========================================
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+# 6. POSTGRESQL / DOCKER VOLUMES
+# ==========================================
+*.db
+*.sqlite
+*.sqlite3
+pgdata/
+data/
+
+# ==========================================
+# 7. OBSIDIAN VAULT & OS METADATA
+# ==========================================
+.obsidian/workspace*
+.obsidian/cache*
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
