@@ -1,0 +1,223 @@
+{
+  "main": {
+    "id": "2c7a6f6855f8ec7c",
+    "type": "split",
+    "children": [
+      {
+        "id": "4e014ed95f6e791d",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "f21c02f6a8f81508",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "cb1ae9468014abb4",
+    "type": "split",
+    "children": [
+      {
+        "id": "e46d092c899cbd8e",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "2cc15720972359f1",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "07ed89672a63ae66",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "309c38206d5a71f7",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "d835ea563f72cdfa",
+    "type": "split",
+    "children": [
+      {
+        "id": "2aa65b2807d7cc19",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "6590a2239c781366",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks"
+            }
+          },
+          {
+            "id": "a52c6171e089aa43",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links"
+            }
+          },
+          {
+            "id": "575219c8f9d00f37",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "902afcf453aa1fa0",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "159fbe662271c27b",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "f21c02f6a8f81508",
+  "lastOpenFiles": [
+    "01-vision/Roadmap.md",
+    "01-vision/Goals.md",
+    "MVP - Minimum Viable Product.md",
+    "04-architecture/Python Engine.md",
+    "04-architecture/Authentication.md",
+    "02-requirements/Constraints.md",
+    "02-requirements/Functional Requirements.md",
+    "Milestone 1 - Pending.md",
+    "SURGE — Smart Utility Routing and Grid Evacuation.md",
+    "01-vision/Vision.md",
+    "01-vision/Scope.md",
+    "05-optimization/WTG Grouping.md",
+    "05-optimization/Routing.md",
+    "05-optimization/Pole Placement.md",
+    "05-optimization/ML Ranking.md",
+    "05-optimization/Feeder Planning.md",
+    "05-optimization/Explainability.md",
+    "05-optimization/Cost Model.md",
+    "02-requirements/User Stories.md",
+    "02-requirements/Non Functional Requirements.md",
+    "daily/2026-08-04.md",
+    "templates/Daily.md",
+    "templates/Meeting.md",
+    "templates/Research.md",
+    "templates/ADR.md",
+    "templates/Requirement.md",
+    "assets/ui",
+    "assets/screenshots",
+    "assets/gis",
+    "assets/diagrams",
+    "assets/architecture",
+    "assets",
+    "templates",
+    "daily",
+    "17-releases",
+    "16-meetings"
+  ]
+}
