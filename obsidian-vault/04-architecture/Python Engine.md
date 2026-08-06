@@ -23,48 +23,52 @@ The Java Spring Boot service remains the primary backend responsible for authent
 
 ```text
 optimisation-python/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                     # FastAPI application factory
-│   ├── core/
-│   │   ├── __init__.py
-│   │   └── config.py               # Pydantic 2 Settings (BaseSettings)
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── v1/
-│   │       ├── __init__.py
-│   │       ├── router.py           # APIRouter combining endpoints
-│   │       └── endpoints/
-│   │           ├── __init__.py
-│   │           ├── health.py       # Health check endpoint (/api/v1/health)
-│   │           └── optimise.py     # Optimisation endpoint (/api/v1/optimise)
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   └── optimise.py             # Pydantic 2 request/response models & validation
-│   ├── services/
-│   │   ├── __init__.py
-│   │   └── optimisation_service.py # Optimisation business logic layer
-│   ├── algorithms/
-│   │   ├── __init__.py
-│   │   ├── route_graph.py          # Route graph & A* pathfinding
-│   │   ├── cost_function.py        # Terrain & cost surface logic
-│   │   └── electrical_analysis.py  # Electrical load-flow solvers
-│   └── utils/
-│       ├── __init__.py
-│       └── coordinate_transform.py # WGS84 GeoJSON <-> Meter Projected CRS
-├── tests/
-│   ├── __init__.py
-│   ├── test_health.py
-│   └── test_optimise.py
-├── .env.example
-├── .dockerignore
-├── .gitignore
-├── AGENTS.md                       # LLM agent instructions & constraints
-├── Dockerfile                      # Python 3.11 slim non-root container
-├── pyproject.toml
-├── requirements.txt
-├── requirements.lock.txt            # Pin-locked reproducible environment
-└── README.md
++--- .dockerignore
++--- .env.example
++--- .gitignore
++--- AGENTS.md
++--- CONTEXT.md
++--- Dockerfile
++--- README.md
++--- app
+|    +--- __init__.py
+|    +--- algorithms
+|    |    +--- __init__.py
+|    |    +--- cost_function.py
+|    |    +--- electrical_analysis.py
+|    |    \--- route_graph.py
+|    +--- api
+|    |    +--- __init__.py
+|    |    \--- v1
+|    |         +--- __init__.py
+|    |         +--- endpoints
+|    |         |    +--- __init__.py
+|    |         |    +--- health.py
+|    |         |    \--- optimise.py
+|    |         \--- router.py
+|    +--- core
+|    |    +--- __init__.py
+|    |    \--- config.py
+|    +--- main.py
+|    +--- schemas
+|    |    +--- __init__.py
+|    |    \--- optimise.py
+|    +--- services
+|    |    +--- __init__.py
+|    |    \--- optimisation_service.py
+|    \--- utils
+|         +--- __init__.py
+|         \--- coordinate_transform.py
++--- notebooks
+|    \--- .gitkeep
++--- pyproject.toml
++--- requirements.lock.txt
++--- requirements.txt
+\--- tests
+     +--- .gitkeep
+     +--- __init__.py
+     +--- test_health.py
+     \--- test_optimise.py
 ```
 
 ---

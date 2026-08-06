@@ -6,48 +6,52 @@ The **SURGE Python GIS & Optimization Service** provides high-performance spatia
 
 ```text
 optimisation-python/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                     # Application factory (FastAPI)
-│   ├── core/
-│   │   ├── __init__.py
-│   │   └── config.py               # Pydantic 2 BaseSettings configuration
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── v1/
-│   │       ├── __init__.py
-│   │       ├── router.py           # Includes health and optimise routers
-│   │       └── endpoints/
-│   │           ├── __init__.py
-│   │           ├── health.py       # GET /api/v1/health
-│   │           └── optimise.py     # POST /api/v1/optimise
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   └── optimise.py             # Request, Response, Metrics & Electrical Pydantic 2 models
-│   ├── services/
-│   │   ├── __init__.py
-│   │   └── optimisation_service.py # Core service orchestration layer
-│   ├── algorithms/
-│   │   ├── __init__.py
-│   │   ├── route_graph.py          # A* / Dijkstra pathfinding & MST graphs
-│   │   ├── cost_function.py        # Geospatial cost surface calculations
-│   │   └── electrical_analysis.py  # Pandapower load flow & voltage drop solvers
-│   └── utils/
-│       ├── __init__.py
-│       └── coordinate_transform.py # WGS84 GeoJSON <-> Projected meter CRS
-├── tests/
-│   ├── __init__.py
-│   ├── test_health.py
-│   └── test_optimise.py
-├── .env.example
-├── .dockerignore
-├── .gitignore
-├── AGENTS.md                       # Directive & constraint rules for LLM agents
-├── Dockerfile                      # Non-root slim Docker image
-├── pyproject.toml                  # Ruff, mypy & pytest settings
-├── requirements.txt                # Abstract editable requirements
-├── requirements.lock.txt            # Concrete locked environment dependencies
-└── README.md
++--- .dockerignore
++--- .env.example
++--- .gitignore
++--- AGENTS.md
++--- CONTEXT.md
++--- Dockerfile
++--- README.md
++--- app
+|    +--- __init__.py
+|    +--- algorithms
+|    |    +--- __init__.py
+|    |    +--- cost_function.py
+|    |    +--- electrical_analysis.py
+|    |    \--- route_graph.py
+|    +--- api
+|    |    +--- __init__.py
+|    |    \--- v1
+|    |         +--- __init__.py
+|    |         +--- endpoints
+|    |         |    +--- __init__.py
+|    |         |    +--- health.py
+|    |         |    \--- optimise.py
+|    |         \--- router.py
+|    +--- core
+|    |    +--- __init__.py
+|    |    \--- config.py
+|    +--- main.py
+|    +--- schemas
+|    |    +--- __init__.py
+|    |    \--- optimise.py
+|    +--- services
+|    |    +--- __init__.py
+|    |    \--- optimisation_service.py
+|    \--- utils
+|         +--- __init__.py
+|         \--- coordinate_transform.py
++--- notebooks
+|    \--- .gitkeep
++--- pyproject.toml
++--- requirements.lock.txt
++--- requirements.txt
+\--- tests
+     +--- .gitkeep
+     +--- __init__.py
+     +--- test_health.py
+     \--- test_optimise.py
 ```
 
 ## Key Architectural Principles

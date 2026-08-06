@@ -62,48 +62,52 @@ Python FastAPI Optimisation Service
 ```text
 surge/
 └── optimisation-python/
+    ├── .dockerignore
+    ├── .env.example
+    ├── .gitignore
+    ├── AGENTS.md
+    ├── CONTEXT.md
+    ├── Dockerfile
+    ├── README.md
     ├── app/
     │   ├── __init__.py
-    │   ├── main.py                     # Application factory (FastAPI)
-    │   ├── core/
+    │   ├── algorithms/
     │   │   ├── __init__.py
-    │   │   └── config.py               # Pydantic 2 BaseSettings
+    │   │   ├── cost_function.py
+    │   │   ├── electrical_analysis.py
+    │   │   └── route_graph.py
     │   ├── api/
     │   │   ├── __init__.py
     │   │   └── v1/
     │   │       ├── __init__.py
-    │   │       ├── router.py           # Includes health and optimise routers
-    │   │       └── endpoints/
-    │   │           ├── __init__.py
-    │   │           ├── health.py       # GET /api/v1/health
-    │   │           └── optimise.py     # POST /api/v1/optimise
+    │   │       ├── endpoints/
+    │   │       │   ├── __init__.py
+    │   │       │   ├── health.py
+    │   │       │   └── optimise.py
+    │   │       └── router.py
+    │   ├── core/
+    │   │   ├── __init__.py
+    │   │   └── config.py
+    │   ├── main.py
     │   ├── schemas/
     │   │   ├── __init__.py
-    │   │   └── optimise.py             # Pydantic 2 models with validation
+    │   │   └── optimise.py
     │   ├── services/
     │   │   ├── __init__.py
-    │   │   └── optimisation_service.py # Optimisation service layer
-    │   ├── algorithms/
-    │   │   ├── __init__.py
-    │   │   ├── route_graph.py          # A* / Dijkstra & MST solvers
-    │   │   ├── cost_function.py        # Terrain & cost surface logic
-    │   │   └── electrical_analysis.py  # Load flow & voltage drop solvers
+    │   │   └── optimisation_service.py
     │   └── utils/
     │       ├── __init__.py
-    │       └── coordinate_transform.py # WGS84 GeoJSON <-> Projected meter CRS
-    ├── tests/
-    │   ├── __init__.py
-    │   ├── test_health.py
-    │   └── test_optimise.py
-    ├── .env.example
-    ├── .dockerignore
-    ├── .gitignore
-    ├── AGENTS.md                       # LLM agent instructions & constraints
-    ├── Dockerfile                      # Non-root slim container
+    │       └── coordinate_transform.py
+    ├── notebooks/
+    │   └── .gitkeep
     ├── pyproject.toml
+    ├── requirements.lock.txt
     ├── requirements.txt
-    ├── requirements.lock.txt            # Pin-locked environment dependencies
-    └── README.md
+    └── tests/
+        ├── .gitkeep
+        ├── __init__.py
+        ├── test_health.py
+        └── test_optimise.py
 ```
 
 # Your two-week Python timeline
@@ -112,19 +116,19 @@ surge/
 
 ### Day 1 — Service foundation
 
-- Create the Python project and virtual environment.
+- [x] Create the Python project and virtual environment.
     
-- Configure FastAPI.
+- [x] Configure FastAPI.
     
-- Configure Ruff, mypy and pytest.
+- [x] Configure Ruff, mypy and pytest.
     
-- Add `/health` endpoint.
+- [ ] Add `/health` endpoint.
     
-- Define request and response schemas.
+- [ ] Define request and response schemas.
     
-- Prepare Dockerfile.
+- [ ] Prepare Dockerfile.
     
-- Create `AGENTS.md` instructions for Codex.
+- [x] Create `AGENTS.md` instructions for Codex.
     
 
 **Deliverable:** Running FastAPI service with tests.

@@ -10,10 +10,7 @@ class OptimisationService:
         self,
         payload: OptimisationRequest,
     ) -> OptimisationResponse:
-        """Execute the SURGE route optimisation pipeline.
-
-        Day-1 implementation returns an empty GeoJSON result.
-        """
+        """Day-1 optimisation pipeline stub."""
 
         return OptimisationResponse(
             request_id=payload.request_id,
@@ -26,6 +23,7 @@ class OptimisationService:
             metrics=OptimisationMetrics(
                 feeder_count=0,
                 total_length_m=0.0,
+                estimated_cost=None,
                 message="Optimisation pipeline stub initialized",
             ),
         )
