@@ -1,4 +1,5 @@
-# Daily Note — YYYY-MM-DD
+# Journal — YYYY-MM-DD
+**Author:** ARK
 
 ## What I Built Today
 - 

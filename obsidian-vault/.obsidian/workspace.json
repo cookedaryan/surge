@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "daily/2026-08-04.md",
+                "file": "journal/2026-08-07.md",
                 "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "2026-08-04"
+              "title": "2026-08-07"
             }
           }
         ]
@@ -185,34 +185,36 @@
       "bases:Create new base": false
     }
   },
-  "active": "2cc15720972359f1",
+  "active": "f21c02f6a8f81508",
   "lastOpenFiles": [
-    "14-decisions/ADR-005 Python Service Architecture and Schemas.md",
-    "daily/2026-08-04.md",
-    "04-architecture/System Overview.md",
-    "PROJECT_CONTEXT.md",
+    "journal/2026-08-04.md",
+    "journal/2026-08-07.md",
+    "walkthrough/2026-08-07-GIS-Foundation.md",
+    "08-python-engine/Geospatial Integrity & CRS.md",
     "08-python-engine/PROJECT_CONTEXT.md",
+    "PROJECT_CONTEXT.md",
+    "05-optimization/Routing.md",
+    "05-optimization/Cost Model.md",
+    "05-optimization/ML Ranking.md",
+    "05-optimization/Feeder Planning.md",
+    "FastAPI Microservice Specification.md",
+    "08-python-engine/Overview & Layout.md",
+    "templates/Journal.md",
+    "daily/2026-08-07.md",
+    "journal",
     "04-architecture/Python Engine.md",
     "04-architecture/Deployment.md",
     "04-architecture/Database.md",
+    "walkthrough",
+    "15-research/Paper - Multi Objective Routing.md",
+    "15-research/Paper - GIS Optimization.md",
+    "05-optimization/WTG Grouping.md",
+    "15-research/Paper - Genetic Algorithms.md",
+    "14-decisions/ADR-005 Python Service Architecture and Schemas.md",
+    "daily/2026-08-04.md",
+    "04-architecture/System Overview.md",
     "04-architecture/Authentication.md",
     "04-architecture/Backend.md",
-    "10-api/FastAPI Endpoints.md",
-    "08-python-engine/Geospatial Integrity & CRS.md",
-    "08-python-engine/Overview & Layout.md",
-    "01-vision/Roadmap.md",
-    "01-vision/Goals.md",
-    "MVP - Minimum Viable Product.md",
-    "02-requirements/Constraints.md",
-    "02-requirements/Functional Requirements.md",
-    "Milestone 1 - Pending.md",
-    "SURGE — Smart Utility Routing and Grid Evacuation.md",
-    "01-vision/Vision.md",
-    "01-vision/Scope.md",
-    "05-optimization/WTG Grouping.md",
-    "05-optimization/Routing.md",
-    "05-optimization/Pole Placement.md",
-    "05-optimization/ML Ranking.md",
     "assets/ui",
     "assets/screenshots",
     "assets/gis",
@@ -220,8 +222,6 @@
     "assets/architecture",
     "assets",
     "templates",
-    "daily",
-    "17-releases",
-    "16-meetings"
+    "daily"
   ]
 }
