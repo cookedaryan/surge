@@ -32,15 +32,11 @@ Current stage:
 
 ### Last Major Update
 
-**Date:** YYYY-MM-DD
+**Date:** 2026-08-07
 
 **Summary:**
 
-Describe the latest major change in two or three sentences.
-
-Example:
-
-The Python virtual environment was recreated using Python 3.11. The FastAPI project structure was reorganised, and configuration management using `pydantic-settings` was added.
+Implemented the core GIS preprocessing pipeline, including dynamic one-project-one-UTM projection, geometry validation, GeoJSON parsing, and conversion of WTG/Substation data into strictly-typed spatial dataclasses (`app/models/spatial.py`).
 
 ---
 
@@ -94,9 +90,16 @@ optimisation-python/
 |    |    +--- cost_function.py
 |    |    +--- electrical_analysis.py
 |    |    \--- route_graph.py
-|    +--- api
+|    +--- gis
 |    |    +--- __init__.py
-|    |    \--- v1
+|    |    +--- crs.py
+|    |    +--- geojson.py
+|    |    +--- geometry.py
+|    |    \--- preprocessing.py
+|    +--- models
+|    |    +--- __init__.py
+|    |    \--- spatial.py
+|    +--- api
 |    |         +--- __init__.py
 |    |         +--- endpoints
 |    |         |    +--- __init__.py
@@ -137,6 +140,7 @@ optimisation-python/
 | `app/models/`     | Internal models or database models                      |
 | `app/schemas/`    | Pydantic request and response schemas                   |
 | `app/services/`   | Business logic and external service integration         |
+| `app/gis/`        | Geospatial data processing, validation, and CRS management|
 | `app/algorithms/` | Route optimisation and graph algorithms                 |
 | `app/ml/`         | Machine-learning models, training, and inference        |
 | `app/utils/`      | Reusable helper functions                               |
@@ -278,9 +282,9 @@ Update this table whenever an endpoint is added, removed, renamed, or changed.
 | Method | Endpoint                 | Purpose                     | Status  |
 | ------ | ------------------------ | --------------------------- | ------- |
 | GET    | `/`                      | Basic application response  | Active  |
-| GET    | `/health`                | Service health check        | Planned — not implemented |
-| POST   | `/api/v1/optimise-route` | Generate an optimised route | Planned — not implemented |
-| POST   | `/api/v1/predict`        | Run an ML prediction        | Planned — not implemented |
+| GET    | `/health`                | Service health check        | Implemented |
+| POST   | `/api/v1/optimise`       | Generate an optimised route | Partial |
+| POST   | `/api/v1/predict`        | Run an ML prediction        | Planned |
 
 ### Endpoint Details
 
@@ -670,6 +674,24 @@ Keep approximately the latest 10–15 meaningful changes.
 **Pending:**
 - Confirm that the FastAPI application starts correctly.
 
+### 2026-08-07 — GIS Preprocessing Layer Added
+
+**Changed:**
+- Added: `app/gis/` and `app/models/` directories.
+- Added: Coordinate Reference System (CRS) transformations and GeoJSON extraction.
+
+**Affected files:**
+- `app/gis/crs.py`, `app/gis/geojson.py`, `app/gis/geometry.py`, `app/gis/preprocessing.py`, `app/models/spatial.py`
+
+**Reason:**
+- The engine needs to translate incoming WGS84 coordinates into metric UTM dataclasses before network graph creation.
+
+**Result:**
+- Point extraction and unified project centroid CRS conversion are functioning perfectly and tested.
+
+**Pending:**
+- Integration with graph topology generation.
+
 ---
 
 ## 20. Current Working Features
@@ -679,15 +701,20 @@ Keep approximately the latest 10–15 meaningful changes.
 - PyCharm interpreter connected to the new virtual environment.
 - FastAPI-related dependencies installed.
 - `pydantic-settings` installed successfully.
+- **Implemented:** `/health` endpoint and `optimise` request/response schemas.
+- **Implemented:** GIS `crs.py` for UTM detection and transformation.
+- **Implemented:** GIS `geometry.py` and `geojson.py` for GeoJSON parsing.
+- **Implemented:** `preprocessing.py` and strictly typed dataclasses in `app/models/spatial.py`.
 
 ---
 
 ## 21. Features Currently Under Development
 
-- FastAPI application structure.
-- Environment-based configuration.
-- API endpoint implementation.
-- Optimisation and machine-learning modules.
+- **Partial:** FastAPI application structure and Endpoints (wiring).
+- **Partial:** Environment-based configuration.
+- **Planned:** Network graph algorithms and topology mapping.
+- **Planned:** Routing algorithms (A*, Dijkstra).
+- **Planned:** Machine-learning modules.
 
 ---
 

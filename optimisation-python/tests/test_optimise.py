@@ -14,11 +14,23 @@ def create_payload() -> dict[str, Any]:
         "scenario": "Balanced",
         "wtg_geojson": {
             "type": "FeatureCollection",
-            "features": [],
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0.0, 50.0]},
+                    "properties": {"id": "WTG1"}
+                }
+            ],
         },
         "substation_geojson": {
             "type": "FeatureCollection",
-            "features": [],
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0.0, 50.1]},
+                    "properties": {"id": "SUB1"}
+                }
+            ],
         },
         "electrical_params": {
             "feeder_capacity_mw": 20.0,
@@ -41,7 +53,7 @@ def test_optimise_stub() -> None:
     assert body["status"] == "success"
     assert body["request_id"] == "request-001"
     assert body["scenario"] == "Balanced"
-    assert body["metrics"]["feeder_count"] == 0
+    assert body["metrics"]["feeder_count"] == 1
 
 
 def test_invalid_scenario() -> None:

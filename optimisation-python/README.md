@@ -27,6 +27,15 @@ optimisation-python/
 │   ├── services/
 │   │   ├── __init__.py
 │   │   └── optimisation_service.py
+│   ├── gis/
+│   │   ├── __init__.py
+│   │   ├── crs.py
+│   │   ├── geojson.py
+│   │   ├── geometry.py
+│   │   └── preprocessing.py
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── spatial.py
 │   ├── algorithms/
 │   │   ├── __init__.py
 │   │   ├── route_graph.py

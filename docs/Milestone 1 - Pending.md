@@ -116,36 +116,36 @@ surge/
 
 ### Day 1 — Service foundation
 
-- [x] Create the Python project and virtual environment.
+- [x] Create the Python project and virtual environment. (Implemented)
     
-- [x] Configure FastAPI.
+- [x] Configure FastAPI. (Implemented)
     
-- [x] Configure Ruff, mypy and pytest.
+- [x] Configure Ruff, mypy and pytest. (Implemented)
     
-- [ ] Add `/health` endpoint.
+- [x] Add `/health` endpoint. (Implemented)
     
-- [ ] Define request and response schemas.
+- [x] Define request and response schemas. (Implemented)
     
-- [ ] Prepare Dockerfile.
+- [ ] Prepare Dockerfile. (Planned)
     
-- [x] Create `AGENTS.md` instructions for Codex.
+- [x] Create `AGENTS.md` instructions for Codex. (Implemented)
     
 
 **Deliverable:** Running FastAPI service with tests.
 
 ### Day 2 — GIS validation
 
-- Read GeoJSON and GeoPackage inputs.
+- [x] Read GeoJSON WTG and Substation inputs. (Implemented)
     
-- Validate geometries.
+- [x] Validate point geometries. (Implemented)
     
-- Handle polygons and multipolygons.
+- [ ] Handle polygons and multipolygons. (Partial - handled in validation, pending in models)
     
-- Convert layers into a common projected CRS.
+- [x] Convert layers into a common projected CRS. (Implemented)
     
-- Clip layers to the project boundary.
+- [ ] Clip layers to the project boundary. (Planned)
     
-- Validate WTG and substation coordinates.
+- [x] Validate WTG and substation coordinates. (Implemented)
     
 
 **Deliverable:** Validated and standardised project dataset.
