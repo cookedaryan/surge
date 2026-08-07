@@ -425,12 +425,16 @@ Reject candidates when:
 
 Use a hybrid score:
 
-$$S_{\text{final}}
+$$[  
+S_{\text{final}}
 = 
 [ 0.75S_{\text{deterministic}}  
 +  
 0.25S_{\text{ML}}  
-]$$
+]
+]
+$$
+
 
 The ML model may rank valid candidates, but it must not override engineering constraints.
 

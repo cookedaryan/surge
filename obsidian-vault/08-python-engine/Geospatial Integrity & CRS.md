@@ -13,16 +13,20 @@ Geospatial accuracy is critical when computing cable lengths, slope penalties, R
 
 3. **Transformation Pipeline**
    ```text
-   GeoJSON (WGS84 EPSG:4326) 
-             │ (Input)
-             ▼
-   Transform to Meter Projected CRS (e.g. UTM / EPSG:32643)
-             │
-             ├─► Spatial Cost Surface & DEM Slope Calculation
-             ├─► A* / Dijkstra Route Optimization
-             ├─► Pole Placement & Variable Span Solver
-             ├─► ROW Corridor Buffer & Parcel Intersection
-             ▼
+GeoJSON (WGS84 EPSG:4326) 
+          │ (Input)
+          ▼
+`app/gis/preprocessing.py`
+  - Validates geometries (Points)
+  - Calculates project centroid
+  - Selects unified dynamic Meter Projected CRS (e.g. UTM / EPSG:32643)
+  - Returns `ProjectSpatialData` containing internally scaled models
+          │
+          ├─► Spatial Cost Surface & DEM Slope Calculation
+          ├─► A* / Dijkstra Route Optimization
+          ├─► Pole Placement & Variable Span Solver
+          ├─► ROW Corridor Buffer & Parcel Intersection
+          ▼
    Transform back to WGS84 (EPSG:4326)
              │ (Output)
              ▼

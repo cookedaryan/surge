@@ -20,6 +20,15 @@ optimisation-python/
 |    |    +--- cost_function.py
 |    |    +--- electrical_analysis.py
 |    |    \--- route_graph.py
+|    +--- gis
+|    |    +--- __init__.py
+|    |    +--- crs.py
+|    |    +--- geojson.py
+|    |    +--- geometry.py
+|    |    \--- preprocessing.py
+|    +--- models
+|    |    +--- __init__.py
+|    |    \--- spatial.py
 |    +--- api
 |    |    +--- __init__.py
 |    |    \--- v1
@@ -50,6 +59,10 @@ optimisation-python/
 \--- tests
      +--- .gitkeep
      +--- __init__.py
+     +--- test_crs.py
+     +--- test_geojson.py
+     +--- test_geometry.py
+     +--- test_preprocessing.py
      +--- test_health.py
      \--- test_optimise.py
 ```
@@ -57,6 +70,7 @@ optimisation-python/
 ## Key Architectural Principles
 
 1. **Decoupled Service Layer**: Endpoint functions in `app/api/v1/endpoints/optimise.py` delegate execution to `OptimisationService` in `app/services/optimisation_service.py`. Algorithms reside in `app/algorithms/`.
-2. **Pydantic 2 Validation**: Model configuration uses `SettingsConfigDict` and typed models (`OptimisationMetrics`, `ElectricalParams`, `OptimisationRequest`, `OptimisationResponse`).
-3. **Correlation ID (`request_id`)**: Every request carries a `request_id` passed from Spring Boot to enable end-to-end tracing across service logs.
-4. **Reproducible Environment**: Dependencies are locked via `requirements.lock.txt`.
+2. **GIS & Preprocessing**: The `app/gis/preprocessing.py` layer converts incoming WGS84 GeoJSON API objects into strictly-validated metric point entities (`app/models/spatial.py`), completely decoupling the algorithm logic from standard HTTP GeoJSON structures.
+3. **Pydantic 2 Validation**: Model configuration uses `SettingsConfigDict` and typed models (`OptimisationMetrics`, `ElectricalParams`, `OptimisationRequest`, `OptimisationResponse`).
+4. **Correlation ID (`request_id`)**: Every request carries a `request_id` passed from Spring Boot to enable end-to-end tracing across service logs.
+5. **Reproducible Environment**: Dependencies are locked via `requirements.lock.txt`.
