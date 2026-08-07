@@ -11,10 +11,14 @@
             "id": "f21c02f6a8f81508",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "markdown",
+              "state": {
+                "file": "daily/2026-08-04.md",
+                "mode": "preview",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "2026-08-04"
             }
           }
         ]
@@ -181,13 +185,24 @@
       "bases:Create new base": false
     }
   },
-  "active": "f21c02f6a8f81508",
+  "active": "2cc15720972359f1",
   "lastOpenFiles": [
+    "14-decisions/ADR-005 Python Service Architecture and Schemas.md",
+    "daily/2026-08-04.md",
+    "04-architecture/System Overview.md",
+    "PROJECT_CONTEXT.md",
+    "08-python-engine/PROJECT_CONTEXT.md",
+    "04-architecture/Python Engine.md",
+    "04-architecture/Deployment.md",
+    "04-architecture/Database.md",
+    "04-architecture/Authentication.md",
+    "04-architecture/Backend.md",
+    "10-api/FastAPI Endpoints.md",
+    "08-python-engine/Geospatial Integrity & CRS.md",
+    "08-python-engine/Overview & Layout.md",
     "01-vision/Roadmap.md",
     "01-vision/Goals.md",
     "MVP - Minimum Viable Product.md",
-    "04-architecture/Python Engine.md",
-    "04-architecture/Authentication.md",
     "02-requirements/Constraints.md",
     "02-requirements/Functional Requirements.md",
     "Milestone 1 - Pending.md",
@@ -198,17 +213,6 @@
     "05-optimization/Routing.md",
     "05-optimization/Pole Placement.md",
     "05-optimization/ML Ranking.md",
-    "05-optimization/Feeder Planning.md",
-    "05-optimization/Explainability.md",
-    "05-optimization/Cost Model.md",
-    "02-requirements/User Stories.md",
-    "02-requirements/Non Functional Requirements.md",
-    "daily/2026-08-04.md",
-    "templates/Daily.md",
-    "templates/Meeting.md",
-    "templates/Research.md",
-    "templates/ADR.md",
-    "templates/Requirement.md",
     "assets/ui",
     "assets/screenshots",
     "assets/gis",

@@ -62,59 +62,52 @@ Python FastAPI Optimisation Service
 ```text
 surge/
 └── optimisation-python/
-    ├── src/
-    │   └── surge_engine/
-    │       ├── api/
-    │       │   ├── routes.py
-    │       │   ├── schemas.py
-    │       │   └── dependencies.py
-    │       ├── gis/
-    │       │   ├── validators.py
-    │       │   ├── crs.py
-    │       │   ├── terrain.py
-    │       │   ├── rasterizer.py
-    │       │   └── cost_surface.py
-    │       ├── clustering/
-    │       │   ├── wtg_clustering.py
-    │       │   └── feeder_assignment.py
-    │       ├── topology/
-    │       │   ├── mst.py
-    │       │   ├── junctions.py
-    │       │   └── network_builder.py
-    │       ├── routing/
-    │       │   ├── astar.py
-    │       │   ├── dijkstra.py
-    │       │   ├── alternatives.py
-    │       │   └── route_features.py
-    │       ├── poles/
-    │       │   ├── placement.py
-    │       │   ├── span_optimizer.py
-    │       │   └── pole_selector.py
-    │       ├── row/
-    │       │   ├── corridor.py
-    │       │   ├── parcel_impact.py
-    │       │   └── compensation.py
-    │       ├── electrical/
-    │       │   ├── network_model.py
-    │       │   ├── load_flow.py
-    │       │   └── constraints.py
-    │       ├── ranking/
-    │       │   ├── deterministic_score.py
-    │       │   ├── ml_model.py
-    │       │   ├── explainability.py
-    │       │   └── scenario_weights.py
-    │       ├── models/
-    │       ├── config/
-    │       └── common/
-    ├── tests/
-    │   ├── unit/
-    │   ├── integration/
-    │   └── golden_data/
-    ├── notebooks/
-    ├── sample_data/
-    ├── pyproject.toml
+    ├── .dockerignore
+    ├── .env.example
+    ├── .gitignore
+    ├── AGENTS.md
+    ├── CONTEXT.md
     ├── Dockerfile
-    └── README.md
+    ├── README.md
+    ├── app/
+    │   ├── __init__.py
+    │   ├── algorithms/
+    │   │   ├── __init__.py
+    │   │   ├── cost_function.py
+    │   │   ├── electrical_analysis.py
+    │   │   └── route_graph.py
+    │   ├── api/
+    │   │   ├── __init__.py
+    │   │   └── v1/
+    │   │       ├── __init__.py
+    │   │       ├── endpoints/
+    │   │       │   ├── __init__.py
+    │   │       │   ├── health.py
+    │   │       │   └── optimise.py
+    │   │       └── router.py
+    │   ├── core/
+    │   │   ├── __init__.py
+    │   │   └── config.py
+    │   ├── main.py
+    │   ├── schemas/
+    │   │   ├── __init__.py
+    │   │   └── optimise.py
+    │   ├── services/
+    │   │   ├── __init__.py
+    │   │   └── optimisation_service.py
+    │   └── utils/
+    │       ├── __init__.py
+    │       └── coordinate_transform.py
+    ├── notebooks/
+    │   └── .gitkeep
+    ├── pyproject.toml
+    ├── requirements.lock.txt
+    ├── requirements.txt
+    └── tests/
+        ├── .gitkeep
+        ├── __init__.py
+        ├── test_health.py
+        └── test_optimise.py
 ```
 
 # Your two-week Python timeline
@@ -123,19 +116,19 @@ surge/
 
 ### Day 1 — Service foundation
 
-- Create the Python project and virtual environment.
+- [x] Create the Python project and virtual environment.
     
-- Configure FastAPI.
+- [x] Configure FastAPI.
     
-- Configure Ruff, mypy and pytest.
+- [x] Configure Ruff, mypy and pytest.
     
-- Add `/health` endpoint.
+- [ ] Add `/health` endpoint.
     
-- Define request and response schemas.
+- [ ] Define request and response schemas.
     
-- Prepare Dockerfile.
+- [ ] Prepare Dockerfile.
     
-- Create `AGENTS.md` instructions for Codex.
+- [x] Create `AGENTS.md` instructions for Codex.
     
 
 **Deliverable:** Running FastAPI service with tests.
@@ -297,46 +290,41 @@ The original problem statement specifically requires corridor-area calculation, 
 
 ```json
 {
-  "projectId": "SURGE-DEMO-001",
-  "sourceCrs": "EPSG:4326",
-  "workingCrs": "EPSG:32643",
-  "substation": {
-    "id": "SUB-01",
-    "latitude": 28.6139,
-    "longitude": 77.2090
+  "request_id": "req-987654",
+  "project_id": "proj-123456",
+  "scenario": "Balanced",
+  "wtg_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": { "type": "Point", "coordinates": [77.2302, 28.6301] },
+        "properties": { "id": "WTG-001", "capacity_mw": 3.0 }
+      }
+    ]
   },
-  "wtgs": [
-    {
-      "id": "WTG-01",
-      "latitude": 28.6301,
-      "longitude": 77.2302,
-      "capacityMw": 3.0
-    }
-  ],
-  "scenario": "BALANCED",
-  "numberOfCandidates": 3,
-  "feederCapacityMw": 15,
-  "rowWidthMeters": 15,
-  "minimumSpanMeters": 50,
-  "normalSpanMeters": 100,
-  "maximumSpanMeters": 180,
-  "maximumVoltageDropPercent": 5
+  "substation_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": { "type": "Point", "coordinates": [77.2090, 28.6139] },
+        "properties": { "id": "SUB-001" }
+      }
+    ]
+  },
+  "electrical_params": {
+    "feeder_capacity_mw": 20.0,
+    "max_voltage_drop_pct": 5.0,
+    "row_width_m": 18.0
+  }
 }
 ```
 
 ## Main endpoints
 
 ```http
-GET  /health
-POST /api/v1/datasets/validate
-POST /api/v1/wtgs/cluster
-POST /api/v1/cost-surfaces/generate
-POST /api/v1/topologies/generate
-POST /api/v1/routes/generate
-POST /api/v1/poles/place
-POST /api/v1/row/analyse
-POST /api/v1/electrical/validate
-POST /api/v1/routes/rank
+GET  /api/v1/health
 POST /api/v1/optimise
 ```
 

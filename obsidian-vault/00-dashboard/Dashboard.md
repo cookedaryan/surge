@@ -7,8 +7,11 @@ Welcome to the **SURGE Knowledge Vault**.
 - 🎯 [[Vision]] — Product vision and core capabilities
 - 📋 [[Functional Requirements]] — System requirements & user stories
 - 🏗️ [[System Overview]] — System architecture & tech stack
+- 🐍 [[Python Engine]] — Python FastAPI microservice architecture & layout
+- 🔌 [[FastAPI Microservice Specification]] — REST API endpoints & Pydantic 2 contracts
+- 🌐 [[Geospatial Integrity & CRS]] — WGS84 GeoJSON interchange vs Projected CRS calculations
 - ⚡ [[Routing]] — Optimization algorithms & feeder planning
-- 📜 [[ADR-001 Use FastAPI]] — Architecture Decision Records
+- 📜 [[ADR-005 Python Service Architecture and Schemas]] — Architecture Decision Records
 - 🔬 [[Paper - Multi Objective Routing]] — Research notes & literature
 
 ---
@@ -17,8 +20,8 @@ Welcome to the **SURGE Knowledge Vault**.
 
 | Domain | Status | Owner | Next Milestone |
 | --- | --- | --- | --- |
-| Architecture | Defined | Core Team | Phase 1 Setup |
-| Python Engine | In Progress | Algo Team | Routing MVP |
+| Architecture | Defined & Updated | Core Team | Phase 1 Setup |
+| Python Engine | Foundation Ready (9/10) | Algo Team | Algorithms Implementation |
 | Backend API | In Progress | Backend Team | Spring Boot Setup |
 | GIS Layer | Planning | GIS Team | PostGIS Schema |
 
@@ -28,3 +31,4 @@ Welcome to the **SURGE Knowledge Vault**.
 - [[Goals]]
 - [[Roadmap]]
 - [[MVP - Minimum Viable Product]]
+- [[Overview & Layout]]

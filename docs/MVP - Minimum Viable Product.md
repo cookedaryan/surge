@@ -1019,7 +1019,7 @@ Read first:
 - docs/acceptance-tests/route-014.md
 
 Allowed modules:
-- optimisation-python/src/row/
+- optimisation-python/app/row/
 - optimisation-python/tests/row/
 
 Do not modify:
@@ -1163,17 +1163,13 @@ ollama:
 │   ├── build.gradle
 │   └── Dockerfile
 ├── optimisation-python/
-│   ├── src/
+│   ├── app/
+│   │   ├── algorithms/
 │   │   ├── api/
-│   │   ├── gis/
-│   │   ├── clustering/
-│   │   ├── topology/
-│   │   ├── routing/
-│   │   ├── poles/
-│   │   ├── row/
-│   │   ├── electrical/
-│   │   ├── ranking/
-│   │   └── common/
+│   │   ├── core/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   └── utils/
 │   ├── tests/
 │   ├── notebooks/
 │   ├── pyproject.toml
