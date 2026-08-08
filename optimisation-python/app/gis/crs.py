@@ -1,7 +1,7 @@
 # Reference Journal: obsidian-vault/journal/2026-08-07.md
 import pyproj
-from shapely.geometry.base import BaseGeometry
 import shapely.ops
+from shapely.geometry.base import BaseGeometry
 
 WGS84_CRS = pyproj.CRS("EPSG:4326")
 
@@ -32,7 +32,9 @@ def get_transformer(src_crs: pyproj.CRS, dst_crs: pyproj.CRS) -> pyproj.Transfor
     """
     return pyproj.Transformer.from_crs(src_crs, dst_crs, always_xy=True)
 
-def transform_geometry(geometry: BaseGeometry, transformer: pyproj.Transformer) -> BaseGeometry:
+def transform_geometry(
+    geometry: BaseGeometry, transformer: pyproj.Transformer
+) -> BaseGeometry:
     """
     Transform a Shapely geometry using the given transformer.
     """

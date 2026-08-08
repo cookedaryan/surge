@@ -121,3 +121,12 @@ def test_multiple_substations() -> None:
     
     assert response.status_code == 422
     assert "exactly one Substation feature" in response.json()["detail"]
+
+def test_malformed_feature_collection() -> None:
+    payload = create_payload()
+    payload["wtg_geojson"]["features"] = {"not": "a list"}
+    
+    response = client.post("/api/v1/optimise", json=payload)
+    
+    assert response.status_code == 422
+    assert "must be a list" in response.json()["detail"]

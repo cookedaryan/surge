@@ -1,8 +1,9 @@
-import pytest
 from shapely.geometry import Point
+
 from app.gis.geojson import parse_geojson, serialize_geometry
 
-def test_parse_geojson_feature():
+
+def test_parse_geojson_feature() -> None:
     geojson_feature = {
         "type": "Feature",
         "properties": {"name": "Test"},
@@ -16,7 +17,7 @@ def test_parse_geojson_feature():
     assert geom.x == 1.0
     assert geom.y == 2.0
 
-def test_parse_geojson_geometry():
+def test_parse_geojson_geometry_only() -> None:
     geojson_geom = {
         "type": "Point",
         "coordinates": [1.0, 2.0]
@@ -26,7 +27,7 @@ def test_parse_geojson_geometry():
     assert geom.x == 1.0
     assert geom.y == 2.0
 
-def test_serialize_geometry():
+def test_serialize_geometry() -> None:
     geom = Point(1.0, 2.0)
     geojson_geom = serialize_geometry(geom)
     assert geojson_geom["type"] == "Point"

@@ -381,11 +381,11 @@ SURGE Full Quality Check
 # First tasks you should create
 
 - [x] SURGE-PY-001: Initialise FastAPI optimisation service
-- [x] SURGE-PY-002: Implement GIS geometry validation
-- [x] SURGE-PY-003: Wire preprocessing into /api/v1/optimise
-- [ ] SURGE-PY-004: Generate terrain slope raster
-- [ ] SURGE-PY-005: Generate weighted cost surface
-- [ ] SURGE-PY-006: Implement capacity-constrained WTG clustering
+- [x] SURGE-PY-002: Spatial core models (GeoJSON parsing, CRS projection).
+- [x] SURGE-PY-003: Tie `/api/v1/optimise` route to actual `ProjectSpatialData` preprocessing.
+- [x] SURGE-PY-004: Foundation: Base NetworkX topology and collector constraints.
+- [x] SURGE-PY-005: GIS integration: Routing geometry overlay.ce
+- [x] SURGE-PY-006: Implement capacity-constrained WTG clustering
 - [ ] SURGE-PY-007: Implement A* routing
 - [ ] SURGE-PY-008: Generate alternative candidate routes
 - [ ] SURGE-PY-009: Implement MST collector topology

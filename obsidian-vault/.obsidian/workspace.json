@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "journal/2026-08-08.md",
+                "file": "08-python-engine/Overview & Layout.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "2026-08-08"
+              "title": "Overview & Layout"
             }
           }
         ],
@@ -214,12 +214,17 @@
   },
   "active": "89226eb629610e5e",
   "lastOpenFiles": [
-    "journal/2026-08-07.md",
-    "journal/2026-08-04.md",
-    "walkthrough/2026-08-07-GIS-Foundation.md",
     "08-python-engine/Geospatial Integrity & CRS.md",
+    "01-vision/Vision.md",
+    "01-vision/Goals.md",
+    "01-vision/Roadmap.md",
+    "14-decisions/ADR-004 Lifecycle Cost Objective.md",
     "08-python-engine/PROJECT_CONTEXT.md",
     "PROJECT_CONTEXT.md",
+    "journal/2026-08-07.md",
+    "journal/2026-08-08.md",
+    "journal/2026-08-04.md",
+    "walkthrough/2026-08-07-GIS-Foundation.md",
     "05-optimization/Routing.md",
     "05-optimization/Cost Model.md",
     "05-optimization/ML Ranking.md",
@@ -237,11 +242,6 @@
     "15-research/Paper - GIS Optimization.md",
     "05-optimization/WTG Grouping.md",
     "15-research/Paper - Genetic Algorithms.md",
-    "14-decisions/ADR-005 Python Service Architecture and Schemas.md",
-    "daily/2026-08-04.md",
-    "04-architecture/System Overview.md",
-    "04-architecture/Authentication.md",
-    "04-architecture/Backend.md",
     "assets/ui",
     "assets/screenshots",
     "assets/gis",

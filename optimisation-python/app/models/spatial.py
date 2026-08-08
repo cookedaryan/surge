@@ -1,7 +1,9 @@
 # Reference Journal: obsidian-vault/journal/2026-08-07.md
 from dataclasses import dataclass
+
 from pyproj import CRS
 from shapely.geometry import Point
+
 
 @dataclass(frozen=True)
 class WindTurbine:

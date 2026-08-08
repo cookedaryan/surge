@@ -13,6 +13,33 @@ This file serves as the single source of truth regarding the implementation stat
 - Exposed REST endpoints for generated routes, cadastral parcels, and restricted areas.
 - Built the Engineering Report Service (`report-service`) to calculate network totals (length, pole count, capex cost, electrical losses, ROW compensation) and generate CSV BOMs.
 
+### 2026-08-08 — SURGE-PY-004 Built NetworkX Collector Graph Layer
+
+**Changed:**
+- Added: `app/algorithms/route_graph.py` with Euclidean undirected candidate topology generator.
+- Added: `tests/test_route_graph.py` covering metric translation, edge counting, uniqueness constraints, and CRS attribution.
+
+**Reason:**
+- The MST algorithms need a deterministically sized foundational topological graph space initialized with metric Cartesian distances before GIS penalty surfaces are overlaid.
+
+**Result:**
+- `build_project_graph` turns `ProjectSpatialData` into a `networkx.Graph` complete candidate network. All node logic, Euclidean weights, and typing validations are strictly tested.
+
+**Pending:**
+- Generate per-feeder Minimum Spanning Tree topology (SURGE-PY-006).
+
+### 2026-08-08 — SURGE-PY-005 Built Capacity-Constrained WTG Grouping
+
+**Changed:**
+- Added: `app/algorithms/wtg_grouping.py` using KMeans and greedy rebalancing.
+- Added: `tests/test_wtg_grouping.py` covering capacities, bins, determinism, spatial clustering.
+
+**Reason:**
+- The network requires WTGs to be split into capacity-constrained feeders before MST topologies are generated to avoid overloaded cables.
+
+**Result:**
+- `group_wtgs` cleanly calculates bin-packed spatial clusters that obey `feeder_capacity_mw` using deterministic KMeans clustering and strict limits.
+
 ### 2026-08-08 — SURGE-PY-003 Wired preprocessing into /api/v1/optimise
 
 **Changed:**
