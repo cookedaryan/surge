@@ -1,0 +1,376 @@
+package com.power.surge.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.power.surge.domain.GeneratedRoute;
+import com.power.surge.domain.JobStatus;
+import com.power.surge.domain.OptimizationJob;
+import com.power.surge.domain.Project;
+import com.power.surge.dto.route.CreateRouteRequest;
+import com.power.surge.dto.route.GeneratedRouteResponse;
+import com.power.surge.repository.GeneratedRouteRepository;
+import com.power.surge.repository.OptimizationJobRepository;
+import com.power.surge.repository.ProjectRepository;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.MultiPoint;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.PrecisionModel;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+@Transactional(readOnly = true)
+public class RouteService {
+
+    private static final Logger log = LoggerFactory.getLogger(RouteService.class);
+
+    private final ProjectRepository projectRepository;
+    private final OptimizationJobRepository jobRepository;
+    private final GeneratedRouteRepository routeRepository;
+    private final ObjectMapper objectMapper;
+    private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
+
+    public RouteService(
+            ProjectRepository projectRepository,
+            OptimizationJobRepository jobRepository,
+            GeneratedRouteRepository routeRepository,
+            ObjectMapper objectMapper
+    ) {
+        this.projectRepository = projectRepository;
+        this.jobRepository = jobRepository;
+        this.routeRepository = routeRepository;
+        this.objectMapper = objectMapper;
+    }
+
+    @Transactional
+    public List<GeneratedRouteResponse> saveRoutes(UUID jobId, List<CreateRouteRequest> requests) {
+        OptimizationJob job = getJobOrThrow(jobId);
+
+        List<GeneratedRoute> entities = new ArrayList<>();
+        int feederIndex = 1;
+
+        for (CreateRouteRequest req : requests) {
+            String feederName = req.feederName() != null && !req.feederName().isBlank()
+                    ? req.feederName()
+                    : String.format("Feeder-%02d", feederIndex++);
+
+            LineString lineString = createLineString(req.coordinates());
+            MultiPoint multiPoint = req.poleCoordinates() != null && !req.poleCoordinates().isEmpty()
+                    ? createMultiPoint(req.poleCoordinates())
+                    : null;
+
+            BigDecimal length = req.totalLengthMeters() != null
+                    ? req.totalLengthMeters()
+                    : BigDecimal.valueOf(calculateLineStringLengthMeters(lineString));
+
+            GeneratedRoute route = new GeneratedRoute(
+                    job,
+                    feederName,
+                    length,
+                    req.totalCost(),
+                    req.electricalLossesKw(),
+                    req.poleCount() != null ? req.poleCount() : 0,
+                    lineString,
+                    multiPoint
+            );
+            entities.add(route);
+        }
+
+        List<GeneratedRoute> saved = routeRepository.saveAll(entities);
+        return saved.stream().map(GeneratedRouteResponse::fromEntity).toList();
+    }
+
+    @Transactional
+    public List<GeneratedRouteResponse> saveRoutesFromGeoJson(UUID jobId, Map<String, Object> feederRoutesGeoJson) {
+        OptimizationJob job = getJobOrThrow(jobId);
+
+        if (feederRoutesGeoJson == null || feederRoutesGeoJson.isEmpty()) {
+            return List.of();
+        }
+
+        JsonNode root;
+        try {
+            root = objectMapper.valueToTree(feederRoutesGeoJson);
+        } catch (Exception e) {
+            log.error("Failed to parse GeoJSON for job {}", jobId, e);
+            throw new IllegalArgumentException("Invalid GeoJSON payload: " + e.getMessage(), e);
+        }
+
+        List<JsonNode> features = extractFeatures(root);
+        List<GeneratedRoute> entities = new ArrayList<>();
+        int feederIndex = 1;
+
+        for (JsonNode feature : features) {
+            JsonNode geometry = feature.get("geometry");
+            if (geometry == null || geometry.isNull()) {
+                continue;
+            }
+
+            String geomType = geometry.path("type").asText();
+            if (!"LineString".equalsIgnoreCase(geomType)) {
+                log.warn("Skipping non-LineString geometry type: {}", geomType);
+                continue;
+            }
+
+            JsonNode coordsNode = geometry.get("coordinates");
+            if (coordsNode == null || !coordsNode.isArray() || coordsNode.size() < 2) {
+                continue;
+            }
+
+            List<Coordinate> coordsList = new ArrayList<>();
+            for (JsonNode pt : coordsNode) {
+                if (pt.isArray() && pt.size() >= 2) {
+                    coordsList.add(new Coordinate(pt.get(0).asDouble(), pt.get(1).asDouble()));
+                }
+            }
+
+            if (coordsList.size() < 2) {
+                continue;
+            }
+
+            LineString lineString = geometryFactory.createLineString(coordsList.toArray(new Coordinate[0]));
+
+            JsonNode properties = feature.path("properties");
+            String feederName = extractString(properties, "feederName", "feeder_name", "name", "id");
+            if (feederName == null || feederName.isBlank()) {
+                feederName = String.format("Feeder-%02d", feederIndex++);
+            }
+
+            BigDecimal totalLength = extractBigDecimal(properties, "totalLengthMeters", "total_length_m", "length_m");
+            if (totalLength == null) {
+                totalLength = BigDecimal.valueOf(calculateLineStringLengthMeters(lineString));
+            }
+
+            BigDecimal totalCost = extractBigDecimal(properties, "totalCost", "total_cost", "cost");
+            BigDecimal lossesKw = extractBigDecimal(properties, "electricalLossesKw", "electrical_losses_kw", "losses_kw");
+            Integer poleCount = extractInteger(properties, "poleCount", "pole_count", "poles");
+
+            GeneratedRoute route = new GeneratedRoute(
+                    job,
+                    feederName,
+                    totalLength,
+                    totalCost,
+                    lossesKw,
+                    poleCount != null ? poleCount : 0,
+                    lineString,
+                    null
+            );
+            entities.add(route);
+        }
+
+        List<GeneratedRoute> saved = routeRepository.saveAll(entities);
+        return saved.stream().map(GeneratedRouteResponse::fromEntity).toList();
+    }
+
+    public List<GeneratedRouteResponse> getRoutesForJob(UUID projectId, UUID jobId) {
+        verifyProjectAndJob(projectId, jobId);
+        return routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)
+                .stream()
+                .map(GeneratedRouteResponse::fromEntity)
+                .toList();
+    }
+
+    public Map<String, Object> getRoutesGeoJsonForJob(UUID projectId, UUID jobId) {
+        verifyProjectAndJob(projectId, jobId);
+        List<GeneratedRoute> routes = routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId);
+        return toFeatureCollection(routes);
+    }
+
+    public List<GeneratedRouteResponse> getLatestRoutesForProject(UUID projectId) {
+        getProjectOrThrow(projectId);
+        List<OptimizationJob> jobs = jobRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId);
+        OptimizationJob completedJob = jobs.stream()
+                .filter(j -> j.getStatus() == JobStatus.COMPLETED)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No completed optimization jobs found for project: " + projectId));
+
+        return routeRepository.findAllByJobIdOrderByFeederNameAsc(completedJob.getId())
+                .stream()
+                .map(GeneratedRouteResponse::fromEntity)
+                .toList();
+    }
+
+    public Map<String, Object> getLatestRoutesGeoJsonForProject(UUID projectId) {
+        getProjectOrThrow(projectId);
+        List<OptimizationJob> jobs = jobRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId);
+        OptimizationJob completedJob = jobs.stream()
+                .filter(j -> j.getStatus() == JobStatus.COMPLETED)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No completed optimization jobs found for project: " + projectId));
+
+        List<GeneratedRoute> routes = routeRepository.findAllByJobIdOrderByFeederNameAsc(completedJob.getId());
+        return toFeatureCollection(routes);
+    }
+
+    private void verifyProjectAndJob(UUID projectId, UUID jobId) {
+        getProjectOrThrow(projectId);
+        OptimizationJob job = getJobOrThrow(jobId);
+        if (job.getProject().getId() != null && !job.getProject().getId().equals(projectId)) {
+            throw new IllegalArgumentException("Job " + jobId + " does not belong to project " + projectId);
+        }
+    }
+
+    private Project getProjectOrThrow(UUID projectId) {
+        return projectRepository.findById(projectId)
+                .orElseThrow(() -> new ProjectNotFoundException(projectId));
+    }
+
+    private OptimizationJob getJobOrThrow(UUID jobId) {
+        return jobRepository.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Optimization job not found: " + jobId));
+    }
+
+    private LineString createLineString(List<List<Double>> points) {
+        if (points == null || points.size() < 2) {
+            throw new IllegalArgumentException("LineString coordinates must contain at least 2 points.");
+        }
+        Coordinate[] coords = new Coordinate[points.size()];
+        for (int i = 0; i < points.size(); i++) {
+            List<Double> pt = points.get(i);
+            if (pt == null || pt.size() < 2) {
+                throw new IllegalArgumentException("Coordinate point must contain [longitude, latitude].");
+            }
+            coords[i] = new Coordinate(pt.get(0), pt.get(1));
+        }
+        return geometryFactory.createLineString(coords);
+    }
+
+    private MultiPoint createMultiPoint(List<List<Double>> points) {
+        Point[] pts = new Point[points.size()];
+        for (int i = 0; i < points.size(); i++) {
+            List<Double> pt = points.get(i);
+            pts[i] = geometryFactory.createPoint(new Coordinate(pt.get(0), pt.get(1)));
+        }
+        return geometryFactory.createMultiPoint(pts);
+    }
+
+    private Map<String, Object> toFeatureCollection(List<GeneratedRoute> routes) {
+        List<Map<String, Object>> features = new ArrayList<>();
+
+        for (GeneratedRoute route : routes) {
+            Map<String, Object> feature = new LinkedHashMap<>();
+            feature.put("type", "Feature");
+            feature.put("id", route.getId() != null ? route.getId().toString() : UUID.randomUUID().toString());
+
+            Map<String, Object> geometry = new LinkedHashMap<>();
+            geometry.put("type", "LineString");
+
+            List<List<Double>> coords = new ArrayList<>();
+            if (route.getRoutePath() != null) {
+                for (Coordinate c : route.getRoutePath().getCoordinates()) {
+                    coords.add(List.of(c.getX(), c.getY()));
+                }
+            }
+            geometry.put("coordinates", coords);
+            feature.put("geometry", geometry);
+
+            Map<String, Object> properties = new LinkedHashMap<>();
+            properties.put("feederName", route.getFeederName());
+            properties.put("totalLengthMeters", route.getTotalLengthMeters());
+            properties.put("totalCost", route.getTotalCost());
+            properties.put("electricalLossesKw", route.getElectricalLossesKw());
+            properties.put("poleCount", route.getPoleCount());
+            properties.put("jobId", route.getJob().getId());
+            feature.put("properties", properties);
+
+            features.add(feature);
+        }
+
+        Map<String, Object> featureCollection = new LinkedHashMap<>();
+        featureCollection.put("type", "FeatureCollection");
+        featureCollection.put("features", features);
+        return featureCollection;
+    }
+
+    private static double calculateLineStringLengthMeters(LineString lineString) {
+        // Approximate planar metric length (haversine calculation for geographic points)
+        double totalMeters = 0.0;
+        Coordinate[] coords = lineString.getCoordinates();
+        for (int i = 0; i < coords.length - 1; i++) {
+            totalMeters += haversineDistanceMeters(coords[i].getY(), coords[i].getX(), coords[i + 1].getY(), coords[i + 1].getX());
+        }
+        return totalMeters;
+    }
+
+    private static double haversineDistanceMeters(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371000; // Earth radius in meters
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+    }
+
+    private static List<JsonNode> extractFeatures(JsonNode root) {
+        String type = root.path("type").asText();
+        List<JsonNode> list = new ArrayList<>();
+        if ("FeatureCollection".equalsIgnoreCase(type)) {
+            JsonNode features = root.get("features");
+            if (features != null && features.isArray()) {
+                features.forEach(list::add);
+            }
+        } else if ("Feature".equalsIgnoreCase(type)) {
+            list.add(root);
+        }
+        return list;
+    }
+
+    private static String extractString(JsonNode node, String... keys) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        for (String key : keys) {
+            JsonNode val = node.get(key);
+            if (val != null && !val.isNull() && !val.asText().isBlank()) {
+                return val.asText().trim();
+            }
+        }
+        return null;
+    }
+
+    private static BigDecimal extractBigDecimal(JsonNode node, String... keys) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        for (String key : keys) {
+            JsonNode val = node.get(key);
+            if (val != null && !val.isNull()) {
+                if (val.isNumber()) {
+                    return val.decimalValue();
+                } else if (val.isTextual() && !val.asText().isBlank()) {
+                    try {
+                        return new BigDecimal(val.asText().trim());
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    private static Integer extractInteger(JsonNode node, String... keys) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return null;
+        }
+        for (String key : keys) {
+            JsonNode val = node.get(key);
+            if (val != null && !val.isNull() && val.isInt()) {
+                return val.asInt();
+            }
+        }
+        return null;
+    }
+}
