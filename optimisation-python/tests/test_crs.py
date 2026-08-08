@@ -1,9 +1,9 @@
-import pytest
-import pyproj
 from shapely.geometry import Point
-from app.gis.crs import WGS84_CRS, get_utm_crs, get_transformer, transform_geometry
 
-def test_get_utm_crs():
+from app.gis.crs import WGS84_CRS, get_transformer, get_utm_crs, transform_geometry
+
+
+def test_get_utm_crs() -> None:
     # London approx (lon: 0.1, lat: 51.5) -> UTM zone 31N (EPSG:32631)
     crs = get_utm_crs(0.1, 51.5)
     assert crs.to_epsg() == 32631
@@ -12,7 +12,7 @@ def test_get_utm_crs():
     crs = get_utm_crs(-74.0, 40.7)
     assert crs.to_epsg() == 32618
 
-def test_transform_geometry():
+def test_transform_geometry() -> None:
     # Point in London
     pt_wgs = Point(0.1276, 51.5072)
     utm_crs = get_utm_crs(pt_wgs.x, pt_wgs.y)

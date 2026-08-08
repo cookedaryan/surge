@@ -1,4 +1,4 @@
-from .spatial import WindTurbine, Substation, ProjectSpatialData
+from .spatial import ProjectSpatialData, Substation, WindTurbine
 
 __all__ = [
     "WindTurbine",

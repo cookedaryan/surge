@@ -2,6 +2,7 @@
 from shapely.geometry.base import BaseGeometry
 from shapely.validation import make_valid
 
+
 def validate_geometry(geom: BaseGeometry) -> BaseGeometry:
     """
     Validates a shapely geometry. If it's invalid (e.g., self-intersecting polygon),
