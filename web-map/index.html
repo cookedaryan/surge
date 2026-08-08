@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SURGE — Smart Utility Routing & Grid Evacuation</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- App Styling -->
+  <link rel="stylesheet" href="/src/index.css" />
+</head>
+<body class="dark-theme">
+
+  <div id="app-root">
+    <!-- Header Navbar -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo">
+          <i class="fa-solid fa-bolt-lightning"></i>
+        </div>
+        <div class="brand-text">
+          <span class="brand-name">SURGE</span>
+          <span class="brand-subtitle">Smart Utility Routing & Grid Evacuation</span>
+        </div>
+      </div>
+
+      <div class="header-project-selector">
+        <label for="projectSelect"><i class="fa-solid fa-folder-tree"></i> Project:</label>
+        <select id="projectSelect" class="styled-select">
+          <option value="">Loading Projects...</option>
+        </select>
+        <button id="btnNewProject" class="btn btn-secondary btn-sm">
+          <i class="fa-solid fa-plus"></i> New Project
+        </button>
+      </div>
+
+      <div class="header-status">
+        <div class="status-pill status-online">
+          <span class="status-dot"></span>
+          <span id="backendStatusText">Backend Ready</span>
+        </div>
+        <div class="status-pill status-python">
+          <i class="fa-brands fa-python"></i>
+          <span>Python Engine Connected</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace Layout -->
+    <main class="app-body">
+      <!-- Left Control Panel Sidebar -->
+      <aside class="sidebar">
+        <!-- Sidebar Navigation Tabs -->
+        <nav class="sidebar-tabs">
+          <button class="tab-btn active" data-tab="tab-assets">
+            <i class="fa-solid fa-layer-group"></i> Assets & GIS
+          </button>
+          <button class="tab-btn" data-tab="tab-optimise">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Optimization
+          </button>
+          <button class="tab-btn" data-tab="tab-layers">
+            <i class="fa-solid fa-sliders"></i> Layers
+          </button>
+          <button class="tab-btn" data-tab="tab-reports">
+            <i class="fa-solid fa-file-invoice-dollar"></i> BOM Report
+          </button>
+        </nav>
+
+        <!-- Tab 1: Assets & GeoJSON Ingestion -->
+        <section id="tab-assets" class="tab-content active">
+          <div class="card">
+            <h3><i class="fa-solid fa-cloud-arrow-up"></i> GeoJSON Ingestion</h3>
+            <p class="card-desc">Drag & drop GeoJSON feature collections for WTGs, Substations, Restricted Areas, or Parcels.</p>
+            
+            <div id="dropzone" class="dropzone">
+              <i class="fa-solid fa-file-geojson dropzone-icon"></i>
+              <p>Drag & Drop <strong>.geojson</strong> files here</p>
+              <span>or click to browse</span>
+              <input type="file" id="fileInput" accept=".json,.geojson" hidden />
+            </div>
+
+            <div class="asset-type-selector">
+              <label>Import Asset Type:</label>
+              <div class="radio-group">
+                <label><input type="radio" name="assetImportType" value="auto" checked /> Auto-Detect</label>
+                <label><input type="radio" name="assetImportType" value="wtg" /> WTGs</label>
+                <label><input type="radio" name="assetImportType" value="substation" /> Substation</label>
+                <label><input type="radio" name="assetImportType" value="parcel" /> Parcels</label>
+                <label><input type="radio" name="assetImportType" value="restricted" /> Restricted</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3><i class="fa-solid fa-chart-pie"></i> Project Asset Summary</h3>
+            <div class="metrics-grid">
+              <div class="metric-box">
+                <span class="metric-val" id="countWtgs">0</span>
+                <span class="metric-lbl"><i class="fa-solid fa-fan"></i> WTGs</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-val" id="countSubstations">0</span>
+                <span class="metric-lbl"><i class="fa-solid fa-building-zap"></i> Substations</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-val" id="countParcels">0</span>
+                <span class="metric-lbl"><i class="fa-solid fa-draw-polygon"></i> Parcels</span>
+              </div>
+              <div class="metric-box">
+                <span class="metric-val" id="countRestricted">0</span>
+                <span class="metric-lbl"><i class="fa-solid fa-ban"></i> Restricted</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tab 2: Optimization Parameters -->
+        <section id="tab-optimise" class="tab-content">
+          <div class="card">
+            <h3><i class="fa-solid fa-gears"></i> Scenario & Algorithm Parameters</h3>
+            
+            <div class="form-group">
+              <label for="optimScenario">Optimization Scenario:</label>
+              <select id="optimScenario" class="styled-select">
+                <option value="Balanced" selected>Balanced (Cost + Environment)</option>
+                <option value="Minimum Cost">Minimum Cost (CAPEX Priority)</option>
+                <option value="Minimum Land Impact">Minimum Land Impact (ROW Priority)</option>
+                <option value="Minimum Environmental Impact">Minimum Environmental Impact</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="feederCapacity">Feeder Capacity (MW): <span id="valFeederCapacity" class="val-badge">20.0</span></label>
+              <input type="range" id="feederCapacity" min="5" max="50" step="1" value="20" class="slider" />
+            </div>
+
+            <div class="form-group">
+              <label for="maxSpan">Max Pole Span (Meters): <span id="valMaxSpan" class="val-badge">150</span></label>
+              <input type="range" id="maxSpan" min="50" max="300" step="10" value="150" class="slider" />
+            </div>
+
+            <div class="form-group">
+              <label for="voltageKv">System Voltage (kV): <span id="valVoltageKv" class="val-badge">33.0</span></label>
+              <input type="range" id="voltageKv" min="11" max="132" step="11" value="33" class="slider" />
+            </div>
+
+            <button id="btnRunOptimization" class="btn btn-primary btn-block">
+              <i class="fa-solid fa-bolt"></i> Run Optimization Pipeline
+            </button>
+          </div>
+
+          <div id="jobStatusBox" class="card job-status-box hidden">
+            <h4><i class="fa-solid fa-spinner fa-spin"></i> Job Progress</h4>
+            <div class="progress-bar-bg">
+              <div id="jobProgressBar" class="progress-bar-fill"></div>
+            </div>
+            <p id="jobStatusMessage">Initializing solver...</p>
+          </div>
+        </section>
+
+        <!-- Tab 3: Layer Visibility Controls -->
+        <section id="tab-layers" class="tab-content">
+          <div class="card">
+            <h3><i class="fa-solid fa-eye"></i> Map Layer Controls</h3>
+            
+            <div class="layer-toggle-list">
+              <label class="toggle-item">
+                <input type="checkbox" id="chkShowWtgs" checked />
+                <span class="toggle-switch"></span>
+                <span class="toggle-label"><i class="fa-solid fa-fan text-blue"></i> Wind Turbines (WTGs)</span>
+              </label>
+
+              <label class="toggle-item">
+                <input type="checkbox" id="chkShowSubstations" checked />
+                <span class="toggle-switch"></span>
+                <span class="toggle-label"><i class="fa-solid fa-building-zap text-yellow"></i> Substations</span>
+              </label>
+
+              <label class="toggle-item">
+                <input type="checkbox" id="chkShowRoutes" checked />
+                <span class="toggle-switch"></span>
+                <span class="toggle-label"><i class="fa-solid fa-route text-green"></i> Feeder Routes</span>
+              </label>
+
+              <label class="toggle-item">
+                <input type="checkbox" id="chkShowParcels" checked />
+                <span class="toggle-switch"></span>
+                <span class="toggle-label"><i class="fa-solid fa-draw-polygon text-purple"></i> Cadastral Parcels</span>
+              </label>
+
+              <label class="toggle-item">
+                <input type="checkbox" id="chkShowRestricted" checked />
+                <span class="toggle-switch"></span>
+                <span class="toggle-label"><i class="fa-solid fa-ban text-red"></i> Restricted Zones</span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Tab 4: BOM & Engineering Report -->
+        <section id="tab-reports" class="tab-content">
+          <div class="card">
+            <h3><i class="fa-solid fa-calculator"></i> Bill of Materials (BOM)</h3>
+            <p class="card-desc">Real-time engineering totals & feeder schedules.</p>
+
+            <div class="bom-summary-table">
+              <div class="bom-row">
+                <span>Total Network Length:</span>
+                <strong id="bomTotalLength">0.00 km</strong>
+              </div>
+              <div class="bom-row">
+                <span>Total Transmission Poles:</span>
+                <strong id="bomTotalPoles">0</strong>
+              </div>
+              <div class="bom-row">
+                <span>Estimated Capex Cost:</span>
+                <strong id="bomTotalCost">$0.00</strong>
+              </div>
+              <div class="bom-row">
+                <span>Electrical Losses:</span>
+                <strong id="bomTotalLosses">0.00 kW</strong>
+              </div>
+            </div>
+
+            <button id="btnDownloadCsv" class="btn btn-outline btn-block mt-3">
+              <i class="fa-solid fa-file-csv"></i> Export BOM CSV Report
+            </button>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Center Map Container -->
+      <div class="map-container">
+        <div id="map"></div>
+
+        <!-- Floating Map Legend -->
+        <div class="map-legend card glass">
+          <h4><i class="fa-solid fa-map-location-dot"></i> GIS Legend</h4>
+          <div class="legend-item"><span class="legend-icon wtg-icon"></span> Wind Turbine Generator (WTG)</div>
+          <div class="legend-item"><span class="legend-icon sub-icon"></span> Substation</div>
+          <div class="legend-item"><span class="legend-icon route-icon"></span> Optimized Feeder Route</div>
+          <div class="legend-item"><span class="legend-icon parcel-icon"></span> Cadastral Land Parcel</div>
+          <div class="legend-item"><span class="legend-icon restricted-icon"></span> Environmental Restricted Zone</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- New Project Modal -->
+  <div id="modalNewProject" class="modal-overlay hidden">
+    <div class="modal-content card glass">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-folder-plus"></i> Create New Wind Farm Project</h3>
+        <button id="btnCloseModal" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="newProjectName">Project Name:</label>
+          <input type="text" id="newProjectName" class="styled-input" placeholder="e.g. Gujarat Kutch Wind Project" />
+        </div>
+        <div class="form-group">
+          <label for="newProjectDesc">Description:</label>
+          <input type="text" id="newProjectDesc" class="styled-input" placeholder="e.g. 100 MW Collector Network" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnCancelModal" class="btn btn-secondary">Cancel</button>
+        <button id="btnSaveProject" class="btn btn-primary">Create Project</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Application Logic -->
+  <script type="module" src="/src/app.js"></script>
+</body>
+</html>
