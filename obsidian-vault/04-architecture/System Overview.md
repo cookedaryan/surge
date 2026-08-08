@@ -32,10 +32,19 @@ SURGE uses a microservices architecture separating system orchestration and API 
 
 ## Microservice Responsibility Split
 
-- **Java Spring Boot Backend**: Primary system backend. Manages user authentication, project creation, database persistence, job dispatch, PDF/Excel engineering report generation, and PostGIS storage.
-- **Python FastAPI Microservice**: Stateless computation engine. Invoked by Spring Boot to perform GIS spatial calculations, route optimisation algorithms, electrical load-flow analysis, ML inference, and GeoJSON payload generation.
-- **PostGIS Database**: Relational and geospatial database serving spatial layers, raster DEMs, and project entities.
-- **Web GIS Client**: Interactive frontend for uploading GIS layers, configuring optimization parameters, running scenarios, and visualizing route candidates.
+- **Java Spring Boot Backend (`backend-java`)**: Primary system orchestrator. Manages user authentication, project workspace lifecycle, PostGIS database persistence, job dispatch, engineering report generation (BOM & CSV), and IPC communication with the Python engine.
+- **Python FastAPI Microservice (`optimisation-python`)**: Stateless computation engine. Invoked by Spring Boot to perform GIS spatial calculations, feeder clustering, A* pathfinding, Pandapower electrical load flow analysis, and GeoJSON result generation.
+- **PostGIS Database (`db`)**: Relational and geospatial PostgreSQL 16 + PostGIS 3.4 database serving spatial tables (`wtg_locations`, `substations`, `cadastral_parcels`, `restricted_areas`, `generated_routes`).
+- **Web GIS Client (`web-map`)**: Interactive Vite + Leaflet web dashboard for drag-and-drop GeoJSON ingestion, live GIS layer rendering, parameter tweaking, and report download export.
+
+---
+
+## Containerized Local Stack
+
+The system is fully containerized using Docker Compose (`docker-compose.yml`):
+- `db`: `postgis/postgis:16-3.4` (Port 5432)
+- `backend`: Java 21 Spring Boot service (Port 8080)
+- `optimizer`: Python FastAPI microservice (Port 8000)
 
 ---
 
