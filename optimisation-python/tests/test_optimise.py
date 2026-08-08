@@ -78,3 +78,46 @@ def test_negative_feeder_capacity() -> None:
     )
 
     assert response.status_code == 422
+
+def test_empty_wtg_collection() -> None:
+    payload = create_payload()
+    payload["wtg_geojson"]["features"] = []
+    
+    response = client.post("/api/v1/optimise", json=payload)
+    
+    assert response.status_code == 422
+    assert "WTG FeatureCollection is empty" in response.json()["detail"]
+
+def test_invalid_wtg_geometry() -> None:
+    payload = create_payload()
+    payload["wtg_geojson"]["features"][0]["geometry"] = {
+        "type": "Polygon", 
+        "coordinates": [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]]
+    }
+    
+    response = client.post("/api/v1/optimise", json=payload)
+    
+    assert response.status_code == 422
+    assert "WTG geometry must be Point" in response.json()["detail"]
+
+def test_missing_substation() -> None:
+    payload = create_payload()
+    payload["substation_geojson"]["features"] = []
+    
+    response = client.post("/api/v1/optimise", json=payload)
+    
+    assert response.status_code == 422
+    assert "Substation GeoJSON is empty or missing" in response.json()["detail"]
+
+def test_multiple_substations() -> None:
+    payload = create_payload()
+    payload["substation_geojson"]["features"].append({
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [0.0, 50.2]},
+        "properties": {"id": "SUB2"}
+    })
+    
+    response = client.post("/api/v1/optimise", json=payload)
+    
+    assert response.status_code == 422
+    assert "exactly one Substation feature" in response.json()["detail"]

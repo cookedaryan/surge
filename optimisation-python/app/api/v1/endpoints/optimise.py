@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.schemas.optimise import (
     OptimisationRequest,
@@ -18,4 +18,7 @@ optimisation_service = OptimisationService()
 def run_optimisation(
     payload: OptimisationRequest,
 ) -> OptimisationResponse:
-    return optimisation_service.optimise(payload)
+    try:
+        return optimisation_service.optimise(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))

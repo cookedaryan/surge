@@ -380,22 +380,20 @@ SURGE Full Quality Check
 
 # First tasks you should create
 
-```text
-SURGE-PY-001: Initialise FastAPI optimisation service
-SURGE-PY-002: Implement GIS geometry validation
-SURGE-PY-003: Implement CRS standardisation
-SURGE-PY-004: Generate terrain slope raster
-SURGE-PY-005: Generate weighted cost surface
-SURGE-PY-006: Implement capacity-constrained WTG clustering
-SURGE-PY-007: Implement A* routing
-SURGE-PY-008: Generate alternative candidate routes
-SURGE-PY-009: Implement MST collector topology
-SURGE-PY-010: Implement pole placement
-SURGE-PY-011: Implement variable-span optimisation
-SURGE-PY-012: Generate ROW corridor
-SURGE-PY-013: Calculate parcel impact and compensation
-SURGE-PY-014: Implement electrical load-flow validation
-SURGE-PY-015: Implement route scoring and ML ranking
-SURGE-PY-016: Integrate Python service with Java backend
-```
+- [x] SURGE-PY-001: Initialise FastAPI optimisation service
+- [x] SURGE-PY-002: Implement GIS geometry validation
+- [x] SURGE-PY-003: Wire preprocessing into /api/v1/optimise
+- [ ] SURGE-PY-004: Generate terrain slope raster
+- [ ] SURGE-PY-005: Generate weighted cost surface
+- [ ] SURGE-PY-006: Implement capacity-constrained WTG clustering
+- [ ] SURGE-PY-007: Implement A* routing
+- [ ] SURGE-PY-008: Generate alternative candidate routes
+- [ ] SURGE-PY-009: Implement MST collector topology
+- [ ] SURGE-PY-010: Implement pole placement
+- [ ] SURGE-PY-011: Implement variable-span optimisation
+- [ ] SURGE-PY-012: Generate ROW corridor
+- [ ] SURGE-PY-013: Calculate parcel impact and compensation
+- [ ] SURGE-PY-014: Implement electrical load-flow validation
+- [ ] SURGE-PY-015: Implement route scoring and ML ranking
+- [ ] SURGE-PY-016: Integrate Python service with Java backend
 
