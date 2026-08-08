@@ -1,14 +1,27 @@
-# ADR-004: Lifecycle Cost as Primary Objective Function
+# ADR-004: Lifecycle Cost as the Primary Financial Objective
 
-* Status: **Accepted**
-* Date: 2026-08-04
+- **Status**: Accepted direction; implementation deferred
+- **Date**: 2026-08-04
 
 ## Context
-Traditional routing algorithms optimize solely for geometric distance. However, in wind farm grid evacuation, line length is only one component of cost; terrain slope foundations, land acquisition ROW, and lifetime $I^2R$ electrical losses heavily influence total project financial viability.
+
+Shortest routes can require expensive foundations, affect costly land, or create higher electrical losses. A decision based on distance alone can therefore be worse over the asset lifetime.
 
 ## Decision
-Adopt **Total Project Lifecycle Cost** (CAPEX + Land ROW + 20-Year Discounted OPEX Losses) as the primary optimization cost metric rather than shortest physical path.
+
+Use total lifecycle cost—construction, land/ROW, and discounted operating losses—as the primary financial metric. Preserve environmental and safety requirements as explicit constraints or separately visible metrics rather than hiding them inside an unexplained currency value.
+
+## Why This Decision
+
+Lifecycle cost aligns route comparison with project economics while keeping the components inspectable. It also allows scenario views to change weights without losing the underlying engineering measurements.
 
 ## Consequences
-- **Positive**: Directly aligns route optimization with financial ROI and land acquisition reality.
-- **Negative**: Requires financial parameters (discount rate, energy cost per kWh, parcel compensation rates) as inputs.
+
+- **Positive**: Alternatives can be compared on a common financial horizon.
+- **Positive**: Cost breakdowns support engineering review and explainability.
+- **Negative**: Results depend on price date, currency, discount rate, operating profile, energy price, catalogue versions, and parcel rates.
+- **Negative**: Sensitivity analysis is required because long-term assumptions are uncertain.
+
+## Implementation Status
+
+The Python cost module is a placeholder. Java can sum cost values already stored on route records, but it does not calculate lifecycle cost.

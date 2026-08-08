@@ -1,28 +1,36 @@
-# ADR-005: Python Microservice Architecture, Service Layer, and Pydantic 2 Schemas
+# ADR-005: Layer the Python Service and Use Pydantic 2 Contracts
 
-- **Status**: Approved
+- **Status**: Accepted and implemented
 - **Date**: 2026-08-06
 - **Deciders**: SURGE Engineering Team
 
 ## Context
-The SURGE Python service handles computationally heavy tasks: GIS processing, route optimization ($A^*$/Dijkstra), electrical load-flow analysis, and ML inference. The original initial draft contained missing router links, older Pydantic 1 nested `Config` classes, mutable dictionary defaults in response models (`metrics: Dict[str, Any] = {}`), unvalidated numeric inputs, and endpoint logic mixed directly in endpoint definitions.
+
+Putting parsing, validation, geometry work, and algorithms directly inside a FastAPI endpoint would couple solver code to HTTP dictionaries and make it difficult to test independently. Mutable defaults and weakly typed response maps would also make the contract fragile.
 
 ## Decision
-1. **Clarified System Boundary**: FastAPI acts strictly as a specialized microservice invoked by Java Spring Boot. Java retains authentication, project workflows, database management, and file storage.
-2. **Explicit Application Structure (`app/`)**: Standardized Python package under `app/`:
-   - `app/main.py`: Application factory using `create_application()` with environment-aware OpenAPI docs.
-   - `app/api/v1/router.py`: `APIRouter` aggregating health and optimise endpoints.
-   - `app/services/optimisation_service.py`: Service layer encapsulating pipeline execution.
-   - `app/algorithms/`: Decoupled solvers (`route_graph.py`, `cost_function.py`, `electrical_analysis.py`).
-   - `app/utils/`: Utility functions (`coordinate_transform.py`).
-3. **Pydantic 2 Models & Validation**:
-   - `SettingsConfigDict` in `app/core/config.py`.
-   - `request_id` correlation ID field across Java Spring Boot and Python.
-   - Numeric constraints (`gt=0`, `le=100`, `ge=0`) on `ElectricalParams` and `OptimisationMetrics`.
-   - Replaced mutable defaults with `Field(default_factory=OptimisationMetrics)`.
-4. **Geospatial Coordinate Standard**: RFC 7946 WGS84 for GeoJSON interchange; projected meter-based CRS for internal spatial math.
-5. **Environment Reproducibility**: Locked dependencies via `requirements.lock.txt` and simplified non-root `python:3.11-slim` Docker container.
+
+Separate the Python service into API, schema, service, GIS, domain-model, algorithm, configuration, and utility layers.
+
+- Pydantic 2 models define external JSON contracts and numeric constraints.
+- Frozen dataclasses hold internal projected spatial state.
+- Endpoints delegate orchestration to `OptimisationService`.
+- Algorithm modules accept domain objects rather than GeoJSON dictionaries.
+- `request_id` correlates a Java job call with its Python response.
+- Dependencies are pinned for repeatable local/container environments.
+
+## Why Two Model Families?
+
+Pydantic is suited to untrusted external data and JSON serialization. Frozen dataclasses are small, explicit internal values that can carry Shapely and pyproj objects without implying they are API schemas. The translation boundary makes units and validation visible before algorithms run.
 
 ## Consequences
-- **Positive**: Clean separation of concerns, robust input validation (422 responses on invalid scenarios/params), end-to-end request tracing via `request_id`, and repeatable builds.
-- **Negative**: Requires maintaining `requirements.lock.txt` alongside `requirements.txt`.
+
+- **Positive**: Each layer has focused tests and limited reasons to change.
+- **Positive**: Algorithms are independent of FastAPI and transport naming.
+- **Positive**: External validation errors are consistent HTTP 422 responses.
+- **Negative**: Field additions may require coordinated Pydantic, Java DTO, service, and documentation changes.
+- **Negative**: Some validation currently occurs after Pydantic, so error formats differ between schema and domain failures.
+
+## Implementation Notes
+
+The current algorithm package also contains `wtg_grouping.py`; GIS code lives under `app/gis`, and internal spatial dataclasses live under `app/models`. The response exposes feeder count but not the full internal group assignments.

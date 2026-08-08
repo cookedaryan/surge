@@ -1,48 +1,82 @@
 # Backend Architecture (Java Spring Boot)
 
-Source Code:
-`backend-java/src/`
+## Role
 
-## Tech Stack
-- **Framework**: Java 21, Spring Boot 3.3.x
-- **Database Access**: Spring Data JPA / Hibernate Spatial
-- **Security**: Spring Security with JWT tokens
-- **Report Generation**: JasperReports / Apache PDFBox
+`backend-java` is the public application API and system-of-record boundary. It owns validation, transactional persistence, project workflows, optimization-job state, route storage, and report aggregation. Numerical spatial optimization is delegated to the Python service.
 
-## Core Modules
-1. `project-service`: Manages wind farm project metadata, WTG catalog, and substation inputs.
-2. `job-orchestrator`: Handles async dispatch of optimization jobs to the Python FastAPI engine.
-3. `report-service`: Generates downloadable engineering BOM and line schedule reports.
+## Technology
 
-## Current Foundation (2026-08-08)
+- Java 21 and Spring Boot 3.3.2
+- Spring MVC for REST controllers
+- Spring Data JPA and Hibernate Spatial for persistence
+- PostgreSQL/PostGIS for durable spatial data
+- Flyway for ordered schema migrations
+- Spring `RestClient` for Java-to-Python HTTP calls
+- Maven Wrapper for reproducible build commands
 
-- **Flyway Database Migrations (V1 & V2)**:
-  - `V1__create_project_workspace.sql`: Provisions PostGIS extension, `projects`, `wtg_locations`, and `substations`.
-  - `V2__create_optimization_and_gis_tables.sql`: Provisions `cadastral_parcels`, `restricted_areas`, `optimization_jobs`, and `generated_routes` with GIST spatial indexes and SRID 4326 checks.
-- **Domain Persistence & JTS Geometries**:
-  - JPA entities map all workspace & spatial layers (`Project`, `WtgLocation`, `Substation`, `CadastralParcel`, `RestrictedArea`, `OptimizationJob`, `GeneratedRoute`).
-- **Implemented REST APIs**:
-  1. `ProjectController` (`/api/v1/projects`): Workspace creation, listing, retrieval, update.
-  2. `ProjectAssetController` (`/api/v1/projects/{projectId}/assets`): RFC 7946 GeoJSON `FeatureCollection` ingestion & WTG/Substation asset retrieval.
-  3. `OptimizationJobController` (`/api/v1/projects/{projectId}/jobs`): Optimization job dispatch & status tracking.
-  4. `GeneratedRouteController` (`/api/v1/projects/{projectId}/jobs/{jobId}/routes`): Route persistence, LineString/MultiPoint geometry transformation, Haversine distance verification, and GeoJSON export.
-  5. `CadastralParcelController` & `RestrictedAreaController` (`/parcels`, `/restricted-areas`): Spatial polygon ingestion & retrieval.
-  6. `ReportController` (`/reports/bom`, `/csv`): Engineering Bill of Materials calculation & downloadable CSV exporter.
-- **IPC Client**:
-  - `PythonOptimizationClient` built with Spring 6.1 `RestClient` targeting Python FastAPI microservice.
-- **CORS Support**:
-  - `WebConfig` configured to allow Web GIS frontend origins.
+Spring Security, JWT, WebSockets/SSE, PDFBox, and JasperReports are not currently dependencies.
 
-## Next Backend Tasks
+## Layer Responsibilities
 
-1. **Async Job Orchestration**: Real-time progress updates via WebSockets or Server-Sent Events (SSE) for long-running optimization jobs.
-2. **Multi-Scenario Analytics**: Endpoints to compare candidate routes across scenarios (cost, power loss, land ROW impact).
-3. **Security Integration**: Spring Security JWT authentication & RBAC.
-4. **PDF Report Generation**: Apache PDFBox / JasperReports engine integration for formal PDF engineering reports.
+### Controllers
 
----
+Controllers translate HTTP requests and responses. They should remain thin and delegate business rules to services.
+
+- `ProjectController`: create, list, retrieve, and update projects.
+- `ProjectAssetController`: import and retrieve WTGs and substations, including GeoJSON.
+- `CadastralParcelController`: import and retrieve parcel polygons.
+- `RestrictedAreaController`: import and retrieve exclusion polygons.
+- `OptimizationJobController`: create and query optimization jobs.
+- `GeneratedRouteController`: store and retrieve route records and GeoJSON.
+- `ReportController`: return BOM summaries and CSV exports.
+- `ApiExceptionHandler`: converts expected service errors into API responses.
+
+### Services
+
+Services contain workflow logic and transaction boundaries. For example, `OptimizationJobService` loads project assets, creates a job, calls Python, records returned metrics, and marks the job completed or failed.
+
+### Repositories
+
+Spring Data repositories isolate database access. Repository methods are scoped by project or job where required, while services verify that nested resources belong to the requested project.
+
+### Domain entities and DTOs
+
+JPA entities represent persisted state. DTOs form the external API contract so persistence objects are not serialized directly. JTS geometries represent Points, Polygons, LineStrings, and MultiPoints in Java.
+
+## Optimization Job Lifecycle
+
+1. `POST /api/v1/projects/{projectId}/jobs` validates that the project has WTGs and at least one substation.
+2. A database job is saved as `PENDING`, then marked `RUNNING`.
+3. Java serializes stored WTG/substation records into WGS84 GeoJSON.
+4. `PythonOptimizationClient` posts to `/api/v1/optimise`.
+5. Returned metrics are stored as JSON. Non-empty route features are passed to `RouteService`.
+6. The job becomes `COMPLETED` or `FAILED`.
+
+This flow is synchronous despite the persistent job model: the create-job HTTP request waits for Python. A later asynchronous design should move execution to a queue or worker and expose polling or server-pushed progress.
+
+## Reporting Behavior
+
+`ReportService` aggregates length, pole count, cost, and loss fields already stored on `GeneratedRoute` records. CSV generation formats the same aggregation.
+
+Current parcel compensation is provisional. It estimates the area of each entire parcel using a degrees-to-meters approximation; it does not intersect the route ROW corridor with parcels. It must not be treated as survey-grade compensation output.
+
+## Failure Handling
+
+Python or serialization exceptions are logged and converted into a failed job with an error message. The Java endpoint still returns the stored job response, so callers must inspect job status rather than assuming an HTTP success means optimization succeeded.
+
+## Current Limitations
+
+- No authentication or authorization
+- No asynchronous worker or real-time progress
+- Python currently returns empty route GeoJSON
+- No route-derived ROW calculation
+- No PDF engineering report
+- CORS is configured for development frontend origins
 
 ## Related Notes
+
 - [[System Overview]]
 - [[Python Engine]]
 - [[Database]]
+- [[Authentication]]
+- [[FastAPI Endpoints|FastAPI Microservice Specification]]

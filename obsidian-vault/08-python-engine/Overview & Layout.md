@@ -9,8 +9,6 @@ optimisation-python/
 +--- .dockerignore
 +--- .env.example
 +--- .gitignore
-+--- AGENTS.md
-+--- CONTEXT.md
 +--- Dockerfile
 +--- README.md
 +--- app
@@ -19,7 +17,8 @@ optimisation-python/
 |    |    +--- __init__.py
 |    |    +--- cost_function.py
 |    |    +--- electrical_analysis.py
-|    |    \--- route_graph.py
+|    |    +--- route_graph.py
+|    |    \--- wtg_grouping.py
 |    +--- gis
 |    |    +--- __init__.py
 |    |    +--- crs.py
@@ -64,13 +63,50 @@ optimisation-python/
      +--- test_geometry.py
      +--- test_preprocessing.py
      +--- test_health.py
-     \--- test_optimise.py
+     +--- test_optimise.py
+     +--- test_route_graph.py
+     \--- test_wtg_grouping.py
 ```
 
 ## Key Architectural Principles
 
-1. **Decoupled Service Layer**: Endpoint functions in `app/api/v1/endpoints/optimise.py` delegate execution to `OptimisationService` in `app/services/optimisation_service.py`. Algorithms reside in `app/algorithms/`.
-2. **GIS & Preprocessing**: The `app/gis/preprocessing.py` layer converts incoming WGS84 GeoJSON API objects into strictly-validated metric point entities (`app/models/spatial.py`), completely decoupling the algorithm logic from standard HTTP GeoJSON structures.
-3. **Pydantic 2 Validation**: Model configuration uses `SettingsConfigDict` and typed models (`OptimisationMetrics`, `ElectricalParams`, `OptimisationRequest`, `OptimisationResponse`).
-4. **Correlation ID (`request_id`)**: Every request carries a `request_id` passed from Spring Boot to enable end-to-end tracing across service logs.
-5. **Reproducible Environment**: Dependencies are locked via `requirements.lock.txt`.
+1. **Decoupled Service Layer**: The optimize endpoint delegates to `OptimisationService`. HTTP handling, pipeline orchestration, spatial translation, and algorithms therefore have separate testable boundaries.
+2. **GIS Translation Boundary**: `app/gis/preprocessing.py` converts WGS84 GeoJSON into validated, projected domain objects. Algorithms receive meter-based Points rather than untyped API dictionaries.
+3. **External and Internal Models**: Pydantic models define the HTTP contract; frozen dataclasses define internal spatial state. The distinction prevents transport concerns from leaking into algorithms.
+4. **Correlation ID (`request_id`)**: Each optimization request carries the Java job-derived identifier and echoes it in the response. The health endpoint has no correlation ID.
+5. **Reproducible Environment**: Runtime and tooling versions are pinned in `requirements.txt` and `requirements.lock.txt`; Python behavior targets 3.11 in `pyproject.toml`.
+
+## How the Packages Work Together
+
+```text
+FastAPI endpoint
+    -> Pydantic OptimisationRequest
+    -> OptimisationService
+       -> GIS preprocessing
+          -> Shapely parsing and validation
+          -> pyproj UTM transformation
+          -> frozen spatial dataclasses
+       -> NetworkX candidate graph
+       -> K-Means + SciPy MILP feeder grouping
+    -> Pydantic OptimisationResponse
+```
+
+The graph and grouping results remain internal. The current response exposes only the feeder count and an empty route FeatureCollection; feeder assignments and graph edges are not yet part of the public contract.
+
+## Implemented and Planned Boundaries
+
+| Package or file | Current behavior |
+| --- | --- |
+| `app/gis/` | Implemented parsing, geometry repair helper, input validation, UTM selection, and transforms |
+| `app/models/spatial.py` | Implemented immutable WTG, substation, and project objects |
+| `app/algorithms/route_graph.py` | Implemented complete straight-line candidate graph |
+| `app/algorithms/wtg_grouping.py` | Implemented capacity-constrained K-Means/MILP grouping |
+| `app/algorithms/cost_function.py` | Planned placeholder only |
+| `app/algorithms/electrical_analysis.py` | Planned placeholder only |
+| MST, A*, terrain, poles, ROW, ML | Not yet implemented |
+
+## Design Trade-offs
+
+- A complete graph is simple and preserves every direct connection candidate, but grows as `N(N-1)/2` edges and will not scale indefinitely.
+- One UTM CRS makes all internal coordinates comparable, but large cross-zone projects need a different projection policy.
+- A synchronous endpoint is easy to integrate, but CPU-heavy future solvers should move behind a worker/job boundary.

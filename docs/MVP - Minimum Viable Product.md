@@ -1,4 +1,6 @@
- # Two-Week MVP and AI-Assisted Development Workflow
+# Two-Week MVP and AI-Assisted Development Workflow
+
+> **Document status:** This is a target MVP design, not a statement that every listed capability exists. The current repository implements the application/database foundation, Python Point preprocessing, candidate-graph construction, and WTG grouping. Route generation, terrain, poles, ROW intersections, electrical analysis, lifecycle scoring, and ML ranking remain planned. See `Python Engine - Architecture.md` and the Obsidian dashboard for the current implementation boundary.
 
 The supplied problem statement defines an **enterprise, production-grade platform** for renewable-energy collector and evacuation systems, not merely a shortest-path application.
 
@@ -113,7 +115,7 @@ Spring Boot is suitable for the application layer because it provides production
 
 - Spring Boot REST API
     
-- Spring Security with JWT
+- Spring Security with JWT *(planned)*
     
 - PostgreSQL/PostGIS
     
@@ -129,7 +131,7 @@ Spring Boot is suitable for the application layer because it provides production
     
 - Report and export generation
     
-- MapLibre-based GIS frontend
+- Leaflet-based GIS frontend
     
 
 ### Python optimisation service
@@ -159,7 +161,7 @@ Spring Boot is suitable for the application layer because it provides production
     
 - GitHub repository
     
-- GitHub Actions
+- GitHub Actions *(planned; no workflow exists yet)*
     
 - OpenAPI contract
     

@@ -1,23 +1,34 @@
-# ADR-006: Spatial Models and Unified UTM Projection
+# ADR-006: Use Typed Spatial Models and One UTM CRS per Project
 
-## Status
-**Accepted**
+- **Status**: Accepted and implemented for WTG/substation preprocessing
+- **Date**: 2026-08-07
 
 ## Context
-The SURGE Python optimisation service requires high-precision metric calculations (distances, areas, slopes, buffers) to properly generate NetworkX graphs, route paths via $A^*$, and place individual electrical poles. 
-Input from the Java API is provided strictly in standard WGS84 GeoJSON (`EPSG:4326`) because this is the global standard format for exchanging web-map data.
 
-Working directly on WGS84 decimal degrees for algorithm calculations would result in wildly inaccurate electrical cable measurements.
+GeoJSON arrives in WGS84 longitude/latitude degrees, while graph distance, future buffers, and engineering dimensions require a shared linear coordinate system. Projecting every point independently could put neighboring assets in different UTM zones and make their coordinates incomparable.
 
 ## Decision
-1. **Early Domain Translation**: The Python service will immediately parse incoming API GeoJSON requests and translate them into deeply validated Python frozen `dataclasses` (e.g., `WindTurbine`, `Substation`, `ProjectSpatialData`). Graph routing algorithms will operate purely on these strong types, completely decoupled from GeoJSON dictionary manipulation.
-2. **One-Project-One-UTM**: Rather than independently projecting each WTG into a UTM zone (which could cause coordinates to split across zone boundaries, breaking math consistency), the system will calculate the geographic centroid of all project inputs. It will then select a *single, unified dynamic UTM projection* (e.g., `EPSG:32644`) for the entire project site and project all inputs into this shared coordinate space.
+
+At the Python boundary:
+
+1. Validate incoming WTG and substation Point features.
+2. Calculate the arithmetic mean longitude/latitude of all points.
+3. Select the WGS84 UTM CRS covering that mean point.
+4. Transform all project Points into that single CRS with `always_xy=True`.
+5. Store them in frozen `WindTurbine`, `Substation`, and `ProjectSpatialData` dataclasses.
+6. Require algorithm code to operate on these projected models.
+
+## Why UTM?
+
+Typical wind farms occupy a compact region. UTM offers meter units and low local distortion, making it more appropriate than geographic degrees or Web Mercator for engineering calculations.
 
 ## Consequences
-**Pros:**
-* All internal algorithms (graph distances, raster overlays, buffering) can rely on perfectly consistent Pythagorean math (`a^2 + b^2 = c^2`) because coordinates are stored uniformly in meters.
-* The algorithm core is protected from dirty incoming JSON.
 
-**Cons:**
-* Requires a strict translation boundary before algorithms can start, and a strict translation back to WGS84 before API output.
-* If a project geographically spans hundreds of miles (crossing multiple UTM zones), edge-case distortions may occur on the outer boundaries. (Acceptable for typical wind/solar farm footprints).
+- **Positive**: Every internal graph coordinate and edge length uses one comparable metric space.
+- **Positive**: Algorithms cannot accidentally read arbitrary GeoJSON structure.
+- **Negative**: Large, polar, antimeridian, or multi-zone projects require a different projection policy.
+- **Negative**: Outputs must be transformed back to WGS84 before GeoJSON serialization.
+
+## Clarifications
+
+The current center is an arithmetic mean, not a geodesic centroid. The code does not yet transform route outputs because route generation is not implemented. EPSG:3857 is not an approved engineering substitute for the selected UTM CRS.
