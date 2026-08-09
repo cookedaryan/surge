@@ -1,32 +1,60 @@
 # Frontend Architecture (Web GIS Dashboard)
 
-Source Code:
-`web-map/`
+## Role
 
-## Tech Stack
-- **Framework & Tooling**: Vite, HTML5, Vanilla JavaScript (ES modules)
-- **Mapping Engine**: Leaflet 1.9.4 with OpenStreetMap vector tiles & custom GeoJSON layers
-- **Styling**: Vanilla CSS Design System with dark glassmorphism palette, responsive layout, micro-animations, and Google Inter font
+`web-map` is a browser client for project selection, GeoJSON upload, optimization controls, map visualization, and report download. It is implemented with Vite, vanilla JavaScript modules, CSS, and Leaflet 1.9.4; it is not a React application.
 
-## Implemented Capabilities (2026-08-08)
-- **Interactive Web GIS Canvas**: Visualizes Wind Turbines (WTGs), Substations, Feeder Line Paths (LineString), Cadastral Parcels (Polygons), and Restricted Avoidance Areas.
-- **Drag-and-Drop Ingestion**: Instant drag-and-drop parser for RFC 7946 GeoJSON files with auto-zoom bounds fitting.
-- **Optimization Control Panel**: Slider controls for Feeder Capacity (MVA), Max Span (m), System Voltage (kV), and objective weightings (Cost vs Loss vs Land).
-- **Backend API Integration**: Connects dynamically to Java Spring Boot REST endpoints (`/api/v1/projects`, `/assets`, `/jobs`, `/routes`, `/reports`).
-- **Live Summary & BOM Card**: Dynamic metrics displaying Total Route Length (km), Capex Cost ($), Electrical Power Losses (kW), Land ROW Cost ($), and Pole Count.
-- **CSV Export**: Direct one-click download for engineering Bill of Materials CSV reports.
+## Modules
 
----
+- `src/api.js`: wraps Java backend HTTP calls and supplies demonstration fallbacks for several failed reads.
+- `src/app.js`: coordinates DOM events, project selection, uploads, job submission, map refreshes, and BOM cards.
+- `src/map.js`: owns the Leaflet map, basemaps, layer groups, styling, popups, visibility, and fit-to-bounds behavior.
+- `src/index.css`: responsive visual design and component styling.
 
-## Next Frontend Tasks
+## Map Concepts
 
-1. **Multi-Scenario Comparison Matrix**: Side-by-side card & map overlay comparing candidate route scenarios.
-2. **Interactive Vertex Tweaking**: Allow users to drag feeder route vertices on the map and calculate modified cost/loss in real-time.
-3. **Elevation Profile Viewer**: Charts showing route elevation profiles derived from Python DEM rasters.
-4. **WebSocket Progress Notifications**: Real-time progress bar for active optimization jobs.
+**GeoJSON** is the interchange format used for points, lines, and polygons. GeoJSON coordinates are ordered longitude then latitude, while Leaflet callbacks expose latitude then longitude.
 
----
+**Layer groups** keep WTGs, substations, routes, parcels, and restricted areas independent. A checkbox can add or remove one group without rebuilding the other layers.
+
+**Basemaps** provide geographic context underneath project data. The current Carto and Esri tile layers require external network access and carry their own attribution requirements.
+
+## User Flow
+
+1. Load projects from the Java API and select the first result.
+2. Fetch stored assets, parcels, restricted areas, routes, and a BOM summary.
+3. Render each GeoJSON collection into its corresponding Leaflet layer.
+4. Upload an asset, parcel, or restricted-area file through the selected import endpoint.
+5. Submit scenario and electrical parameters to create an optimization job.
+6. Refresh map and report data after the client-side progress sequence completes.
+
+## Demo Fallbacks
+
+`api.js` catches failures for projects, spatial reads, job submission, routes, and reports and substitutes Gujarat demonstration data. This keeps the interface visually usable while services are unavailable, but it can make an outage look like a successful calculation. Production behavior should display explicit loading and error states and reserve demo data for an intentional demo mode.
+
+## Progress Behavior
+
+The displayed optimization progress is simulated with fixed percentages and `setTimeout`; it does not poll job status or receive server events. The message mentioning A* is aspirational because the current Python pipeline does not implement A*.
+
+## Configuration and Security Limitations
+
+- API base URL is hard-coded to `http://localhost:8080/api/v1`.
+- No authentication token is sent.
+- Error handling uses browser alerts and console messages.
+- Popup HTML interpolates feature properties directly; untrusted uploaded values should be escaped before production use.
+- The frontend has no test suite in the current repository.
+
+## Planned Improvements
+
+- Environment-based or same-origin API configuration
+- Explicit offline/demo mode
+- Real polling, SSE, or WebSocket progress
+- Scenario comparison and route editing
+- Accessible non-alert error feedback
+- Automated tests and sanitized popup rendering
 
 ## Related Notes
+
 - [[System Overview]]
 - [[Backend]]
+- [[FastAPI Endpoints|FastAPI Microservice Specification]]
