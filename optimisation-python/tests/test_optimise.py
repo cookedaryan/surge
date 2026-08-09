@@ -18,7 +18,7 @@ def create_payload() -> dict[str, Any]:
                 {
                     "type": "Feature",
                     "geometry": {"type": "Point", "coordinates": [0.0, 50.0]},
-                    "properties": {"id": "WTG1"}
+                    "properties": {"id": "WTG1", "capacity_mw": 5.0}
                 }
             ],
         },
