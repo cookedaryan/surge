@@ -1,43 +1,39 @@
 # Feeder Topology Planning
 
-> [!warning] Implementation status: Partial
-> WTG groups and a complete candidate graph exist. The feeder tree, MST extraction, junction model, and route geometry do not.
+## Current Status
+
+Per-feeder radial topology is implemented by [[Per-Feeder MST Topology]]. Capacity-constrained grouping runs first, then every feeder receives an independent minimum spanning tree rooted at the project substation.
+
+The result is a preliminary logical topology, not a constructible geographic route.
 
 ## Concepts
 
-A **radial collector network** connects each turbine to a substation through one electrical path. It is simpler to protect and operate than a meshed network, but a single fault can disconnect downstream turbines.
+A **radial collector network** gives each WTG one electrical path to the substation. A **topology** describes which nodes connect; it does not describe the physical corridor followed by conductor.
 
-A **topology** describes which assets are connected, independent of the exact geographic path followed by each connection. A **route** is the physical LineString corridor used to realize a topology edge.
+A **candidate graph** contains possible connections. The current graph is complete, so every WTG and the substation are directly connected to every other node with a straight-line metric weight.
 
-A **minimum spanning tree (MST)** connects all graph nodes without cycles while minimizing the sum of edge weights. With straight-line weights it gives a useful baseline topology, but it does not automatically respect terrain, restricted areas, electrical direction, feeder separation, or capacity.
+An **MST** selects the lowest-total-weight acyclic set of edges that connects all nodes in one feeder. This supplies a deterministic radial baseline without attempting the more difficult Steiner-tree problem, which may introduce new junction locations.
 
-## Current Foundation
+## Implemented Flow
 
-`build_project_graph` creates an undirected complete NetworkX graph:
+1. [[WTG Grouping]] creates disjoint capacity-safe feeder assignments.
+2. `build_project_graph` creates the complete projected graph.
+3. `build_feeder_mst` extracts one subgraph per feeder plus the substation.
+4. NetworkX selects the minimum-distance spanning tree for each subgraph.
+5. The service sums all feeder tree lengths into the API metric.
 
-- one node for the substation and one per WTG
-- namespaced IDs such as `wtg:WTG-001` and `substation:SUB-001`
-- projected x/y coordinates, capacity, type, and Shapely Point on each node
-- straight-line Euclidean `distance_m` and `weight` on every edge
-- the selected CRS stored in graph metadata
+## What Is Not Yet Implemented
 
-For `N` nodes, the graph contains `N(N-1)/2` edges. This preserves every direct candidate but has quadratic memory and construction cost.
-
-## Planned Topology Flow
-
-1. Use [[WTG Grouping]] assignments to define feeder membership.
-2. Select an MST or another radial tree for each group plus the substation.
-3. Decide whether shared junctions are permitted and represent them explicitly.
-4. Replace straight graph edges with obstacle- and terrain-aware routes.
-5. Recalculate weights from actual routed length and engineering cost.
-6. Verify connectivity, radiality, capacity, and electrical limits.
-
-## Important Design Decision Still Open
-
-The current graph includes the substation in one global complete graph, while feeder groups are calculated separately. The integration rule—per-group subgraphs, shared trunks, or independently routed feeders—must be defined before MST code is added. This is a business and electrical topology decision, not merely an implementation detail.
+- shared trunks or intermediate junction optimization
+- route corridors around obstacles or across a cost surface
+- conversion of selected edges to GeoJSON
+- electrical direction, conductor sizing, voltage drop, or protection constraints
+- persistence of feeder membership and selected topology edges
+- replacement of Euclidean edge length with terrain-aware routed length
 
 ## Related Notes
 
+- [[Per-Feeder MST Topology]]
 - [[WTG Grouping]]
 - [[Routing]]
-- [[Pole Placement]]
+- [[Cost Model]]

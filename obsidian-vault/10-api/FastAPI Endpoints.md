@@ -1,20 +1,21 @@
 # FastAPI Microservice Specification
 
-## Service Boundary
+The Python optimization microservice exposes RESTful endpoints prefixed with `/api/v1`.
 
-The Python service exposes two synchronous endpoints under `/api/v1`. Spring Boot is the intended caller; browsers should use the Java API rather than call Python directly.
+## Endpoints Summary
 
-In development, Swagger UI is available at `/docs`, ReDoc at `/redoc`, and OpenAPI JSON at `/api/v1/openapi.json`. These routes are disabled when `ENVIRONMENT=production`.
-
-| Method | Endpoint | Purpose |
+| Method | Endpoint | Description |
 | --- | --- | --- |
-| `GET` | `/api/v1/health` | Process-level health response |
-| `POST` | `/api/v1/optimise` | Validate project points, build a candidate graph, and group WTGs |
+| `GET` | `/api/v1/health` | Health check endpoint returning status and service name |
+| `POST` | `/api/v1/optimise` | Runs SURGE route optimization pipeline |
 
-## Health Endpoint
+---
 
-`GET /api/v1/health` returns HTTP 200:
+## 1. Health Check Endpoint
 
+- **URL**: `/api/v1/health`
+- **Method**: `GET`
+- **Response**: `200 OK`
 ```json
 {
   "status": "healthy",
@@ -22,26 +23,28 @@ In development, Swagger UI is available at `/docs`, ReDoc at `/redoc`, and OpenA
 }
 ```
 
-This confirms that the FastAPI process can answer a request. It does not check PostGIS, Java connectivity, scientific solver readiness, or downstream dependencies.
+---
 
-## Optimize Endpoint
+## 2. Route Optimisation Endpoint
 
-`POST /api/v1/optimise` accepts `application/json` and returns `OptimisationResponse`.
+- **URL**: `/api/v1/optimise`
+- **Method**: `POST`
+- **Content-Type**: `application/json`
 
-### Request
+### Request Schema (`OptimisationRequest`)
 
 ```json
 {
-  "request_id": "job-4d3c",
-  "project_id": "project-123",
+  "request_id": "req-987654",
+  "project_id": "proj-123456",
   "scenario": "Balanced",
   "wtg_geojson": {
     "type": "FeatureCollection",
     "features": [
       {
         "type": "Feature",
-        "geometry": {"type": "Point", "coordinates": [77.2302, 28.6301]},
-        "properties": {"id": "WTG-001", "capacity_mw": 3.0}
+        "geometry": { "type": "Point", "coordinates": [77.2302, 28.6301] },
+        "properties": { "id": "WTG-001", "capacity_mw": 3.0 }
       }
     ]
   },
@@ -50,8 +53,8 @@ This confirms that the FastAPI process can answer a request. It does not check P
     "features": [
       {
         "type": "Feature",
-        "geometry": {"type": "Point", "coordinates": [77.2090, 28.6139]},
-        "properties": {"id": "SUB-001"}
+        "geometry": { "type": "Point", "coordinates": [77.2090, 28.6139] },
+        "properties": { "id": "SUB-001" }
       }
     ]
   },
@@ -63,63 +66,66 @@ This confirms that the FastAPI process can answer a request. It does not check P
 }
 ```
 
-### Top-level validation
+#### Field Validation Rules
+- `request_id`: Required string (min length 1). Used to correlate requests across Java Spring Boot and Python logs.
+- `project_id`: Required string (min length 1).
+- `scenario`: Literal string - one of `"Minimum Cost"`, `"Minimum Land Impact"`, `"Minimum Environmental Impact"`, `"Balanced"`.
+- `electrical_params`:
+  - `feeder_capacity_mw`: float > 0 (default: `20.0`)
+  - `max_voltage_drop_pct`: float > 0 and <= 100 (default: `5.0`)
+  - `row_width_m`: float > 0 (default: `18.0`)
 
-- `request_id`: required non-empty string; Java derives it from the job ID.
-- `project_id`: required non-empty string. Python echoes no project data and does not query the database.
-- `scenario`: exactly one of `Minimum Cost`, `Minimum Land Impact`, `Minimum Environmental Impact`, or `Balanced`.
-- `electrical_params`: optional object; omitted fields use the defaults shown above.
-- `feeder_capacity_mw`: greater than zero; the grouping implementation supports at most three decimal places.
-- `max_voltage_drop_pct`: greater than zero and at most 100. It is validated but not yet used in an electrical calculation.
-- `row_width_m`: greater than zero. It is validated but not yet used to create a corridor.
+---
 
-### GeoJSON validation
-
-- Each input can be a Feature or FeatureCollection.
-- WTG input must contain at least one Point; substation input must contain exactly one Point.
-- Coordinates must be finite WGS84 longitude/latitude values.
-- Each feature needs a non-empty unique identifier. WTGs accept `properties.id` or `properties.turbine_id`; the substation accepts `properties.id` or `properties.substation_id`.
-- Every WTG must provide a positive finite `properties.capacity_mw` for the current grouping pipeline.
-- A WTG capacity may not exceed `feeder_capacity_mw`.
-- Substation capacity is optional and is not currently enforced against total generation.
-
-### Current response
-
-For the one-WTG example above, the response shape is:
+### Response Schema (`OptimisationResponse`)
 
 ```json
 {
-  "request_id": "job-4d3c",
+  "request_id": "req-987654",
   "status": "success",
   "scenario": "Balanced",
   "feeder_routes_geojson": {
     "type": "FeatureCollection",
-    "features": []
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "feeder_id": "F1",
+          "edge": "substation:SUB-001-wtg:WTG-001"
+        },
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [77.209, 28.6139],
+            [77.2302, 28.6301]
+          ]
+        }
+      }
+    ]
   },
   "metrics": {
     "feeder_count": 1,
-    "total_length_m": 0.0,
+    "total_length_m": 2743.0606898885517,
     "estimated_cost": null,
     "message": "Pipeline initialized. Projected into WGS 84 / UTM zone 43N"
   }
 }
 ```
 
-The exact UTM name depends on input location. A `success` response currently means preprocessing, graph construction, and grouping completed; it does not mean routes, costs, or electrical results were calculated.
+#### Field Details
+- `request_id`: Echoes correlation ID from request.
+- `status`: `"success"` or `"failed"`.
+- `scenario`: Selected optimization scenario.
+- `feeder_routes_geojson`: RFC 7946 FeatureCollection containing one two-point WGS84 LineString per selected MST edge. These features expose preliminary topology, not cost-surface routes.
+- `metrics.feeder_count`: Number of capacity-constrained feeder assignments.
+- `metrics.total_length_m`: Sum of all per-feeder MST edge distances in the selected projected CRS. This is straight-line preliminary topology length, not terrain-routed line length.
+- `metrics.estimated_cost`: Currently `null`; the lifecycle cost function is not implemented.
+- `metrics.message`: Pipeline status and selected projected CRS. The exact UTM zone depends on input coordinates.
 
-### Error behavior
+### Current Pipeline Semantics
 
-Schema validation and expected domain validation both return HTTP 422. Pydantic errors use FastAPI's structured validation list. Preprocessing/grouping errors use:
+A `success` response means Point preprocessing, candidate-graph construction, WTG grouping, per-feeder MST construction, and WGS84 serialization completed. It does not mean that A*, obstacle avoidance, cost-surface routing, pole placement, ROW analysis, electrical validation, or lifecycle cost has completed.
 
-```json
-{"detail": "WTG FeatureCollection is empty"}
-```
+Each Feature represents an MST edge rather than an entire feeder route. The property is currently named `feeder_id`; Java's route importer does not recognize that spelling, so cross-service feeder identity is not preserved yet.
 
-Unexpected errors follow FastAPI's server-error behavior. The service does not currently define a typed failure response body even though the response model permits `status: "failed"`; expected validation failures are HTTP errors rather than successful `failed` responses.
-
-## Related Notes
-
-- [[Python Engine]]
-- [[Overview & Layout]]
-- [[Geospatial Integrity & CRS]]
-- [[WTG Grouping]]
+See [[Per-Feeder MST Topology]] for the MST algorithm and its assumptions.

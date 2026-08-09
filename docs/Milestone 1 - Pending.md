@@ -384,11 +384,11 @@ SURGE Full Quality Check
 - [x] SURGE-PY-002: Spatial core models (GeoJSON parsing, CRS projection).
 - [x] SURGE-PY-003: Tie `/api/v1/optimise` route to actual `ProjectSpatialData` preprocessing.
 - [x] SURGE-PY-004: Foundation: Base NetworkX topology and collector constraints.
-- [x] SURGE-PY-005: GIS integration: Routing geometry overlay.ce
-- [x] SURGE-PY-006: Implement capacity-constrained WTG clustering
-- [ ] SURGE-PY-007: Implement A* routing
-- [ ] SURGE-PY-008: Generate alternative candidate routes
-- [ ] SURGE-PY-009: Implement MST collector topology
+- [x] SURGE-PY-005: Implement capacity-constrained WTG clustering
+- [x] SURGE-PY-006: Implement per-feeder MST collector topology
+- [x] SURGE-PY-007: Implement uniform GIS cost-surface abstraction and coordinate helpers
+- [ ] SURGE-PY-008: Implement A* routing over the cost surface
+- [ ] SURGE-PY-009: Convert selected topology edges into routed GeoJSON corridors and alternatives
 - [ ] SURGE-PY-010: Implement pole placement
 - [ ] SURGE-PY-011: Implement variable-span optimisation
 - [ ] SURGE-PY-012: Generate ROW corridor

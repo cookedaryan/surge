@@ -1,63 +1,71 @@
 # Python Engine Architecture and GIS Processing
 
-## Purpose and Current Status
+## Current Implementation
 
-The SURGE Python service is the stateless numerical boundary behind the Java application. It currently implements request validation, GeoJSON Point preprocessing, unified UTM projection, a complete candidate graph, and capacity-constrained WTG grouping. It does not yet generate routes, run A*, calculate lifecycle cost, place poles, intersect ROW corridors, run pandapower, or rank routes with ML.
+The SURGE Python service is a stateless FastAPI computation boundary. It currently validates project Point GeoJSON, transforms coordinates into one UTM CRS, builds a complete NetworkX candidate graph, groups WTGs under feeder-capacity constraints, creates one minimum spanning tree per feeder, and exposes selected edges as preliminary WGS84 LineStrings.
 
-## Request Flow
+SURGE-PY-007 also provides a standalone uniform projected cost-surface abstraction. It does not yet route topology edges around terrain or restrictions, and the cost surface is not called by the API pipeline.
+
+## Pipeline
 
 ```text
 Spring Boot POST /api/v1/optimise
     -> Pydantic request validation
-    -> Shapely GeoJSON parsing and Point validation
-    -> pyproj unified UTM transformation
-    -> frozen ProjectSpatialData models
-    -> NetworkX complete candidate graph
-    -> K-Means seeds + SciPy MILP feeder grouping
-    -> response metrics + empty route FeatureCollection
-```
+    -> WGS84 GeoJSON Point preprocessing
+    -> unified UTM projection
+    -> complete metric candidate graph
+    -> K-Means-assisted MILP feeder grouping
+    -> per-feeder minimum spanning trees
+    -> WGS84 preliminary edge GeoJSON
+    -> feeder count + aggregate preliminary length
 
-The HTTP contract uses WGS84 GeoJSON. Algorithms use projected Shapely Points measured in meters. This translation prevents degree-based distance calculations and isolates algorithms from transport dictionaries.
+Standalone SURGE-PY-007:
+ProjectSpatialData -> uniform CostSurface + Affine transform
+```
 
 ## Package Responsibilities
 
-| Package | Responsibility | Status |
+| Package or module | Responsibility | Status |
 | --- | --- | --- |
-| `app/api/v1` | FastAPI routes and HTTP error translation | Implemented |
-| `app/schemas` | Pydantic 2 request/response models | Implemented |
-| `app/services` | Pipeline orchestration | Implemented foundation |
-| `app/gis` | GeoJSON, validation, CRS choice, transforms | Implemented for Points |
-| `app/models` | Immutable projected domain objects | Implemented |
-| `app/algorithms/route_graph.py` | Complete straight-line graph | Implemented |
-| `app/algorithms/wtg_grouping.py` | Capacity-constrained grouping | Implemented |
-| `cost_function.py` | Lifecycle-cost calculation | Placeholder |
-| `electrical_analysis.py` | Load flow and voltage analysis | Placeholder |
+| `app/api/v1` | FastAPI routes and expected-error translation | Implemented |
+| `app/schemas` | Pydantic request/response contract | Implemented |
+| `app/gis` | GeoJSON parsing, validation, UTM selection, transforms | Implemented for WTG/substation Points |
+| `app/gis/cost_surface.py` | Uniform raster, affine transform, and coordinate helpers | Implemented standalone |
+| `app/models` | Frozen projected spatial domain objects | Implemented |
+| `route_graph.py` | Complete undirected graph with Euclidean metric edges | Implemented |
+| `wtg_grouping.py` | Capacity-constrained feeder assignment | Implemented |
+| `topology.py` | SURGE-PY-006 per-feeder MST topology | Implemented internally |
+| `cost_function.py` | Lifecycle-cost evaluation | Placeholder |
+| `electrical_analysis.py` | Load flow, voltage drop, and losses | Placeholder |
 
-## Coordinate-System Decision
+## SURGE-PY-006: Per-Feeder MST
 
-RFC 7946 GeoJSON uses WGS84 longitude/latitude. The service validates coordinates, calculates the arithmetic mean location of all WTGs and the substation, selects the WGS84 UTM CRS covering that point, and transforms every point with `always_xy=True`.
+Grouping determines feeder membership; MST topology determines connections inside each feeder. For every `FeederAssignment`, `build_feeder_mst` selects the project substation and the assigned WTG nodes, creates their induced subgraph, and calls `networkx.minimum_spanning_tree(weight="weight")`.
 
-One CRS per project ensures all coordinates are comparable. UTM is suitable for compact project sites; EPSG:3857 is not used for authoritative engineering measurements. Large multi-zone, polar, or antimeridian projects need a future projection policy.
+The result is verified as a connected acyclic tree. Selected edge pairs are normalized and sorted for deterministic output. `total_length_m` is the sum of the selected edges' `distance_m` values.
 
-## WTG Grouping
+Because the candidate graph uses straight-line distances in UTM, the MST minimizes preliminary Euclidean topology length. It does not account for terrain, exclusions, parcels, access, junctions, shared trunks, electrical performance, or routed corridor length.
 
-The solver converts MW values to integer kW, estimates the minimum possible feeder count, creates deterministic K-Means seed centroids, and uses SciPy's mixed-integer linear programming solver to assign each WTG exactly once without exceeding feeder capacity. It minimizes squared spatial distance to the selected seeds.
+## Service and API Integration
 
-This is an MW planning constraint, not a complete conductor ampacity or voltage-drop check. The latter belongs to the future electrical-analysis stage.
+`OptimisationService` builds all feeder trees, sums their lengths into `OptimisationMetrics.total_length_m`, transforms each selected edge back to WGS84, and returns one two-point LineString Feature per edge.
 
-## API Semantics
+The current response property `feeder_id` does not match any feeder-name key recognized by Java's `RouteService`, so Java assigns generated names and persists each edge as a separate route record. Before these preliminary features are treated as feeder routes, the cross-service contract must define feeder identity and whether one Feature represents an edge, segment, or complete feeder.
 
-`GET /api/v1/health` is a process-level health check. `POST /api/v1/optimise` is synchronous. A successful optimization response currently confirms preprocessing, graph construction, and grouping only; its route collection is empty and route length/cost remain zero or null.
+## SURGE-PY-007: Uniform Cost Surface
 
-## Design Rationale
+`build_project_cost_surface` calculates a padded bounding box around projected WTGs and the substation, derives raster dimensions from `resolution_m`, creates a north-up affine transform, and fills a NumPy `float32` array with base cost `1.0`.
 
-- FastAPI and Pydantic provide a typed language-neutral service contract.
-- Frozen dataclasses separate validated internal state from external JSON.
-- A service layer keeps HTTP code out of algorithms.
-- One UTM CRS makes Euclidean graph weights meaningful.
-- A complete graph is a simple baseline but has quadratic edge growth.
-- K-Means supplies spatial preference while MILP enforces hard capacity constraints.
+`world_to_grid` inverts the affine transform and floors the result. `grid_to_world` returns the projected center of a raster cell. Positive infinity is reserved for future hard exclusions, while larger finite values can represent soft penalties.
 
-## Source of Detailed Documentation
+The current implementation does not validate padding, enforce coordinate/index bounds, cap allocation size, or rasterize GIS layers. With zero padding, points on the maximum-x or minimum-y extent map one index beyond the array.
 
-The Obsidian vault contains the maintained detailed notes: `04-architecture/Python Engine.md`, `08-python-engine/Overview & Layout.md`, `08-python-engine/Geospatial Integrity & CRS.md`, and `10-api/FastAPI Endpoints.md`.
+## Input Assumptions
+
+The topology function is designed for outputs from `build_project_graph` and `group_wtgs`. It now rejects zero/multiple substations, feeder-count mismatch, duplicate assignments, missing assigned nodes, count-based incomplete coverage, and disconnected results. Coverage compares counts rather than exact node sets; the normal graph builder keeps those equivalent, but direct callers should still supply correctly typed nodes and finite `weight`/`distance_m` attributes.
+
+## Verification
+
+Focused topology tests cover membership, substation inclusion, connectivity, acyclicity, edge count, minimum-weight selection, length aggregation, multiple feeders, single-WTG feeders, and unknown turbine rejection.
+
+Twelve cost-surface tests cover its current successful-path behavior, and the endpoint fixture now includes WTG capacity. Cross-service persistence and zero-padding boundary behavior are not covered.

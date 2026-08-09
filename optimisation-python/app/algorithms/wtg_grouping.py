@@ -54,7 +54,8 @@ def group_wtgs(
         dec_feeder = Decimal(str(feeder_capacity_mw))
         if (dec_feeder * 1000) % 1 != 0:
             raise ValueError(
-                f"feeder_capacity_mw ({feeder_capacity_mw}) has more than 3 decimal places"
+                f"feeder_capacity_mw ({feeder_capacity_mw}) "
+                f"has more than 3 decimal places"
             )
         feeder_capacity_kw = int(dec_feeder * 1000)
     except Exception as e:
