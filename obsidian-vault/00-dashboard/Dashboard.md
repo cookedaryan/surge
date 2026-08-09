@@ -10,7 +10,7 @@ Welcome to the **SURGE Knowledge Vault**.
 - ☕ [[Backend]] — Java Spring Boot backend architecture & REST endpoints
 - 💻 [[Frontend]] — Web GIS interactive frontend (`web-map`)
 - 🐍 [[Python Engine]] — Python FastAPI microservice architecture & layout
-- 🔌 [[FastAPI Microservice Specification]] — REST API endpoints & Pydantic 2 contracts
+- 🔌 [[FastAPI Endpoints|FastAPI Microservice Specification]] — REST API endpoints & Pydantic 2 contracts
 - 🌐 [[Geospatial Integrity & CRS]] — WGS84 GeoJSON interchange vs Projected CRS calculations
 - ⚡ [[Routing]] — Optimization algorithms & feeder planning
 - 📜 [[ADR-005 Python Service Architecture and Schemas]] — Architecture Decision Records
@@ -41,6 +41,8 @@ Welcome to the **SURGE Knowledge Vault**.
   - Cadastral Parcels & Restricted Avoidance Areas (`/parcels`, `/restricted-areas`)
   - Engineering BOM Report Service & CSV Exporter (`/reports/bom`, `/csv`)
 - ✅ **Python IPC Integration**: Spring `RestClient` integration (`PythonOptimizationClient`) connecting backend to Python FastAPI optimizer engine.
+- ✅ **SURGE-PY-006 Per-Feeder MST Topology**: Builds one minimum-distance radial tree per feeder and reports aggregate projected topology length.
+- ✅ **SURGE-PY-007 GIS Cost Surface Foundation**: Builds a configurable uniform projected raster with affine world/grid conversion helpers.
 - ✅ **Web GIS Map Dashboard (`web-map`)**: Interactive Vite + Leaflet web frontend supporting drag-and-drop GeoJSON upload, live map visualization, parameter sliders, BOM summary cards, and CSV export.
 - ✅ **CORS & Environment Setup**: Cross-Origin Resource Sharing configured in Spring Boot (`WebConfig`); Docker Compose (`docker-compose.yml`) & environment configurations (`.env.example`) updated.
 
@@ -49,7 +51,7 @@ Welcome to the **SURGE Knowledge Vault**.
 ## Next Steps & Roadmap
 
 1. ⚙️ **Python Optimization Algorithms**:
-   - Capacity-constrained WTG clustering (K-Means / Sweep algorithm)
+   - Convert per-feeder MST edges into terrain- and restriction-aware routed GeoJSON
    - Multi-objective A* grid/mesh routing avoiding restricted polygon areas
    - Pandapower electrical load flow & loss analysis integration
    - Terrain-aware pole placement & dynamic span calculation
@@ -71,5 +73,5 @@ Welcome to the **SURGE Knowledge Vault**.
 ## Related Notes
 - [[Goals]]
 - [[Roadmap]]
-- [[MVP - Minimum Viable Product]]
+- [[Scope]]
 - [[Overview & Layout]]

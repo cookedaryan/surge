@@ -86,13 +86,28 @@ The Python optimization microservice exposes RESTful endpoints prefixed with `/a
   "scenario": "Balanced",
   "feeder_routes_geojson": {
     "type": "FeatureCollection",
-    "features": []
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "feeder_id": "F1",
+          "edge": "substation:SUB-001-wtg:WTG-001"
+        },
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [77.209, 28.6139],
+            [77.2302, 28.6301]
+          ]
+        }
+      }
+    ]
   },
   "metrics": {
-    "feeder_count": 0,
-    "total_length_m": 0.0,
+    "feeder_count": 1,
+    "total_length_m": 2743.0606898885517,
     "estimated_cost": null,
-    "message": "Optimisation pipeline stub initialized"
+    "message": "Pipeline initialized. Projected into WGS 84 / UTM zone 43N"
   }
 }
 ```
@@ -101,5 +116,16 @@ The Python optimization microservice exposes RESTful endpoints prefixed with `/a
 - `request_id`: Echoes correlation ID from request.
 - `status`: `"success"` or `"failed"`.
 - `scenario`: Selected optimization scenario.
-- `feeder_routes_geojson`: RFC 7946 GeoJSON FeatureCollection containing generated routes.
-- `metrics`: Typed `OptimisationMetrics` object with non-negative constraints.
+- `feeder_routes_geojson`: RFC 7946 FeatureCollection containing one two-point WGS84 LineString per selected MST edge. These features expose preliminary topology, not cost-surface routes.
+- `metrics.feeder_count`: Number of capacity-constrained feeder assignments.
+- `metrics.total_length_m`: Sum of all per-feeder MST edge distances in the selected projected CRS. This is straight-line preliminary topology length, not terrain-routed line length.
+- `metrics.estimated_cost`: Currently `null`; the lifecycle cost function is not implemented.
+- `metrics.message`: Pipeline status and selected projected CRS. The exact UTM zone depends on input coordinates.
+
+### Current Pipeline Semantics
+
+A `success` response means Point preprocessing, candidate-graph construction, WTG grouping, per-feeder MST construction, and WGS84 serialization completed. It does not mean that A*, obstacle avoidance, cost-surface routing, pole placement, ROW analysis, electrical validation, or lifecycle cost has completed.
+
+Each Feature represents an MST edge rather than an entire feeder route. The property is currently named `feeder_id`; Java's route importer does not recognize that spelling, so cross-service feeder identity is not preserved yet.
+
+See [[Per-Feeder MST Topology]] for the MST algorithm and its assumptions.
