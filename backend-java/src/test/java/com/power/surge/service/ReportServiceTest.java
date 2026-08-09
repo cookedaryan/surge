@@ -124,4 +124,18 @@ class ReportServiceTest {
         assertThat(csv).contains("Feeder-01");
         assertThat(csv).contains("2500.00");
     }
+
+    @Test
+    void getScenarioComparison_success() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Test Project", "Description");
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(jobRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of());
+
+        com.power.surge.dto.report.ScenarioComparisonResponse resp = reportService.getScenarioComparison(projectId);
+
+        assertThat(resp).isNotNull();
+        assertThat(resp.scenarios()).hasSize(4);
+    }
 }

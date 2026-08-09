@@ -17,9 +17,11 @@ import java.util.UUID;
 public class ReportController {
 
     private final ReportService reportService;
+    private final com.power.surge.service.PdfReportService pdfReportService;
 
-    public ReportController(ReportService reportService) {
+    public ReportController(ReportService reportService, com.power.surge.service.PdfReportService pdfReportService) {
         this.reportService = reportService;
+        this.pdfReportService = pdfReportService;
     }
 
     @GetMapping("/bom")
@@ -54,5 +56,19 @@ public class ReportController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"job-" + jobId + "-bom.csv\"")
                 .contentType(MediaType.parseMediaType("text/csv"))
                 .body(csv);
+    }
+
+    @GetMapping("/scenarios/compare")
+    public com.power.surge.dto.report.ScenarioComparisonResponse getScenarioComparison(@PathVariable UUID projectId) {
+        return reportService.getScenarioComparison(projectId);
+    }
+
+    @GetMapping(value = "/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> downloadExecutivePdfReport(@PathVariable UUID projectId) {
+        byte[] pdfBytes = pdfReportService.generateExecutivePdfReport(projectId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"surge-executive-report-" + projectId + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
     }
 }
