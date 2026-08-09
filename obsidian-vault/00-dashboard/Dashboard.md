@@ -22,29 +22,31 @@ Welcome to the **SURGE Knowledge Vault**.
 
 | Domain | Status | Owner | Next Milestone |
 | --- | --- | --- | --- |
-| Architecture | Complete & Containerized | Core Team | E2E Integration Testing |
-| Python Engine | Foundation & IPC Ready | Algo Team | Spatial A* Routing & Pandapower Integration |
-| Backend API | Full REST API & Report Engine Complete | Backend Team | Async WebSockets / SSE Notifications |
-| GIS & Database | PostGIS V1 & V2 Migrations Complete | GIS Team | DEM Elevation Raster Processing |
-| Web GIS UI | Interactive Dashboard (`web-map`) Functional | Frontend Team | Multi-Scenario Comparison Matrix |
+| Architecture | Complete & Containerized | Core Team | End-to-End E2E Integration Suite |
+| Python Engine | MILP Grouping & MST Topology Active | Algo Team | Spatial A* Multi-Objective Terrain Routing |
+| Backend API | JWT Auth, SSE Streaming & Audit Logs Ready | Backend Team | Pandapower Load Flow Integration |
+| GIS & Database | PostGIS V1-V3 Schema & Spatial Queries Ready | GIS Team | DEM Elevation Raster Processing |
+| Web GIS UI | GeoJSON Drag & Drop & Map Rendering Active | Frontend Team | Interactive Point-to-Point Line Drawing |
 
 ---
 
 ## Key Completed Tasks (Latest Progress)
 
-- ✅ **Flyway DB Migrations (V1 & V2)**: Spatial tables (`projects`, `wtg_locations`, `substations`, `cadastral_parcels`, `restricted_areas`, `optimization_jobs`, `generated_routes`) with GIST indexes and WGS84 (SRID 4326) constraints.
+- ✅ **Web GIS Map GeoJSON Ingestion (`web-map`)**: Fixed Leaflet script loading order in `index.html` and upgraded map overlay groups to `L.featureGroup()` in `map.js` for automatic bounding box fitting across all imported features. Added null guards in `app.js` for event binding reliability.
+- ✅ **Gujarat Kutch Mock Datasets (`/public/data/`)**: Created 4 realistic GeoJSON datasets (`wtgs_kutch.geojson`, `substations_kutch.geojson`, `parcels_kutch.geojson`, `restricted_kutch.geojson`) centered on the Gujarat Kutch wind corridor.
+- ✅ **33kV Route Optimization Pipeline**: Documented the full 5-phase data flow spanning Frontend parameter sliders → Java Spring Boot orchestrator → Python FastAPI MILP/MST solver → PostGIS geometry persistence → Leaflet map rendering.
+- ✅ **Enterprise Security & Audit Logging**: Built JWT authentication (`JwtTokenProvider`, `JwtAuthenticationFilter`, `AuthService`), SSE real-time job progress streaming (`SseProgressService`), PDF report exporter (`PdfReportService`), and system audit trail logging (`AuditLogService`).
+- ✅ **Flyway DB Migrations (V1, V2, V3)**: Spatial tables (`projects`, `wtg_locations`, `substations`, `cadastral_parcels`, `restricted_areas`, `optimization_jobs`, `generated_routes`, `users`, `audit_logs`) with GIST indexes and WGS84 (SRID 4326) constraints.
 - ✅ **Full Spring Boot REST APIs**:
   - Project management (`/api/v1/projects`)
   - GeoJSON Asset Ingestion (`/api/v1/projects/{projectId}/assets`)
   - Optimization Jobs Orchestration (`/api/v1/projects/{projectId}/jobs`)
+  - Real-Time SSE Progress Stream (`/api/v1/projects/{projectId}/jobs/{jobId}/events`)
   - Generated Routes & GeoJSON Export (`/api/v1/projects/{projectId}/jobs/{jobId}/routes`)
   - Cadastral Parcels & Restricted Avoidance Areas (`/parcels`, `/restricted-areas`)
-  - Engineering BOM Report Service & CSV Exporter (`/reports/bom`, `/csv`)
-- ✅ **Python IPC Integration**: Spring `RestClient` integration (`PythonOptimizationClient`) connecting backend to Python FastAPI optimizer engine.
-- ✅ **SURGE-PY-006 Per-Feeder MST Topology**: Builds one minimum-distance radial tree per feeder and reports aggregate projected topology length.
-- ✅ **SURGE-PY-007 GIS Cost Surface Foundation**: Builds a configurable uniform projected raster with affine world/grid conversion helpers.
-- ✅ **Web GIS Map Dashboard (`web-map`)**: Interactive Vite + Leaflet web frontend supporting drag-and-drop GeoJSON upload, live map visualization, parameter sliders, BOM summary cards, and CSV export.
-- ✅ **CORS & Environment Setup**: Cross-Origin Resource Sharing configured in Spring Boot (`WebConfig`); Docker Compose (`docker-compose.yml`) & environment configurations (`.env.example`) updated.
+  - Engineering BOM & Executive PDF Reports (`/reports/bom`, `/csv`, `/pdf`)
+  - User Authentication & Audit Logs (`/api/v1/auth`, `/api/v1/audit-logs`)
+- ✅ **Docker Containerization & Git Hygiene**: Multi-container Docker Compose setup (`surge-web-map`, `surge-backend-java`, `surge-postgis`, `surge-optimizer-python`). Merged feature branch `fix/geojson-map-rendering` into `main` and pushed to remote GitHub repository (`cookedaryan/surge`).
 
 ---
 
