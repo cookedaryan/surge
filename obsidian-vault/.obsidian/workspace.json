@@ -4,76 +4,20 @@
     "type": "split",
     "children": [
       {
-        "id": "6325ed51d00798b8",
-        "type": "split",
+        "id": "b5b110c2021f36b9",
+        "type": "tabs",
         "children": [
           {
-            "id": "894cb17a946c6dcf",
-            "type": "tabs",
-            "children": [
-              {
-                "id": "44348bab400319b6",
-                "type": "leaf",
-                "state": {
-                  "type": "graph",
-                  "state": {},
-                  "icon": "lucide-git-fork",
-                  "title": "Graph view"
-                }
-              }
-            ]
-          },
-          {
-            "id": "0d24f2c5fbae44c2",
-            "type": "tabs",
-            "children": [
-              {
-                "id": "29509e636a0ee9dd",
-                "type": "leaf",
-                "pinned": true,
-                "state": {
-                  "type": "terminal:terminal",
-                  "state": {
-                    "terminal:terminal": {
-                      "cwd": "C:\\Users\\aryan\\Projects\\surge\\obsidian-vault",
-                      "focus": false,
-                      "profile": {
-                        "args": [],
-                        "environment": [],
-                        "executable": "C:\\Windows\\System32\\cmd.exe",
-                        "followTheme": true,
-                        "name": "",
-                        "platforms": {
-                          "win32": true
-                        },
-                        "pythonExecutable": "python3",
-                        "restoreHistory": false,
-                        "rightClickAction": "copyPaste",
-                        "successExitCodes": [
-                          "0",
-                          "SIGINT",
-                          "SIGTERM"
-                        ],
-                        "terminalOptions": {
-                          "documentOverride": null
-                        },
-                        "type": "integrated",
-                        "useWin32Conhost": true
-                      },
-                      "profileSourceId": "win32IntegratedDefault",
-                      "serial": null,
-                      "userTitle": ""
-                    }
-                  },
-                  "pinned": true,
-                  "icon": "terminal",
-                  "title": "cmd"
-                }
-              }
-            ]
+            "id": "95cba60b5e3614e9",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "New tab"
+            }
           }
-        ],
-        "direction": "horizontal"
+        ]
       }
     ],
     "direction": "vertical"
@@ -249,8 +193,11 @@
       "templater-obsidian:Templater": false
     }
   },
-  "active": "29509e636a0ee9dd",
+  "active": "95cba60b5e3614e9",
   "lastOpenFiles": [
+    "journal/2026-08-09.md",
+    "00-dashboard/Dashboard.md",
+    "08-python-engine/Geospatial Integrity & CRS.md",
     "Untitled.base",
     "Templates/Journal.md",
     "04-architecture/System Overview.md",
@@ -258,7 +205,6 @@
     "journal/2026-08-07.md",
     "journal/2026-08-04.md",
     "walkthrough/2026-08-07-GIS-Foundation.md",
-    "08-python-engine/Geospatial Integrity & CRS.md",
     "08-python-engine/PROJECT_CONTEXT.md",
     "PROJECT_CONTEXT.md",
     "05-optimization/Routing.md",
@@ -278,14 +224,12 @@
     "15-research/Paper - GIS Optimization.md",
     "05-optimization/WTG Grouping.md",
     "15-research/Paper - Genetic Algorithms.md",
-    "14-decisions/ADR-005 Python Service Architecture and Schemas.md",
     "assets/ui",
     "assets/screenshots",
     "assets/gis",
     "assets/diagrams",
     "assets/architecture",
     "assets",
-    "templates",
-    "daily"
+    "templates"
   ]
 }

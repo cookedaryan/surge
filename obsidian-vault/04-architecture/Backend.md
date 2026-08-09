@@ -64,14 +64,23 @@ Current parcel compensation is provisional. It estimates the area of each entire
 
 Python or serialization exceptions are logged and converted into a failed job with an error message. The Java endpoint still returns the stored job response, so callers must inspect job status rather than assuming an HTTP success means optimization succeeded.
 
-## Current Limitations
+## Planned Improvements & Backend Task Backlog
 
-- No authentication or authorization
-- No asynchronous worker or real-time progress
-- Python currently returns empty route GeoJSON
-- No route-derived ROW calculation
-- No PDF engineering report
-- CORS is configured for development frontend origins
+- **SURGE-JV-001: Data Persistence & PostGIS Spatial Model Integration**
+  - Flyway database migration `V3` to persist poles, candidate route alternatives, parcel compensation line items, and electrical load flow metrics.
+  - Configure Hibernate Spatial types for PostGIS indexing (`GIST(geometry)`).
+- **SURGE-JV-002: Asynchronous Job Execution & Status Polling**
+  - Convert blocking optimization calls to Spring `@Async` task execution with status endpoints (`/api/v1/jobs/{id}/status` and `/api/v1/jobs/{id}/results`) and SSE event streaming.
+- **SURGE-JV-003: Engineering BOM & Export Reporting Service**
+  - Implement full BOM calculation: conductor length by type, pole count by type, insulator hardware, parcel compensation total, and estimated annual electrical loss cost.
+  - Support exporting BOM reports in CSV and formatted PDF summary formats.
+- **SURGE-JV-004: PostGIS Query & Spatial Index Optimization**
+  - Implement optimized PostGIS spatial queries using `ST_Intersects`, `ST_Buffer`, `ST_DWithin`, and spatial indexing to rapidly analyze parcel boundaries and restricted areas.
+- **SURGE-JV-005: API Security & Robust Exception Handling**
+  - Implement global `@ControllerAdvice` for exception handling, request validation, and OpenAPI documentation updates.
+- **SURGE-QA-002: Backend Automated Testing & Verification**
+  - Unit tests for `OptimizationJobService`, `EngineeringReportService`, DTO mappers, and Flyway migrations.
+  - Integration testing with PostGIS queries using `Testcontainers` (PostgreSQL/PostGIS container).
 
 ## Related Notes
 
@@ -80,3 +89,4 @@ Python or serialization exceptions are logged and converted into a failed job wi
 - [[Database]]
 - [[Authentication]]
 - [[FastAPI Endpoints|FastAPI Microservice Specification]]
+
