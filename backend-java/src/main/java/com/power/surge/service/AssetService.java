@@ -81,7 +81,8 @@ public class AssetService {
 
             String geomType = geometry.path("type").asText();
             if (!"Point".equalsIgnoreCase(geomType)) {
-                throw new IllegalArgumentException("Unsupported GeoJSON geometry type: " + geomType + ". Only Point geometries are supported.");
+                // Skip non-Point features (e.g. LineStrings or Polygons) when importing point assets
+                continue;
             }
 
             JsonNode coords = geometry.get("coordinates");

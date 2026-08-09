@@ -28,12 +28,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import com.power.surge.security.JwtTokenProvider;
+
 @WebMvcTest(controllers = ProjectController.class, excludeAutoConfiguration = { JpaRepositoriesAutoConfiguration.class })
+@AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
 class ProjectControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private JwtTokenProvider jwtTokenProvider;
 
     @MockBean
     private ProjectService projectService;

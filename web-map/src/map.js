@@ -37,11 +37,12 @@ export class SurgeMapEngine {
 
     // Layer Groups
     this.layers = {
-      wtgs: L.layerGroup().addTo(this.map),
-      substations: L.layerGroup().addTo(this.map),
-      routes: L.layerGroup().addTo(this.map),
-      parcels: L.layerGroup().addTo(this.map),
-      restricted: L.layerGroup().addTo(this.map)
+      wtgs: L.featureGroup().addTo(this.map),
+      substations: L.featureGroup().addTo(this.map),
+      routes: L.featureGroup().addTo(this.map),
+      parcels: L.featureGroup().addTo(this.map),
+      restricted: L.featureGroup().addTo(this.map),
+      imported: L.featureGroup().addTo(this.map)
     };
   }
 
@@ -106,17 +107,17 @@ export class SurgeMapEngine {
     }).addTo(this.layers.substations);
   }
 
-  // Render Feeder Routes
-  renderRoutes(geoJson) {
+  // Render Feeder Routes with optional scenario color override
+  renderRoutes(geoJson, customColor = null) {
     this.layers.routes.clearLayers();
     if (!geoJson || !geoJson.features) return;
 
-    const colors = ['#10B981', '#06B6D4', '#3B82F6', '#8B5CF6', '#F59E0B'];
+    const colors = customColor ? [customColor] : ['#10B981', '#06B6D4', '#3B82F6', '#8B5CF6', '#F59E0B'];
     let idx = 0;
 
     L.geoJSON(geoJson, {
       style: (feature) => ({
-        color: colors[idx++ % colors.length],
+        color: customColor || colors[idx++ % colors.length],
         weight: 5,
         opacity: 0.85,
         dashArray: '10, 6',
@@ -138,16 +139,17 @@ export class SurgeMapEngine {
   }
 
   // Render Cadastral Parcels
-  renderParcels(geoJson) {
+  renderParcels(geoJson, fillOpacity = 0.25) {
     this.layers.parcels.clearLayers();
     if (!geoJson || !geoJson.features) return;
 
+    this.parcelGeoJson = geoJson;
     L.geoJSON(geoJson, {
       style: {
         color: '#8B5CF6',
         weight: 2,
         fillColor: '#8B5CF6',
-        fillOpacity: 0.25
+        fillOpacity: fillOpacity
       },
       onEachFeature: (feature, layer) => {
         const props = feature.properties || {};
@@ -164,16 +166,17 @@ export class SurgeMapEngine {
   }
 
   // Render Restricted Areas
-  renderRestrictedAreas(geoJson) {
+  renderRestrictedAreas(geoJson, fillOpacity = 0.35) {
     this.layers.restricted.clearLayers();
     if (!geoJson || !geoJson.features) return;
 
+    this.restrictedGeoJson = geoJson;
     L.geoJSON(geoJson, {
       style: {
         color: '#EF4444',
         weight: 2,
         fillColor: '#EF4444',
-        fillOpacity: 0.35,
+        fillOpacity: fillOpacity,
         dashArray: '4, 4'
       },
       onEachFeature: (feature, layer) => {
@@ -190,22 +193,112 @@ export class SurgeMapEngine {
     }).addTo(this.layers.restricted);
   }
 
+  // Layer Opacity Setter
+  setLayerOpacity(layerName, opacity) {
+    if (layerName === 'parcels' && this.parcelGeoJson) {
+      this.renderParcels(this.parcelGeoJson, parseFloat(opacity));
+    } else if (layerName === 'restricted' && this.restrictedGeoJson) {
+      this.renderRestrictedAreas(this.restrictedGeoJson, parseFloat(opacity));
+    }
+  }
+
+  // Clear imported layer explicitly
+  clearImported() {
+    this.layers.imported.clearLayers();
+  }
+
+  // Force Leaflet to recalculate map container size
+  // Must be called after any DOM resize that affects the map container
+  invalidateSize() {
+    this.map.invalidateSize({ animate: false });
+  }
+
+  // Render any custom imported GeoJSON file feature collection live (additive — does NOT clear between files)
+  renderImportedGeoJson(geoJson) {
+    if (!geoJson) return;
+
+    const importedLayer = L.geoJSON(geoJson, {
+      style: (feature) => {
+        const geomType = feature.geometry ? feature.geometry.type : '';
+        if (geomType.includes('Polygon')) {
+          return {
+            color: '#06B6D4',
+            weight: 2,
+            fillColor: '#06B6D4',
+            fillOpacity: 0.35
+          };
+        }
+        if (geomType.includes('LineString')) {
+          return {
+            color: '#10B981',
+            weight: 4,
+            opacity: 0.9,
+            dashArray: '8, 4'
+          };
+        }
+        return { color: '#3B82F6', weight: 2 };
+      },
+      pointToLayer: (feature, latlng) => {
+        const icon = L.divIcon({
+          className: 'custom-leaflet-marker wtg-marker',
+          html: `<div class="marker-pin wtg-pin"><i class="fa-solid fa-location-dot text-cyan"></i></div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+        const marker = L.marker(latlng, { icon });
+        const props = feature.properties || {};
+        const title = props.externalId || props.name || props.id || 'Imported Feature';
+        marker.bindPopup(`
+          <div class="popup-card">
+            <h4><i class="fa-solid fa-map-pin text-cyan"></i> ${title}</h4>
+            <div class="popup-row"><span>Type:</span> <strong>${feature.geometry ? feature.geometry.type : 'Point'}</strong></div>
+            <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
+          </div>
+        `);
+        return marker;
+      },
+      onEachFeature: (feature, layer) => {
+        if (feature.geometry && feature.geometry.type.includes('Point')) return;
+        const props = feature.properties || {};
+        const keys = Object.keys(props).slice(0, 4);
+        const rowsHtml = keys.map(k => `<div class="popup-row"><span>${k}:</span> <strong>${props[k]}</strong></div>`).join('');
+        layer.bindPopup(`
+          <div class="popup-card">
+            <h4><i class="fa-solid fa-layer-group text-cyan"></i> Imported GeoJSON Feature</h4>
+            ${rowsHtml || '<div class="popup-row"><span>Geometry:</span> <strong>' + feature.geometry.type + '</strong></div>'}
+          </div>
+        `);
+      }
+    }).addTo(this.layers.imported);
+
+    try {
+      const bounds = importedLayer.getBounds();
+      if (bounds && bounds.isValid()) {
+        this.map.fitBounds(bounds, { padding: [50, 50] });
+      }
+    } catch (err) {
+      console.warn('Could not fit bounds to imported GeoJSON:', err);
+    }
+  }
+
   // Auto Zoom & Fit Bounds to Layer Data
   fitAllBounds() {
-    const featureGroup = L.featureGroup([
-      this.layers.wtgs,
-      this.layers.substations,
-      this.layers.routes,
-      this.layers.parcels,
-      this.layers.restricted
-    ]);
+    // Collect all individual child layers from every layer group
+    const allLayers = [];
+    Object.values(this.layers).forEach(layerGroup => {
+      layerGroup.eachLayer(layer => allLayers.push(layer));
+    });
 
-    if (featureGroup.getLayers().length > 0) {
-      try {
-        this.map.fitBounds(featureGroup.getBounds(), { padding: [40, 40] });
-      } catch (e) {
-        console.warn('Could not fit bounds:', e);
+    if (allLayers.length === 0) return;
+
+    try {
+      const group = L.featureGroup(allLayers);
+      const bounds = group.getBounds();
+      if (bounds && bounds.isValid()) {
+        this.map.fitBounds(bounds, { padding: [40, 40] });
       }
+    } catch (e) {
+      console.warn('Could not fit bounds:', e);
     }
   }
 
@@ -217,5 +310,145 @@ export class SurgeMapEngine {
         this.map.removeLayer(this.layers[layerName]);
       }
     }
+  }
+
+  // Interactive Polyline Vertex Dragging
+  enableRouteEditing(enabled, onVertexMoved) {
+    if (this.editHandleLayer) {
+      this.map.removeLayer(this.editHandleLayer);
+      this.editHandleLayer = null;
+    }
+
+    if (!enabled) return;
+
+    this.editHandleLayer = L.layerGroup().addTo(this.map);
+
+    this.layers.routes.eachLayer(layerGroup => {
+      if (layerGroup instanceof L.GeoJSON) {
+        layerGroup.eachLayer(polylineLayer => {
+          if (polylineLayer instanceof L.Polyline) {
+            const latlngs = polylineLayer.getLatLngs();
+
+            latlngs.forEach((latlng, index) => {
+              const handle = L.marker(latlng, {
+                draggable: true,
+                icon: L.divIcon({
+                  className: 'vertex-drag-handle',
+                  html: `<div style="width:12px;height:12px;background:#F59E0B;border:2px solid #ffffff;border-radius:50%;cursor:grab;"></div>`,
+                  iconSize: [12, 12],
+                  iconAnchor: [6, 6]
+                })
+              });
+
+              handle.on('drag', (e) => {
+                const newLatLng = e.target.getLatLng();
+                latlngs[index] = newLatLng;
+                polylineLayer.setLatLngs(latlngs);
+
+                // Calculate updated path length
+                let totalDist = 0;
+                for (let i = 0; i < latlngs.length - 1; i++) {
+                  totalDist += latlngs[i].distanceTo(latlngs[i + 1]);
+                }
+
+                const newPoles = Math.ceil(totalDist / 150.0);
+                const newCost = Math.round(totalDist * 80.0);
+
+                if (onVertexMoved) {
+                  onVertexMoved(totalDist, newPoles, newCost);
+                }
+              });
+
+              handle.addTo(this.editHandleLayer);
+            });
+          }
+        });
+      }
+    });
+  }
+
+  // Interactive SVG Route Elevation Profile Render
+  renderElevationProfile(svgId, routeGeoJson) {
+    const svg = document.getElementById(svgId);
+    if (!svg) return;
+
+    // Generate elevation profile points along route coordinates
+    let coords = [];
+    if (routeGeoJson && routeGeoJson.features && routeGeoJson.features.length > 0) {
+      const feat = routeGeoJson.features[0];
+      if (feat.geometry && feat.geometry.coordinates) {
+        coords = feat.geometry.coordinates;
+      }
+    }
+
+    if (coords.length < 2) {
+      coords = [[69.8210, 23.2350], [69.8150, 23.2280], [69.8050, 23.2200]];
+    }
+
+    // Build synthetic elevation profile curve (meters MSL)
+    const points = [];
+    let cumDist = 0;
+    const baseElevation = 45;
+
+    for (let i = 0; i < coords.length; i++) {
+      if (i > 0) {
+        const p1 = L.latLng(coords[i - 1][1], coords[i - 1][0]);
+        const p2 = L.latLng(coords[i][1], coords[i][0]);
+        cumDist += p1.distanceTo(p2);
+      }
+      // Synthetic terrain fluctuation curve
+      const elev = baseElevation + Math.sin(i * 1.5) * 18 + Math.cos(i * 0.8) * 12;
+      points.push({ dist: cumDist, elev });
+    }
+
+    const totalDist = points[points.length - 1].dist || 5000;
+    const minElev = 10;
+    const maxElev = 90;
+
+    const width = 800;
+    const height = 160;
+    const padding = 24;
+
+    const scaleX = (d) => padding + (d / totalDist) * (width - 2 * padding);
+    const scaleY = (e) => height - padding - ((e - minElev) / (maxElev - minElev)) * (height - 2 * padding);
+
+    let pathD = `M ${scaleX(points[0].dist)},${scaleY(points[0].elev)}`;
+    for (let i = 1; i < points.length; i++) {
+      pathD += ` L ${scaleX(points[i].dist)},${scaleY(points[i].elev)}`;
+    }
+
+    const areaD = pathD + ` L ${scaleX(points[points.length - 1].dist)},${height - padding} L ${scaleX(points[0].dist)},${height - padding} Z`;
+
+    // Render SVG Elements
+    svg.innerHTML = `
+      <defs>
+        <linearGradient id="elevGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.4"/>
+          <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.0"/>
+        </linearGradient>
+      </defs>
+
+      <!-- Grid lines -->
+      <line x1="${padding}" y1="${scaleY(30)}" x2="${width - padding}" y2="${scaleY(30)}" stroke="rgba(255,255,255,0.08)" stroke-dasharray="4,4"/>
+      <line x1="${padding}" y1="${scaleY(60)}" x2="${width - padding}" y2="${scaleY(60)}" stroke="rgba(255,255,255,0.08)" stroke-dasharray="4,4"/>
+
+      <!-- Area fill -->
+      <path d="${areaD}" fill="url(#elevGrad)"/>
+
+      <!-- Profile Line -->
+      <path d="${pathD}" fill="none" stroke="#3B82F6" stroke-width="3" stroke-linecap="round"/>
+
+      <!-- Pole markers along profile -->
+      ${points.map((p, idx) => `
+        <circle cx="${scaleX(p.dist)}" cy="${scaleY(p.elev)}" r="4" fill="#F59E0B" stroke="#ffffff" stroke-width="1.5">
+          <title>Pole #${idx + 1}: ${p.dist.toFixed(0)}m, Elev: ${p.elev.toFixed(1)}m</title>
+        </circle>
+        <text x="${scaleX(p.dist)}" y="${scaleY(p.elev) - 10}" fill="#9CA3AF" font-size="10" text-anchor="middle">${p.elev.toFixed(0)}m</text>
+      `).join('')}
+
+      <!-- Axis Labels -->
+      <text x="${padding}" y="${height - 6}" fill="#6B7280" font-size="10">0 m</text>
+      <text x="${width - padding}" y="${height - 6}" fill="#6B7280" font-size="10" text-anchor="end">${(totalDist / 1000).toFixed(2)} km</text>
+    `;
   }
 }

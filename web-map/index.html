@@ -16,10 +16,58 @@
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <!-- App Styling -->
+  <!-- Leaflet JS — must load before the app module -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- App Styling (used by Vite dev server; Vite injects hashed CSS in production) -->
   <link rel="stylesheet" href="/src/index.css" />
 </head>
 <body class="dark-theme">
+
+  <!-- Protected Access Gateway Fullscreen Overlay -->
+  <div id="authGatewayOverlay" class="gateway-overlay">
+    <div class="gateway-bg-grid"></div>
+    <div class="gateway-card card glass">
+      <div class="gateway-header">
+        <div class="gateway-logo">
+          <i class="fa-solid fa-bolt-lightning"></i>
+        </div>
+        <h2>SURGE Workstation</h2>
+        <p class="gateway-sub">Smart Utility Routing & Grid Evacuation Engine</p>
+        <span class="gateway-version-pill"><i class="fa-solid fa-code-branch"></i> Enterprise v2.6</span>
+      </div>
+
+      <div class="gateway-notice">
+        <i class="fa-solid fa-shield-halved"></i>
+        <span>Restricted Workstation: Authorized Personnel Only</span>
+      </div>
+
+      <div class="gateway-form">
+        <div class="form-group">
+          <label for="gatewayUsername"><i class="fa-solid fa-user-shield"></i> Username</label>
+          <div class="input-with-icon">
+            <i class="fa-solid fa-user input-icon"></i>
+            <input type="text" id="gatewayUsername" class="styled-input" placeholder="Username (admin)" value="admin" autocomplete="username" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="gatewayPassword"><i class="fa-solid fa-key"></i> Password</label>
+          <div class="input-with-icon">
+            <i class="fa-solid fa-lock input-icon"></i>
+            <input type="password" id="gatewayPassword" class="styled-input" placeholder="Password (admin)" value="admin" autocomplete="current-password" />
+          </div>
+        </div>
+
+        <div class="credentials-tip">
+          <i class="fa-solid fa-circle-info"></i> Standard Access Credentials: <code>admin</code> / <code>admin</code>
+        </div>
+
+        <button id="btnGatewayLogin" class="btn btn-primary btn-block btn-lg mt-3">
+          <i class="fa-solid fa-right-to-bracket"></i> Authenticate & Launch Workstation
+        </button>
+      </div>
+    </div>
+  </div>
 
   <div id="app-root">
     <!-- Header Navbar -->
@@ -37,21 +85,33 @@
       <div class="header-project-selector">
         <label for="projectSelect"><i class="fa-solid fa-folder-tree"></i> Project:</label>
         <select id="projectSelect" class="styled-select">
-          <option value="">Loading Projects...</option>
+          <option value="">(No active project)</option>
         </select>
         <button id="btnNewProject" class="btn btn-secondary btn-sm">
           <i class="fa-solid fa-plus"></i> New Project
+        </button>
+        <button id="btnCompareScenarios" class="btn btn-accent btn-sm">
+          <i class="fa-solid fa-code-compare"></i> Compare Scenarios
+        </button>
+        <button id="btnDownloadPdf" class="btn btn-primary btn-sm">
+          <i class="fa-solid fa-file-pdf"></i> Export PDF
         </button>
       </div>
 
       <div class="header-status">
         <div class="status-pill status-online">
           <span class="status-dot"></span>
-          <span id="backendStatusText">Backend Ready</span>
+          <span id="backendStatusText">Spring Boot Ready</span>
         </div>
         <div class="status-pill status-python">
           <i class="fa-brands fa-python"></i>
-          <span>Python Engine Connected</span>
+          <span>Python Engine Ready</span>
+        </div>
+        <div id="userProfileWidget" class="user-profile-widget">
+          <span id="userProfileBadge" class="user-badge"><i class="fa-solid fa-user-shield"></i> <span id="userProfileText">Not Authenticated</span></span>
+          <button id="btnLogout" class="btn btn-outline btn-sm hidden">
+            <i class="fa-solid fa-right-from-bracket"></i> Logout
+          </button>
         </div>
       </div>
     </header>
@@ -63,7 +123,7 @@
         <!-- Sidebar Navigation Tabs -->
         <nav class="sidebar-tabs">
           <button class="tab-btn active" data-tab="tab-assets">
-            <i class="fa-solid fa-layer-group"></i> Assets & GIS
+            <i class="fa-solid fa-layer-group"></i> Assets
           </button>
           <button class="tab-btn" data-tab="tab-optimise">
             <i class="fa-solid fa-wand-magic-sparkles"></i> Optimization
@@ -72,7 +132,10 @@
             <i class="fa-solid fa-sliders"></i> Layers
           </button>
           <button class="tab-btn" data-tab="tab-reports">
-            <i class="fa-solid fa-file-invoice-dollar"></i> BOM Report
+            <i class="fa-solid fa-file-invoice-dollar"></i> BOM
+          </button>
+          <button class="tab-btn" data-tab="tab-audit">
+            <i class="fa-solid fa-list-check"></i> Audit
           </button>
         </nav>
 
@@ -86,7 +149,7 @@
               <i class="fa-solid fa-file-geojson dropzone-icon"></i>
               <p>Drag & Drop <strong>.geojson</strong> files here</p>
               <span>or click to browse</span>
-              <input type="file" id="fileInput" accept=".json,.geojson" hidden />
+              <input type="file" id="fileInput" accept=".json,.geojson" multiple />
             </div>
 
             <div class="asset-type-selector">
@@ -204,6 +267,27 @@
                 <span class="toggle-label"><i class="fa-solid fa-ban text-red"></i> Restricted Zones</span>
               </label>
             </div>
+
+            <hr class="divider" />
+            <h4 class="section-subtitle"><i class="fa-solid fa-sliders"></i> Polygon Opacity Sliders</h4>
+
+            <div class="form-group">
+              <label for="sliderParcelOpacity">Parcel Fill Opacity: <span id="valParcelOpacity" class="val-badge">0.25</span></label>
+              <input type="range" id="sliderParcelOpacity" min="0" max="1" step="0.05" value="0.25" class="slider" />
+            </div>
+
+            <div class="form-group">
+              <label for="sliderRestrictedOpacity">Restricted Zone Opacity: <span id="valRestrictedOpacity" class="val-badge">0.40</span></label>
+              <input type="range" id="sliderRestrictedOpacity" min="0" max="1" step="0.05" value="0.40" class="slider" />
+            </div>
+
+            <hr class="divider" />
+            <h4 class="section-subtitle"><i class="fa-solid fa-pen-ruler"></i> Interactive GIS Editing</h4>
+            <label class="toggle-item">
+              <input type="checkbox" id="chkEnableRouteEdit" />
+              <span class="toggle-switch"></span>
+              <span class="toggle-label"><i class="fa-solid fa-bezier-curve text-yellow"></i> Enable Route Line Editing</span>
+            </label>
           </div>
         </section>
 
@@ -235,6 +319,23 @@
             <button id="btnDownloadCsv" class="btn btn-outline btn-block mt-3">
               <i class="fa-solid fa-file-csv"></i> Export BOM CSV Report
             </button>
+            <button id="btnDownloadPdf" class="btn btn-primary btn-block mt-2">
+              <i class="fa-solid fa-file-pdf"></i> Export Executive PDF Report
+            </button>
+          </div>
+        </section>
+
+        <!-- Tab 5: Audit Activity Logs -->
+        <section id="tab-audit" class="tab-content">
+          <div class="card">
+            <h3><i class="fa-solid fa-list-check"></i> System Audit Log</h3>
+            <p class="card-desc">Real-time user operations & audit trail.</p>
+            <div id="auditLogList" class="audit-log-list">
+              <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading Audit Logs...</div>
+            </div>
+            <button id="btnRefreshAuditLogs" class="btn btn-secondary btn-block mt-3">
+              <i class="fa-solid fa-rotate-right"></i> Refresh Logs
+            </button>
           </div>
         </section>
       </aside>
@@ -251,6 +352,19 @@
           <div class="legend-item"><span class="legend-icon route-icon"></span> Optimized Feeder Route</div>
           <div class="legend-item"><span class="legend-icon parcel-icon"></span> Cadastral Land Parcel</div>
           <div class="legend-item"><span class="legend-icon restricted-icon"></span> Environmental Restricted Zone</div>
+        </div>
+
+        <!-- Elevation Profile Drawer Panel -->
+        <div id="elevationDrawer" class="elevation-drawer card glass hidden">
+          <div class="elevation-drawer-header">
+            <h4><i class="fa-solid fa-chart-area text-blue"></i> Feeder Route Terrain Elevation Profile (DEM)</h4>
+            <button id="btnCloseElevationDrawer" class="btn-close">&times;</button>
+          </div>
+          <div class="elevation-chart-container">
+            <svg id="elevationSvg" class="elevation-svg" viewBox="0 0 800 160" preserveAspectRatio="none">
+              <!-- Dynamically generated SVG elevation graph -->
+            </svg>
+          </div>
         </div>
       </div>
     </main>
@@ -280,8 +394,48 @@
     </div>
   </div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Scenario Comparison Modal -->
+  <div id="modalCompareScenarios" class="modal-overlay hidden">
+    <div class="modal-content modal-lg card glass">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-code-compare"></i> Multi-Scenario Feeder Optimization Comparison</h3>
+        <button id="btnCloseScenarioModal" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="scenario-grid-container" id="scenarioGridContainer">
+          <!-- Dynamically populated scenario cards -->
+          <div class="loading-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Loading Scenario Analytics...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnCloseScenarioModalBottom" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Authentication Modal -->
+  <div id="modalAuth" class="modal-overlay hidden">
+    <div class="modal-content card glass">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-lock"></i> Enterprise User Authentication</h3>
+        <button id="btnCloseAuthModal" class="btn-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="authUsername">Username:</label>
+          <input type="text" id="authUsername" class="styled-input" placeholder="Enter username (e.g. admin)" value="admin" />
+        </div>
+        <div class="form-group">
+          <label for="authPassword">Password:</label>
+          <input type="password" id="authPassword" class="styled-input" placeholder="Enter password" value="password" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btnCancelAuthModal" class="btn btn-secondary">Cancel</button>
+        <button id="btnLoginSubmit" class="btn btn-primary">Sign In / Register</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Application Logic -->
   <script type="module" src="/src/app.js"></script>

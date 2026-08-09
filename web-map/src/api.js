@@ -1,51 +1,94 @@
 /* ==========================================================================
-   SURGE GIS Web Application — Java Backend API Client
+   SURGE GIS Web Application — API Client Integration Service
    ========================================================================== */
 
-const API_BASE_URL = 'http://localhost:8080/api/v1';
+const API_BASE_URL = '/api/v1';
 
 async function fetchJson(url, options = {}) {
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-      },
-      ...options
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: res.statusText }));
-      throw new Error(err.message || `API error (${res.status})`);
-    }
-    return await res.json();
-  } catch (error) {
-    console.warn(`[API Call Failed: ${url}]`, error.message);
-    throw error;
+  const token = localStorage.getItem('surge_jwt_token');
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {})
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
+
+  const response = await fetch(url, { ...options, headers });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || `HTTP Error ${response.status}`);
+  }
+
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    return await response.json();
+  }
+
+  return await response.text();
+}
+
+function emptyGeoJson() {
+  return { type: 'FeatureCollection', features: [] };
 }
 
 export const api = {
+  // Auth & Session
+  async login(username, password) {
+    const res = await fetchJson(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      body: JSON.stringify({ username, password })
+    });
+    if (res.token) localStorage.setItem('surge_jwt_token', res.token);
+    return res;
+  },
+
+  async register(username, email, password) {
+    const res = await fetchJson(`${API_BASE_URL}/auth/register`, {
+      method: 'POST',
+      body: JSON.stringify({ username, email, password, role: 'ROLE_ENGINEER' })
+    });
+    if (res.token) localStorage.setItem('surge_jwt_token', res.token);
+    return res;
+  },
+
+  async getAuditLogs() {
+    try {
+      return await fetchJson(`${API_BASE_URL}/audit-logs`);
+    } catch {
+      return [];
+    }
+  },
+
   // Projects
   async listProjects() {
     try {
-      return await fetchJson(`${API_BASE_URL}/projects`);
+      const list = await fetchJson(`${API_BASE_URL}/projects`);
+      if (Array.isArray(list)) return list;
+      return [];
     } catch {
-      // Fallback demo project if backend is booting up
-      return [{
-        id: 'proj-demo-001',
-        name: 'Gujarat Kutch Wind Farm (Demo)',
-        description: '100 MW Collector Grid',
-        crs: 'EPSG:4326',
-        createdAt: new Date().toISOString()
-      }];
+      return [];
     }
   },
 
   async createProject(name, description) {
-    return await fetchJson(`${API_BASE_URL}/projects`, {
-      method: 'POST',
-      body: JSON.stringify({ name, description, crs: 'EPSG:4326' })
-    });
+    try {
+      return await fetchJson(`${API_BASE_URL}/projects`, {
+        method: 'POST',
+        body: JSON.stringify({ name, description, crs: 'EPSG:4326' })
+      });
+    } catch (err) {
+      console.warn('[Create Project API Fallback]', err);
+      return {
+        id: 'proj-' + Date.now(),
+        name: name || 'Default Workstation Project',
+        description: description || 'Grid Evacuation Workspace',
+        crs: 'EPSG:4326',
+        createdAt: new Date().toISOString()
+      };
+    }
   },
 
   // GeoJSON Assets Ingestion
@@ -73,212 +116,123 @@ export const api = {
   // Assets Retrieval
   async getProjectAssetsGeoJson(projectId) {
     try {
-      return await fetchJson(`${API_BASE_URL}/projects/${projectId}/assets/geojson`);
-    } catch {
-      return getDemoAssetGeoJson();
+      const res = await fetchJson(`${API_BASE_URL}/projects/${projectId}/assets/geojson`);
+      if (res && Array.isArray(res.features)) return res;
+    } catch (e) {
+      console.warn('[Assets API Error]', e);
     }
+    return emptyGeoJson();
   },
 
   async getParcelsGeoJson(projectId) {
     try {
-      return await fetchJson(`${API_BASE_URL}/projects/${projectId}/parcels/geojson`);
-    } catch {
-      return getDemoParcelsGeoJson();
+      const res = await fetchJson(`${API_BASE_URL}/projects/${projectId}/parcels/geojson`);
+      if (res && Array.isArray(res.features)) return res;
+    } catch (e) {
+      console.warn('[Parcels API Error]', e);
     }
+    return emptyGeoJson();
   },
 
   async getRestrictedAreasGeoJson(projectId) {
     try {
-      return await fetchJson(`${API_BASE_URL}/projects/${projectId}/restricted-areas/geojson`);
-    } catch {
-      return getDemoRestrictedAreasGeoJson();
+      const res = await fetchJson(`${API_BASE_URL}/projects/${projectId}/restricted-areas/geojson`);
+      if (res && Array.isArray(res.features)) return res;
+    } catch (e) {
+      console.warn('[Restricted API Error]', e);
     }
+    return emptyGeoJson();
+  },
+
+  async getRoutesGeoJson(projectId, jobId) {
+    try {
+      if (jobId) {
+        const res = await fetchJson(`${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/routes/geojson`);
+        if (res && Array.isArray(res.features)) return res;
+      }
+    } catch (e) {
+      console.warn('[Routes API Error]', e);
+    }
+    return emptyGeoJson();
   },
 
   // Optimization Jobs
   async runOptimization(projectId, params = {}) {
-    try {
-      return await fetchJson(`${API_BASE_URL}/projects/${projectId}/jobs`, {
-        method: 'POST',
-        body: JSON.stringify({
-          algorithmType: 'MULTI_OBJECTIVE_A_STAR',
-          scenario: params.scenario || 'Balanced',
-          feederCapacityMw: params.feederCapacityMw || 20.0,
-          maxSpanMeters: params.maxSpanMeters || 150.0,
-          voltageKv: params.voltageKv || 33.0
-        })
-      });
-    } catch {
-      return {
-        id: 'job-demo-' + Date.now(),
-        projectId,
-        status: 'COMPLETED',
+    return await fetchJson(`${API_BASE_URL}/projects/${projectId}/jobs`, {
+      method: 'POST',
+      body: JSON.stringify({
         algorithmType: 'MULTI_OBJECTIVE_A_STAR',
-        resultSummaryJson: JSON.stringify({ feeder_count: 2, total_length_m: 8450.0 })
-      };
-    }
+        scenario: params.scenario || 'Balanced',
+        feederCapacityMw: params.feederCapacityMw || 20.0,
+        maxSpanMeters: params.maxSpanMeters || 150.0,
+        voltageKv: params.voltageKv || 33.0
+      })
+    });
   },
 
   async getJobStatus(projectId, jobId) {
     return await fetchJson(`${API_BASE_URL}/projects/${projectId}/jobs/${jobId}`);
   },
 
-  async getRoutesGeoJson(projectId, jobId) {
+  listenJobProgress(projectId, jobId, onProgress, onError, onComplete) {
+    const url = `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/progress`;
+    let eventSource;
     try {
-      if (jobId) {
-        return await fetchJson(`${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/routes/geojson`);
-      }
-      return await fetchJson(`${API_BASE_URL}/projects/${projectId}/routes/latest/geojson`);
-    } catch {
-      return getDemoRoutesGeoJson();
+      eventSource = new EventSource(url);
+
+      eventSource.addEventListener('progress', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (onProgress) onProgress(data);
+          if (data.status === 'COMPLETED' || data.status === 'FAILED') {
+            eventSource.close();
+            if (data.status === 'COMPLETED' && onComplete) onComplete(data);
+            if (data.status === 'FAILED' && onError) onError(new Error(data.message || 'Job failed'));
+          }
+        } catch (err) {
+          console.warn('[SSE Parse Error]', err);
+        }
+      });
+
+      eventSource.onerror = (err) => {
+        eventSource.close();
+        if (onError) onError(err);
+      };
+
+      return () => eventSource.close();
+    } catch (err) {
+      if (onError) onError(err);
+      return () => {};
     }
   },
 
   // Reports
-  async getBomReport(projectId, jobId) {
+  async getBomReport(projectId) {
     try {
-      if (jobId) {
-        return await fetchJson(`${API_BASE_URL}/projects/${projectId}/reports/jobs/${jobId}/bom`);
-      }
       return await fetchJson(`${API_BASE_URL}/projects/${projectId}/reports/bom`);
     } catch {
       return {
-        totalNetworkLengthMeters: 8450.0,
-        totalPoles: 56,
-        totalEstimatedCost: 676000.0,
-        totalElectricalLossesKw: 42.5,
-        feederSummaries: [
-          { feederName: 'Feeder-01', lengthMeters: 4200.0, poleCount: 28, totalCost: 336000.0, electricalLossesKw: 21.0 },
-          { feederName: 'Feeder-02', lengthMeters: 4250.0, poleCount: 28, totalCost: 340000.0, electricalLossesKw: 21.5 }
-        ]
+        totalNetworkLengthMeters: 0,
+        totalPoles: 0,
+        totalEstimatedCost: 0,
+        totalElectricalLossesKw: 0,
+        feederSummaries: []
       };
     }
   },
 
+  getPdfReportUrl(projectId) {
+    return `${API_BASE_URL}/projects/${projectId}/reports/pdf`;
+  },
+
   getBomCsvUrl(projectId, jobId) {
     if (jobId) {
-      return `${API_BASE_URL}/projects/${projectId}/reports/jobs/${jobId}/bom/csv`;
+      return `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/reports/bom/csv`;
     }
     return `${API_BASE_URL}/projects/${projectId}/reports/bom/csv`;
+  },
+
+  async getScenarioComparison(projectId) {
+    return await fetchJson(`${API_BASE_URL}/projects/${projectId}/reports/scenarios/compare`);
   }
 };
-
-// Demo GIS Feature Collections (Gujarat Kutch Coordinates)
-function getDemoAssetGeoJson() {
-  return {
-    type: "FeatureCollection",
-    features: [
-      {
-        type: "Feature",
-        id: "WTG-001",
-        geometry: { type: "Point", coordinates: [69.8210, 23.2350] },
-        properties: { assetType: "WTG", externalId: "WTG-001", capacityMw: 3.0 }
-      },
-      {
-        type: "Feature",
-        id: "WTG-002",
-        geometry: { type: "Point", coordinates: [69.8350, 23.2420] },
-        properties: { assetType: "WTG", externalId: "WTG-002", capacityMw: 3.0 }
-      },
-      {
-        type: "Feature",
-        id: "WTG-003",
-        geometry: { type: "Point", coordinates: [69.8480, 23.2390] },
-        properties: { assetType: "WTG", externalId: "WTG-003", capacityMw: 3.0 }
-      },
-      {
-        type: "Feature",
-        id: "WTG-004",
-        geometry: { type: "Point", coordinates: [69.8610, 23.2500] },
-        properties: { assetType: "WTG", externalId: "WTG-004", capacityMw: 3.0 }
-      },
-      {
-        type: "Feature",
-        id: "SUB-001",
-        geometry: { type: "Point", coordinates: [69.8050, 23.2200] },
-        properties: { assetType: "SUBSTATION", externalId: "SUB-001", capacityMw: 100.0 }
-      }
-    ]
-  };
-}
-
-function getDemoRoutesGeoJson() {
-  return {
-    type: "FeatureCollection",
-    features: [
-      {
-        type: "Feature",
-        id: "ROUTE-001",
-        geometry: {
-          type: "LineString",
-          coordinates: [
-            [69.8210, 23.2350],
-            [69.8150, 23.2280],
-            [69.8050, 23.2200]
-          ]
-        },
-        properties: { feederName: "Feeder-01 (WTG-1 & WTG-2)", totalLengthMeters: 4200.0, poleCount: 28, totalCost: 336000.0 }
-      },
-      {
-        type: "Feature",
-        id: "ROUTE-002",
-        geometry: {
-          type: "LineString",
-          coordinates: [
-            [69.8610, 23.2500],
-            [69.8480, 23.2390],
-            [69.8350, 23.2420],
-            [69.8050, 23.2200]
-          ]
-        },
-        properties: { feederName: "Feeder-02 (WTG-3 & WTG-4)", totalLengthMeters: 4250.0, poleCount: 28, totalCost: 340000.0 }
-      }
-    ]
-  };
-}
-
-function getDemoParcelsGeoJson() {
-  return {
-    type: "FeatureCollection",
-    features: [
-      {
-        type: "Feature",
-        id: "PARCEL-101",
-        geometry: {
-          type: "Polygon",
-          coordinates: [[
-            [69.8100, 23.2300],
-            [69.8250, 23.2300],
-            [69.8250, 23.2400],
-            [69.8100, 23.2400],
-            [69.8100, 23.2300]
-          ]]
-        },
-        properties: { parcelId: "PARCEL-101", ownerName: "Kutch Agricultural Trust", acquisitionCostPerM2: 120.0 }
-      }
-    ]
-  };
-}
-
-function getDemoRestrictedAreasGeoJson() {
-  return {
-    type: "FeatureCollection",
-    features: [
-      {
-        type: "Feature",
-        id: "RESTRICTED-01",
-        geometry: {
-          type: "Polygon",
-          coordinates: [[
-            [69.8300, 23.2250],
-            [69.8450, 23.2250],
-            [69.8450, 23.2330],
-            [69.8300, 23.2330],
-            [69.8300, 23.2250]
-          ]]
-        },
-        properties: { name: "Flamingo Sanctuary Buffer Zone", restrictionType: "ENVIRONMENTAL", bufferMeters: 500.0 }
-      }
-    ]
-  };
-}

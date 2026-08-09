@@ -41,6 +41,7 @@ public class OptimizationJobService {
     private final RouteService routeService;
     private final PythonOptimizationClient pythonClient;
     private final ObjectMapper objectMapper;
+    private final SseProgressService sseProgressService;
 
     public OptimizationJobService(
             ProjectRepository projectRepository,
@@ -50,7 +51,8 @@ public class OptimizationJobService {
             SubstationRepository substationRepository,
             RouteService routeService,
             PythonOptimizationClient pythonClient,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            SseProgressService sseProgressService
     ) {
         this.projectRepository = projectRepository;
         this.jobRepository = jobRepository;
@@ -60,6 +62,7 @@ public class OptimizationJobService {
         this.routeService = routeService;
         this.pythonClient = pythonClient;
         this.objectMapper = objectMapper;
+        this.sseProgressService = sseProgressService;
     }
 
     @Transactional
@@ -91,8 +94,10 @@ public class OptimizationJobService {
 
         job = jobRepository.save(job);
         job.markRunning();
+        sseProgressService.emitProgress(job.getId(), 10, "Validating project assets and spatial constraints", com.power.surge.domain.JobStatus.RUNNING);
 
         try {
+            sseProgressService.emitProgress(job.getId(), 35, "Serializing GeoJSON & dispatching request to Python FastAPI Engine", com.power.surge.domain.JobStatus.RUNNING);
             Map<String, Object> wtgGeoJson = buildWtgGeoJson(wtgs);
             Map<String, Object> subGeoJson = buildSubstationGeoJson(substations);
 
@@ -114,20 +119,27 @@ public class OptimizationJobService {
 
             PythonOptimisationResponse pythonResp = pythonClient.runOptimization(pythonReq);
 
+            sseProgressService.emitProgress(job.getId(), 70, "Processing radial feeder topology and route outputs", com.power.surge.domain.JobStatus.RUNNING);
             String summaryJson = objectMapper.writeValueAsString(pythonResp.metrics() != null ? pythonResp.metrics() : Map.of());
 
             if ("success".equalsIgnoreCase(pythonResp.status())) {
                 if (pythonResp.feederRoutesGeojson() != null && !pythonResp.feederRoutesGeojson().isEmpty()) {
+                    sseProgressService.emitProgress(job.getId(), 85, "Saving route geometries and pole locations to PostGIS", com.power.surge.domain.JobStatus.RUNNING);
                     routeService.saveRoutesFromGeoJson(job.getId(), pythonResp.feederRoutesGeojson());
                 }
                 job.markCompleted(summaryJson);
+                sseProgressService.completeProgress(job.getId(), "Optimization job completed successfully!", true);
             } else {
-                job.markFailed("Python optimization failed with status: " + pythonResp.status());
+                String errMsg = "Python optimization failed with status: " + pythonResp.status();
+                job.markFailed(errMsg);
+                sseProgressService.completeProgress(job.getId(), errMsg, false);
             }
 
         } catch (Exception e) {
             log.error("Failed to run optimization job {}", job.getId(), e);
-            job.markFailed("Error dispatching optimization job: " + e.getMessage());
+            String errMsg = "Error dispatching optimization job: " + e.getMessage();
+            job.markFailed(errMsg);
+            sseProgressService.completeProgress(job.getId(), errMsg, false);
         }
 
         return OptimizationJobResponse.fromEntity(jobRepository.save(job));

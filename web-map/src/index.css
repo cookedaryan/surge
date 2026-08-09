@@ -240,18 +240,35 @@ body, html {
 /* Dropzone */
 .dropzone {
   border: 2px dashed rgba(59, 130, 246, 0.4);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 24px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
   background: rgba(59, 130, 246, 0.03);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
 }
 
 .dropzone:hover, .dropzone.drag-over {
   border-color: var(--accent-blue);
   background: rgba(59, 130, 246, 0.1);
   box-shadow: var(--shadow-glow);
+}
+
+.dropzone input[type="file"] {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 10;
 }
 
 .dropzone-icon {
@@ -589,3 +606,576 @@ body, html {
   gap: 10px;
   margin-top: 20px;
 }
+
+/* --------------------------------------------------------------------------
+   Scenario Comparison Matrix Styling
+   -------------------------------------------------------------------------- */
+.btn-accent {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+}
+
+.modal-lg {
+  width: 920px;
+  max-width: 95vw;
+}
+
+.scenario-grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.scenario-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  transition: all 0.25s ease;
+}
+
+.scenario-card:hover {
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.scenario-card-header {
+  font-family: var(--font-heading);
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+
+.scenario-badge {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.badge-green { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+.badge-yellow { background: rgba(245, 158, 11, 0.2); color: var(--accent-yellow); border: 1px solid var(--accent-yellow); }
+.badge-purple { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); border: 1px solid var(--accent-purple); }
+.badge-blue { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+
+.scenario-metric-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.metric-label {
+  color: var(--text-muted);
+}
+
+.metric-value {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.delta-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.delta-good { color: var(--accent-green); }
+.delta-warn { color: var(--accent-yellow); }
+
+/* --------------------------------------------------------------------------
+   Elevation Drawer & Form Utilities
+   -------------------------------------------------------------------------- */
+.divider {
+  border: 0;
+  border-top: 1px solid var(--border-color);
+  margin: 16px 0;
+}
+
+.section-subtitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.elevation-drawer {
+  position: absolute;
+  bottom: 24px;
+  left: 24px;
+  right: 300px;
+  z-index: 850;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(13, 17, 23, 0.92);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.elevation-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.elevation-drawer-header h4 {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.elevation-chart-container {
+  width: 100%;
+  height: 140px;
+}
+
+.elevation-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* --------------------------------------------------------------------------
+   Protected Access Gateway Overlay & User Profile Badge Styling
+   -------------------------------------------------------------------------- */
+.gateway-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: radial-gradient(circle at 50% 30%, rgba(11, 15, 25, 0.95), #07090e);
+  backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.gateway-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.gateway-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 32px;
+  border-radius: 20px;
+  background: rgba(17, 24, 39, 0.9);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(59, 130, 246, 0.15);
+  animation: gatewayPop 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes gatewayPop {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* --------------------------------------------------------------------------
+   High-Tech Protected Access Gateway Portal & Glassmorphism
+   -------------------------------------------------------------------------- */
+.gateway-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, #0F172A 0%, #080C14 100%);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.gateway-bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  animation: grid-scroll 30s linear infinite;
+}
+
+@keyframes grid-scroll {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 40px; }
+}
+
+.gateway-card {
+  width: 440px;
+  max-width: 95vw;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(6, 182, 212, 0.15);
+  border-radius: 20px;
+  padding: 32px;
+  backdrop-filter: blur(24px);
+  position: relative;
+  z-index: 2;
+  animation: gateway-appear 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes gateway-appear {
+  0% { opacity: 0; transform: scale(0.94) translateY(12px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.gateway-header {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.gateway-logo {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #06B6D4, #3B82F6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px auto;
+  font-size: 26px;
+  color: #ffffff;
+  box-shadow: 0 0 30px rgba(6, 182, 212, 0.5);
+}
+
+.gateway-header h2 {
+  font-family: var(--font-heading);
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(90deg, #FFFFFF, #93C5FD);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gateway-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.gateway-version-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  font-size: 0.7rem;
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.gateway-notice {
+  background: rgba(6, 182, 212, 0.08);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 0.75rem;
+  color: var(--accent-cyan);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.input-with-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.input-with-icon .styled-input {
+  padding-left: 36px;
+}
+
+.credentials-tip {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--border-color);
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-top: 10px;
+}
+
+.credentials-tip code {
+  color: var(--accent-cyan);
+  font-weight: 700;
+}
+
+.user-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent-blue);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+}
+
+.user-profile-widget {
+  margin-left: 8px;
+}
+
+.audit-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+  margin-top: 10px;
+  padding-right: 4px;
+}
+
+.audit-item {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+}
+
+.audit-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.audit-user {
+  font-weight: 700;
+  color: var(--accent-blue);
+}
+
+.audit-action {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent-blue);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  font-weight: 600;
+}
+
+.audit-details {
+  color: var(--text-main);
+  line-height: 1.3;
+}
+
+.audit-time {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* Empty State Card */
+.empty-state-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.empty-state-card i {
+  font-size: 2rem;
+  color: var(--accent-cyan);
+}
+
+.empty-state-card p {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.empty-state-card span {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Leaflet Custom Map Markers & Dark Glass Popups
+   ========================================================================== */
+
+/* Utility colors used in popups and markers */
+.text-blue { color: #3B82F6 !important; }
+.text-yellow { color: #F59E0B !important; }
+.text-green { color: #10B981 !important; }
+.text-purple { color: #8B5CF6 !important; }
+.text-red { color: #EF4444 !important; }
+.text-cyan { color: #06B6D4 !important; }
+
+/* Custom DivIcon Markers */
+.custom-leaflet-marker {
+  background: transparent !important;
+  border: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.marker-pin {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  color: #ffffff;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.7), 0 0 10px rgba(59, 130, 246, 0.5);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+  cursor: pointer;
+}
+
+.marker-pin:hover {
+  transform: scale(1.25);
+  z-index: 999;
+}
+
+/* WTG Marker Styling */
+.wtg-pin {
+  background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+  border: 2px solid #93C5FD;
+  box-shadow: 0 0 14px rgba(59, 130, 246, 0.8);
+}
+
+.wtg-pin i {
+  color: #ffffff;
+  animation: spinSlow 8s linear infinite;
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Substation Marker Styling */
+.sub-pin {
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, #F59E0B, #D97706);
+  border: 2px solid #FDE68A;
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.85);
+  font-size: 1.15rem;
+}
+
+.sub-pin i {
+  color: #ffffff;
+}
+
+/* Generic Cyan Marker Styling */
+.marker-pin i.text-cyan {
+  color: #67E8F9 !important;
+}
+
+/* Vertex Drag Handle */
+.vertex-drag-handle {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Dark Glassmorphic Leaflet Popups */
+.leaflet-popup-content-wrapper {
+  background: rgba(15, 23, 42, 0.94) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7), 0 0 20px rgba(59, 130, 246, 0.2) !important;
+  color: #F3F4F6 !important;
+  padding: 2px !important;
+}
+
+.leaflet-popup-tip {
+  background: rgba(15, 23, 42, 0.94) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px !important;
+  line-height: 1.4 !important;
+}
+
+.popup-card {
+  min-width: 220px;
+  font-family: inherit;
+}
+
+.popup-card h4 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #F9FAFB;
+}
+
+.popup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  padding: 4px 0;
+}
+
+.popup-row span {
+  color: #9CA3AF;
+}
+
+.popup-row strong {
+  color: #F3F4F6;
+  font-weight: 600;
+}
+

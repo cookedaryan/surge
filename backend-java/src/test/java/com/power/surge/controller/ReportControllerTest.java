@@ -29,7 +29,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import com.power.surge.security.JwtTokenProvider;
+
 @WebMvcTest(controllers = ReportController.class, excludeAutoConfiguration = { JpaRepositoriesAutoConfiguration.class })
+@AutoConfigureMockMvc(addFilters = false)
 @ActiveProfiles("test")
 class ReportControllerTest {
 
@@ -37,7 +41,13 @@ class ReportControllerTest {
     private MockMvc mockMvc;
 
     @MockBean
+    private JwtTokenProvider jwtTokenProvider;
+
+    @MockBean
     private ReportService reportService;
+
+    @MockBean
+    private com.power.surge.service.PdfReportService pdfReportService;
 
     @MockBean
     private ProjectRepository projectRepository;
@@ -92,5 +102,38 @@ class ReportControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Type", MediaType.parseMediaType("text/csv").toString()))
                 .andExpect(content().string(csvContent));
+    }
+
+    @Test
+    void getsScenarioComparison() throws Exception {
+        UUID projectId = UUID.randomUUID();
+
+        com.power.surge.dto.report.ScenarioComparisonResponse response = new com.power.surge.dto.report.ScenarioComparisonResponse(
+                projectId,
+                List.of(new com.power.surge.dto.report.ScenarioSummaryItem(
+                        "Balanced", UUID.randomUUID(), com.power.surge.domain.JobStatus.COMPLETED,
+                        8450.0, 56, 676000.0, 42.5, 36000.0, 0.0, 0.0
+                ))
+        );
+
+        when(reportService.getScenarioComparison(projectId)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/projects/{projectId}/reports/scenarios/compare", projectId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projectId").value(projectId.toString()))
+                .andExpect(jsonPath("$.scenarios[0].scenarioName").value("Balanced"));
+    }
+
+    @Test
+    void downloadsExecutivePdfReport() throws Exception {
+        UUID projectId = UUID.randomUUID();
+        byte[] pdfBytes = "%PDF-1.4 dummy pdf content".getBytes();
+
+        when(pdfReportService.generateExecutivePdfReport(projectId)).thenReturn(pdfBytes);
+
+        mockMvc.perform(get("/api/v1/projects/{projectId}/reports/pdf", projectId))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", MediaType.APPLICATION_PDF_VALUE))
+                .andExpect(content().bytes(pdfBytes));
     }
 }
