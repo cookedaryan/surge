@@ -31,7 +31,7 @@ def group_wtgs(
     """
     Deterministically groups wind turbines into feeders such that no feeder
     exceeds `feeder_capacity_mw`. Uses spatial clustering (K-Means) mapped to a
-    strictly mathematically bounded Mixed-Integer Linear Program (MILP) to find the 
+    strictly mathematically bounded Mixed-Integer Linear Program (MILP) to find the
     absolute minimum number of feeders required without exceeding capacities.
     """
     if not math.isfinite(feeder_capacity_mw) or feeder_capacity_mw <= 0:
@@ -66,14 +66,14 @@ def group_wtgs(
 
     for wtg in sorted_wtgs:
         if (
-            wtg.capacity_mw is None 
-            or wtg.capacity_mw <= 0 
+            wtg.capacity_mw is None
+            or wtg.capacity_mw <= 0
             or not math.isfinite(wtg.capacity_mw)
         ):
             raise ValueError(
                 f"Turbine {wtg.turbine_id} has invalid capacity: {wtg.capacity_mw}"
             )
-            
+
         try:
             dec_cap = Decimal(str(wtg.capacity_mw))
             if (dec_cap * 1000) % 1 != 0:
@@ -84,11 +84,9 @@ def group_wtgs(
             cap_kw = int(dec_cap * 1000)
         except Exception as e:
             raise ValueError(f"Invalid capacity for {wtg.turbine_id}: {e}") from e
-            
+
         if cap_kw <= 0:
-            raise ValueError(
-                f"Turbine {wtg.turbine_id} capacity must be >= 0.001 MW"
-            )
+            raise ValueError(f"Turbine {wtg.turbine_id} capacity must be >= 0.001 MW")
 
         if cap_kw > feeder_capacity_kw:
             raise ValueError(
@@ -102,7 +100,7 @@ def group_wtgs(
 
     num_wtgs = len(sorted_wtgs)
     total_kw = sum(capacities_kw)
-    
+
     base_k = math.ceil(total_kw / feeder_capacity_kw)
     if base_k <= 0:
         base_k = 1
@@ -113,11 +111,11 @@ def group_wtgs(
         if k == 1:
             best_assignments = [0] * num_wtgs
             break
-        
+
         if k == num_wtgs:
             best_assignments = list(range(num_wtgs))
             break
-            
+
         # Determine number of distinct points
         unique_coords = set(coords)
         if len(unique_coords) < k:
@@ -138,15 +136,15 @@ def group_wtgs(
             # Defensive invariant check
             if any(a == -1 for a in assignments):
                 raise RuntimeError("MILP success but not all turbines assigned")
-            
+
             feeder_sums = [0] * k
             for i, c_idx in enumerate(assignments):
                 feeder_sums[c_idx] += capacities_kw[i]
-                
+
             for s in feeder_sums:
                 if s > feeder_capacity_kw:
                     raise RuntimeError("MILP success but capacity exceeded!")
-                    
+
             best_assignments = assignments
             break
 
@@ -159,15 +157,15 @@ def group_wtgs(
     for _c_id, node_indices in clusters.items():
         if not node_indices:
             continue
-            
+
         t_ids = tuple(turbine_ids[i] for i in node_indices)
         cap_sum = sum(capacities_kw[i] for i in node_indices) / 1000.0
-        
+
         cx = sum(coords[i][0] for i in node_indices) / len(node_indices)
         cy = sum(coords[i][1] for i in node_indices) / len(node_indices)
-        
+
         raw_assignments.append((cx, cy, t_ids, cap_sum))
-        
+
     # Sort by centroid (x, then y) and turbine IDs for stable feeder ID assignment
     raw_assignments.sort(key=lambda r: (r[0], r[1], r[2]))
 
@@ -175,7 +173,7 @@ def group_wtgs(
     for idx, (cx, cy, t_ids, cap_sum) in enumerate(raw_assignments):
         feeder_assignments.append(
             FeederAssignment(
-                feeder_id=f"F{idx+1}",
+                feeder_id=f"F{idx + 1}",
                 turbine_ids=t_ids,
                 total_capacity_mw=cap_sum,
                 centroid=Point(cx, cy),
@@ -198,12 +196,12 @@ def _solve_milp_assignment(
     """
     Uses scipy.optimize.milp to solve the capacitated assignment problem.
     Variables: x_ij (binary) = 1 if turbine i is in feeder j.
-    Total variables: N * k. 
+    Total variables: N * k.
     Index mapping: var_idx = i * k + j.
     """
     n = len(coords)
     num_vars = n * k
-    
+
     # 1. Objective function: Minimize sum(d_ij^2 * x_ij)
     c = np.zeros(num_vars)
     for i in range(n):
@@ -213,9 +211,9 @@ def _solve_milp_assignment(
             dy = coords[i][1] - centroids[j][1]
             dist_sq = dx**2 + dy**2
             c[i * k + j] = dist_sq
-            
+
     # 2. Constraints
-    
+
     # Constraint A: Each turbine assigned to exactly one feeder
     # sum_j(x_ij) == 1
     # n constraints
@@ -224,7 +222,7 @@ def _solve_milp_assignment(
     for i in range(n):
         for j in range(k):
             a_eq[i, i * k + j] = 1.0
-            
+
     # Constraint B: Capacity of each feeder <= feeder_capacity_kw
     # sum_i(P_i * x_ij) <= C_max
     # k constraints
@@ -233,30 +231,30 @@ def _solve_milp_assignment(
     for j in range(k):
         for i in range(n):
             a_ub[j, i * k + j] = capacities_kw[i]
-            
+
     # Combine equality and inequality constraints
     # scipy milp takes LinearConstraint(A, lb, ub)
     # For a_eq == 1: lb = 1, ub = 1
     # For a_ub <= C_max: lb = -inf, ub = C_max
-    
+
     a_matrix = np.vstack((a_eq, a_ub))
     lb = np.concatenate((b_eq, np.full(k, -np.inf)))
     ub = np.concatenate((b_eq, b_ub))
-    
+
     constraints = LinearConstraint(a_matrix, lb, ub)
-    
+
     # Bounds: all variables must be binary (0 <= x <= 1)
     bounds = Bounds(0, 1)
     integrality = np.ones(num_vars)  # 1 means integer
-    
+
     res = milp(
         c=c,
         constraints=constraints,
         integrality=integrality,
         bounds=bounds,
-        options={"disp": False}
+        options={"disp": False},
     )
-    
+
     if res.success:
         assignments = [-1] * n
         x_sol = np.round(res.x).astype(int)
@@ -266,5 +264,5 @@ def _solve_milp_assignment(
                     assignments[i] = j
                     break
         return assignments
-    
+
     return None

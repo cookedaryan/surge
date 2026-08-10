@@ -11,11 +11,13 @@ class WindTurbine:
     location: Point
     capacity_mw: float | None = None
 
+
 @dataclass(frozen=True)
 class Substation:
     substation_id: str
     location: Point
     capacity_mw: float | None = None
+
 
 @dataclass(frozen=True)
 class ProjectSpatialData:

@@ -17,31 +17,32 @@ class OptimisationService:
         self,
         payload: OptimisationRequest,
     ) -> OptimisationResponse:
-        """Day-1 optimisation pipeline stub."""
+        """Runs the complete optimisation pipeline."""
 
         # Phase 1: Spatial Data Preprocessing
         spatial_data = process_project_data(
             wtg_geojson=payload.wtg_geojson,
-            substation_geojson=payload.substation_geojson
+            substation_geojson=payload.substation_geojson,
         )
 
         # Phase 2: Topology Graph Generation
         topology_graph = build_project_graph(spatial_data)
-        
+
         # Phase 3: Capacity-Constrained WTG Grouping
         grouping_result = group_wtgs(
-            spatial_data, 
-            payload.electrical_params.feeder_capacity_mw
+            spatial_data, payload.electrical_params.feeder_capacity_mw
         )
 
         # SURGE-PY-006: MST network generation
         topology_result = build_feeder_mst(topology_graph, grouping_result)
-        
+
         # SURGE-PY-007 & 008: Physical Routing
         cost_surface = build_project_cost_surface(spatial_data)
-        physical_routes = route_collector_topology(topology_result, topology_graph, cost_surface)
+        physical_routes = route_collector_topology(
+            topology_result, topology_graph, cost_surface
+        )
         total_length_m = physical_routes.total_length_m
-        
+
         transformer = get_transformer(spatial_data.projected_crs, WGS84_CRS)
         feeder_features = []
         for route in physical_routes.routes:
@@ -49,21 +50,20 @@ class OptimisationService:
             for x, y in route.geometry.coords:
                 lon, lat = transformer.transform(x, y)
                 coords.append([lon, lat])
-                
-            feeder_features.append({
-                "type": "Feature",
-                "properties": {
-                    "feeder_id": route.feeder_id,
-                    "edge": f"{route.start_node_id}-{route.end_node_id}",
-                    "length_m": route.length_m,
-                    "traversal_cost": route.traversal_cost
-                },
-                "geometry": {
-                    "type": "LineString",
-                    "coordinates": coords
+
+            feeder_features.append(
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "feederName": route.feeder_id,
+                        "edge": f"{route.start_node_id}-{route.end_node_id}",
+                        "length_m": route.length_m,
+                        "traversal_cost": route.traversal_cost,
+                    },
+                    "geometry": {"type": "LineString", "coordinates": coords},
                 }
-            })
-        
+            )
+
         return OptimisationResponse(
             request_id=payload.request_id,
             status="success",

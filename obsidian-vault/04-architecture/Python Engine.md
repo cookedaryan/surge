@@ -15,7 +15,7 @@
 7. Selected MST edges are transformed back to WGS84 and returned as two-point LineString Features.
 8. The response reports feeder count and the sum of preliminary MST lengths.
 
-[[GIS Cost Surface]] is implemented as a standalone uniform raster foundation but is not called by this request pipeline. A successful response does not mean A*, terrain routing, pole placement, ROW analysis, electrical simulation, lifecycle cost, or ML ranking has run.
+[[GIS Cost Surface]] is implemented as a uniform base raster foundation, and the pipeline uses A* to route MST edges over it. True terrain routing, pole placement, ROW analysis, electrical simulation, lifecycle cost, or ML ranking have not yet run.
 
 ## Package Responsibilities
 
@@ -42,11 +42,10 @@ This separation keeps each algorithm testable, but intermediate results must eve
 ## Current Limitations
 
 - MST edges are returned as individual preliminary LineStrings; complete `FeederTopology` models and assignments are not returned.
-- Python's `feeder_id` property is not recognized by the current Java route importer, which falls back to generated feeder names.
-- `total_length_m` is projected straight-line MST length, not routed line length.
-- The cost surface is not integrated into `OptimisationService`.
+- Python uses the `feederName` property, which is recognized by the Java route importer. However, because each edge is returned as a separate LineString, Java persists them as separate feeder segments. Aggregation is deferred.
+- `total_length_m` is the cost-surface-aware routed line length over the base uniform raster.
 - The endpoint is synchronous and CPU-bound work is performed in the request path.
-- A*, Dijkstra, DEM processing, obstacles, poles, ROW, pandapower, and ML are not implemented.
+- Dijkstra, DEM processing, obstacles, poles, ROW, pandapower, and ML are not implemented.
 
 ## Related Notes
 

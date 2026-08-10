@@ -95,9 +95,9 @@ OptimisationRequest
 
 SURGE-PY-006 is implemented in `app/algorithms/topology.py`. Each feeder subgraph contains its assigned WTGs and the substation. NetworkX minimizes the `weight` attribute and the service reports the sum of selected `distance_m` values.
 
-Selected MST edges are transformed back to WGS84 and returned as individual two-point LineString Features. `total_length_m` remains preliminary straight-line topology length rather than routed corridor length.
+Selected MST edges are routed via A* over a base cost surface, transformed back to WGS84, and returned as individual LineString Features. `total_length_m` represents the cost-surface-aware routed corridor length.
 
-SURGE-PY-007 adds `app/gis/cost_surface.py` as a standalone uniform raster abstraction. It is tested independently but is not yet called by `OptimisationService` or used to alter the returned LineStrings.
+SURGE-PY-007 adds `app/gis/cost_surface.py` as a standalone uniform raster abstraction. It is now integrated with `OptimisationService` (via SURGE-PY-008) to route the physical LineStrings.
 
 ## Related Notes
 

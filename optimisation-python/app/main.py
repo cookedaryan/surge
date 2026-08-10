@@ -11,9 +11,7 @@ def create_application() -> FastAPI:
         title=settings.project_name,
         version=settings.version,
         openapi_url=(
-            f"{settings.api_v1_prefix}/openapi.json"
-            if docs_enabled
-            else None
+            f"{settings.api_v1_prefix}/openapi.json" if docs_enabled else None
         ),
         docs_url="/docs" if docs_enabled else None,
         redoc_url="/redoc" if docs_enabled else None,

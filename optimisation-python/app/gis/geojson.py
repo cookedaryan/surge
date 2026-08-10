@@ -18,12 +18,13 @@ def parse_geojson(geojson_dict: dict[str, Any]) -> BaseGeometry:
             return shape(geom_dict)
         except Exception as e:
             raise ValueError(f"Invalid GeoJSON geometry: {e}") from e
-    
+
     # Otherwise assume it's a bare geometry dictionary
     try:
         return shape(geojson_dict)
     except Exception as e:
         raise ValueError(f"Invalid GeoJSON geometry: {e}") from e
+
 
 def serialize_geometry(geom: BaseGeometry) -> dict[str, Any]:
     """

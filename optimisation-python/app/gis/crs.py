@@ -5,6 +5,7 @@ from shapely.geometry.base import BaseGeometry
 
 WGS84_CRS = pyproj.CRS("EPSG:4326")
 
+
 def get_utm_crs(lon: float, lat: float) -> pyproj.CRS:
     """
     Get the appropriate UTM CRS for a given longitude and latitude.
@@ -24,6 +25,7 @@ def get_utm_crs(lon: float, lat: float) -> pyproj.CRS:
         raise ValueError(f"Could not find UTM CRS for lon={lon}, lat={lat}")
     return pyproj.CRS.from_epsg(utm_crs_list[0].code)
 
+
 def get_transformer(src_crs: pyproj.CRS, dst_crs: pyproj.CRS) -> pyproj.Transformer:
     """
     Get a PyProj Transformer from src_crs to dst_crs.
@@ -31,6 +33,7 @@ def get_transformer(src_crs: pyproj.CRS, dst_crs: pyproj.CRS) -> pyproj.Transfor
     which is standard for Shapely and GeoJSON.
     """
     return pyproj.Transformer.from_crs(src_crs, dst_crs, always_xy=True)
+
 
 def transform_geometry(
     geometry: BaseGeometry, transformer: pyproj.Transformer

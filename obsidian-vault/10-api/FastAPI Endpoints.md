@@ -90,7 +90,7 @@ The Python optimization microservice exposes RESTful endpoints prefixed with `/a
       {
         "type": "Feature",
         "properties": {
-          "feeder_id": "F1",
+          "feederName": "F1",
           "edge": "substation:SUB-001-wtg:WTG-001"
         },
         "geometry": {
@@ -118,7 +118,7 @@ The Python optimization microservice exposes RESTful endpoints prefixed with `/a
 - `scenario`: Selected optimization scenario.
 - `feeder_routes_geojson`: RFC 7946 FeatureCollection containing one two-point WGS84 LineString per selected MST edge. These features expose preliminary topology, not cost-surface routes.
 - `metrics.feeder_count`: Number of capacity-constrained feeder assignments.
-- `metrics.total_length_m`: Sum of all per-feeder MST edge distances in the selected projected CRS. This is straight-line preliminary topology length, not terrain-routed line length.
+- `metrics.total_length_m`: Sum of all per-feeder routed edge distances in the selected projected CRS. This is the cost-surface-aware routed line length over the base uniform raster.
 - `metrics.estimated_cost`: Currently `null`; the lifecycle cost function is not implemented.
 - `metrics.message`: Pipeline status and selected projected CRS. The exact UTM zone depends on input coordinates.
 
@@ -126,6 +126,6 @@ The Python optimization microservice exposes RESTful endpoints prefixed with `/a
 
 A `success` response means Point preprocessing, candidate-graph construction, WTG grouping, per-feeder MST construction, and WGS84 serialization completed. It does not mean that A*, obstacle avoidance, cost-surface routing, pole placement, ROW analysis, electrical validation, or lifecycle cost has completed.
 
-Each Feature represents an MST edge rather than an entire feeder route. The property is currently named `feeder_id`; Java's route importer does not recognize that spelling, so cross-service feeder identity is not preserved yet.
+Each Feature represents an A* routed segment rather than an entire feeder route. The property is named `feederName`, which Java's route importer recognizes. Java will persist each feature as a distinct record, meaning one feeder produces multiple feeder-summary segment rows until aggregation is implemented.
 
 See [[Per-Feeder MST Topology]] for the MST algorithm and its assumptions.

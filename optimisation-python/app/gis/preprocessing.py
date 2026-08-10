@@ -23,6 +23,7 @@ def _extract_features(geojson: dict[str, Any]) -> list[dict[str, Any]]:
     else:
         raise ValueError("Expected FeatureCollection or Feature")
 
+
 def _validate_point_coords(geom: Point, prefix: str) -> None:
     if geom.is_empty:
         raise ValueError(f"{prefix} geometry is empty")
@@ -32,6 +33,7 @@ def _validate_point_coords(geom: Point, prefix: str) -> None:
         raise ValueError(f"{prefix} longitude must be between -180 and 180")
     if not (-90.0 <= geom.y <= 90.0):
         raise ValueError(f"{prefix} latitude must be between -90 and 90")
+
 
 def _validate_capacity(capacity: Any, prefix: str) -> float | None:
     if capacity is None:
@@ -46,24 +48,25 @@ def _validate_capacity(capacity: Any, prefix: str) -> float | None:
         raise ValueError(f"{prefix} capacity_mw must be positive and finite")
     return val
 
+
 def process_project_data(
     wtg_geojson: dict[str, Any], substation_geojson: dict[str, Any]
 ) -> ProjectSpatialData:
     """
-    Parses WTG and Substation GeoJSON, verifies geometries, calculates a 
+    Parses WTG and Substation GeoJSON, verifies geometries, calculates a
     common projected CRS (UTM), and returns structured optimisation objects.
     """
     # 1. Parse and extract features
     wtg_features = _extract_features(wtg_geojson)
     if not wtg_features:
         raise ValueError("WTG FeatureCollection is empty")
-        
+
     sub_features = _extract_features(substation_geojson)
     if not sub_features:
         raise ValueError("Substation GeoJSON is empty or missing")
     if len(sub_features) > 1:
         raise ValueError("Expected exactly one Substation feature")
-        
+
     sub_feature = sub_features[0]
 
     # 2. Parse and Validate geometries (must be Points)
@@ -73,47 +76,39 @@ def process_project_data(
         geom = parse_geojson(feat)
         if not isinstance(geom, Point):
             raise ValueError(f"WTG geometry must be Point, got {geom.geom_type}")
-            
+
         _validate_point_coords(geom, "WTG")
-        
+
         props = feat.get("properties", {})
         raw_id = props.get("id", props.get("turbine_id"))
         if not raw_id or str(raw_id).strip() == "":
             raise ValueError(f"WTG feature at index {i} is missing a valid ID")
-            
+
         wtg_id = str(raw_id).strip()
         if wtg_id in seen_ids:
             raise ValueError(f"Duplicate ID found: {wtg_id}")
         seen_ids.add(wtg_id)
-        
+
         cap = _validate_capacity(props.get("capacity_mw"), f"WTG {wtg_id}")
-        raw_wtgs.append({
-            "geom": geom,
-            "id": wtg_id,
-            "capacity": cap
-        })
-        
+        raw_wtgs.append({"geom": geom, "id": wtg_id, "capacity": cap})
+
     sub_geom = parse_geojson(sub_feature)
     if not isinstance(sub_geom, Point):
         raise ValueError(f"Substation geometry must be Point, got {sub_geom.geom_type}")
-        
+
     _validate_point_coords(sub_geom, "Substation")
-    
+
     sub_props = sub_feature.get("properties", {})
     raw_sub_id = sub_props.get("id", sub_props.get("substation_id"))
     if not raw_sub_id or str(raw_sub_id).strip() == "":
         raise ValueError("Substation feature is missing a valid ID")
-        
+
     sub_id = str(raw_sub_id).strip()
     if sub_id in seen_ids:
         raise ValueError(f"Duplicate ID found: {sub_id}")
-        
+
     sub_cap = _validate_capacity(sub_props.get("capacity_mw"), f"Substation {sub_id}")
-    raw_sub = {
-        "geom": sub_geom,
-        "id": sub_id,
-        "capacity": sub_cap
-    }
+    raw_sub = {"geom": sub_geom, "id": sub_id, "capacity": sub_cap}
 
     # 3. Calculate project geographic centre
     all_geoms = [w["geom"] for w in raw_wtgs] + [raw_sub["geom"]]
@@ -133,7 +128,7 @@ def process_project_data(
             WindTurbine(
                 turbine_id=str(raw_wtg["id"]),
                 location=cast(Point, proj_geom),
-                capacity_mw=raw_wtg["capacity"]
+                capacity_mw=raw_wtg["capacity"],
             )
         )
 
@@ -141,11 +136,9 @@ def process_project_data(
     substation = Substation(
         substation_id=str(raw_sub["id"]),
         location=cast(Point, proj_sub_geom),
-        capacity_mw=raw_sub["capacity"]
+        capacity_mw=raw_sub["capacity"],
     )
 
     return ProjectSpatialData(
-        turbines=tuple(turbines),
-        substation=substation,
-        projected_crs=projected_crs
+        turbines=tuple(turbines), substation=substation, projected_crs=projected_crs
     )

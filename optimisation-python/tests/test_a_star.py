@@ -40,7 +40,7 @@ def test_diagonal_path_on_uniform_grid(empty_surface: CostSurface) -> None:
 def test_path_avoids_blocked_cells(empty_surface: CostSurface) -> None:
     surface = empty_surface
     surface.costs[0:5, 2] = np.inf
-    
+
     res = a_star(surface, (2, 0), (2, 4))
     assert res is not None
     for r, c in res.path:
@@ -50,7 +50,7 @@ def test_path_avoids_blocked_cells(empty_surface: CostSurface) -> None:
 def test_no_path_returns_none(empty_surface: CostSurface) -> None:
     surface = empty_surface
     surface.costs[:, 5] = np.inf
-    
+
     res = a_star(surface, (5, 0), (5, 9))
     assert res is None
 
@@ -70,7 +70,7 @@ def test_path_stays_inside_grid(empty_surface: CostSurface) -> None:
 def test_expensive_cells_are_avoided(empty_surface: CostSurface) -> None:
     surface = empty_surface
     surface.costs[5, 5] = 9.0
-    
+
     res = a_star(surface, (5, 4), (5, 6))
     assert res is not None
     assert (5, 5) not in res.path
@@ -86,7 +86,7 @@ def test_corner_cutting_prevented(empty_surface: CostSurface) -> None:
     surface = empty_surface
     surface.costs[0, 1] = np.inf
     surface.costs[1, 0] = np.inf
-    
+
     res = a_star(surface, (0, 0), (1, 1))
     assert res is None
 
@@ -110,7 +110,7 @@ def test_heuristic_remains_optimal_with_cost_below_one() -> None:
     surface.costs[1:4, 1:4] = 2.0
     surface.costs[0, :] = 0.4
     surface.costs[:, 4] = 0.4
-    
+
     res = a_star(surface, (0, 0), (4, 4))
     assert res is not None
     assert (2, 2) not in res.path

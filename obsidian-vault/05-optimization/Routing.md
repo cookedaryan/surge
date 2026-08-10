@@ -2,7 +2,7 @@
 
 ## Current Status
 
-[[GIS Cost Surface]] now provides a uniform projected raster, affine transform, and coordinate helpers. [[Per-Feeder MST Topology]] provides the logical edges that must eventually be routed. A* and Dijkstra path search, GIS penalty layers, and route smoothing remain planned.
+[[GIS Cost Surface]] now provides a uniform projected raster, affine transform, and coordinate helpers. [[Per-Feeder MST Topology]] provides the logical edges, which are now routed using A* over the base uniform cost surface. True terrain GIS penalty layers and route smoothing remain planned.
 
 The current API exposes each MST edge as a two-coordinate WGS84 LineString. Those straight segments visualize topology only; they are not cost-surface routes.
 

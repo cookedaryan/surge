@@ -83,7 +83,7 @@ def test_edge_distance_is_metric(sample_project: ProjectSpatialData) -> None:
     # WTG-1 (100, 200) to SUB-1 (100, 100) -> 100.0m
     edge = graph.edges["wtg:WTG-1", "substation:SUB-1"]
     assert edge["distance_m"] == 100.0
-    
+
     # WTG-1 (100, 200) to WTG-2 (200, 100) -> sqrt(100^2 + 100^2) = 141.42...
     edge2 = graph.edges["wtg:WTG-1", "wtg:WTG-2"]
     assert math.isclose(edge2["distance_m"], 141.421356, rel_tol=1e-5)
@@ -104,16 +104,10 @@ def test_edge_weight_matches_distance(sample_project: ProjectSpatialData) -> Non
 
 
 def test_single_wtg_project_graph(mock_crs: pyproj.CRS) -> None:
-    sub = Substation(
-        substation_id="S1", location=Point(0, 0), capacity_mw=100.0
-    )
-    wtgs = (
-        WindTurbine(
-            turbine_id="W1", location=Point(0, 10), capacity_mw=5.0
-        ),
-    )
+    sub = Substation(substation_id="S1", location=Point(0, 0), capacity_mw=100.0)
+    wtgs = (WindTurbine(turbine_id="W1", location=Point(0, 10), capacity_mw=5.0),)
     project = ProjectSpatialData(turbines=wtgs, substation=sub, projected_crs=mock_crs)
-    
+
     graph = build_project_graph(project)
     assert graph.number_of_nodes() == 2
     assert graph.number_of_edges() == 1
@@ -121,21 +115,15 @@ def test_single_wtg_project_graph(mock_crs: pyproj.CRS) -> None:
 
 
 def test_duplicate_node_ids_rejected(mock_crs: pyproj.CRS) -> None:
-    sub = Substation(
-        substation_id="DUP", location=Point(0, 0), capacity_mw=100.0
-    )
-    wtgs = (
-        WindTurbine(
-            turbine_id="DUP", location=Point(0, 10), capacity_mw=5.0
-        ),
-    )
+    sub = Substation(substation_id="DUP", location=Point(0, 0), capacity_mw=100.0)
+    wtgs = (WindTurbine(turbine_id="DUP", location=Point(0, 10), capacity_mw=5.0),)
     project = ProjectSpatialData(turbines=wtgs, substation=sub, projected_crs=mock_crs)
-    
+
     # substation_id and turbine_id are the same, but the helper makes them
     # "substation:DUP" and "wtg:DUP", so it SHOULD NOT crash here yet.
     graph = build_project_graph(project)
     assert graph.number_of_nodes() == 2
-    
+
     # Now simulate a true collision by giving two WTGs the exact same ID
     wtgs2 = (
         WindTurbine(turbine_id="W1", location=Point(0, 10), capacity_mw=5.0),

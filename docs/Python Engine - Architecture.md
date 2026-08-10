@@ -4,7 +4,7 @@
 
 The SURGE Python service is a stateless FastAPI computation boundary. It currently validates project Point GeoJSON, transforms coordinates into one UTM CRS, builds a complete NetworkX candidate graph, groups WTGs under feeder-capacity constraints, creates one minimum spanning tree per feeder, and exposes selected edges as preliminary WGS84 LineStrings.
 
-SURGE-PY-007 also provides a standalone uniform projected cost-surface abstraction. It does not yet route topology edges around terrain or restrictions, and the cost surface is not called by the API pipeline.
+SURGE-PY-007 and SURGE-PY-008 provide a uniform projected cost-surface abstraction and A* physical routing over that base surface. The cost surface currently defaults to 1.0 everywhere, meaning routes will optimize for distance and diagonal shortcuts rather than physical terrain.
 
 ## Pipeline
 
@@ -44,13 +44,13 @@ Grouping determines feeder membership; MST topology determines connections insid
 
 The result is verified as a connected acyclic tree. Selected edge pairs are normalized and sorted for deterministic output. `total_length_m` is the sum of the selected edges' `distance_m` values.
 
-Because the candidate graph uses straight-line distances in UTM, the MST minimizes preliminary Euclidean topology length. It does not account for terrain, exclusions, parcels, access, junctions, shared trunks, electrical performance, or routed corridor length.
+Because the candidate graph uses straight-line distances in UTM, the MST minimizes preliminary Euclidean topology length. The edges are then routed by A* over a uniform base cost surface. True terrain-aware routing, exclusions, parcels, access, junctions, shared trunks, and electrical performance are future extensions.
 
 ## Service and API Integration
 
-`OptimisationService` builds all feeder trees, sums their lengths into `OptimisationMetrics.total_length_m`, transforms each selected edge back to WGS84, and returns one two-point LineString Feature per edge.
+`OptimisationService` builds all feeder trees, routes them via A* over the base cost surface, sums their physical routed lengths into `OptimisationMetrics.total_length_m`, transforms each routed path back to WGS84, and returns one LineString Feature per edge.
 
-The current response property `feeder_id` does not match any feeder-name key recognized by Java's `RouteService`, so Java assigns generated names and persists each edge as a separate route record. Before these preliminary features are treated as feeder routes, the cross-service contract must define feeder identity and whether one Feature represents an edge, segment, or complete feeder.
+The current response property `feederName` matches the key recognized by Java's `RouteService`. Java persists each generated route feature independently as a distinct route record. Consequently, one feeder appears as multiple feeder-summary segment rows in downstream reports. These records represent feeder segments, and the deferral of Java-level aggregation is intentional.
 
 ## SURGE-PY-007: Uniform Cost Surface
 

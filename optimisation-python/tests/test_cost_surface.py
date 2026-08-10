@@ -52,7 +52,7 @@ def test_surface_padding_applied(mock_project: ProjectSpatialData) -> None:
     surf_pad = build_project_cost_surface(
         mock_project, resolution_m=10.0, padding_m=100.0
     )
-    
+
     assert surf_pad.width == surf_no_pad.width + 20
     assert surf_pad.height == surf_no_pad.height + 20
 
@@ -60,7 +60,7 @@ def test_surface_padding_applied(mock_project: ProjectSpatialData) -> None:
 def test_resolution_is_respected(mock_project: ProjectSpatialData) -> None:
     surf_10 = build_project_cost_surface(mock_project, resolution_m=10.0, padding_m=0.0)
     surf_20 = build_project_cost_surface(mock_project, resolution_m=20.0, padding_m=0.0)
-    
+
     assert surf_10.width == 10
     assert surf_20.width == 5
 
@@ -74,7 +74,7 @@ def test_blocked_cells_are_not_traversable(mock_project: ProjectSpatialData) -> 
     surface = build_project_cost_surface(mock_project)
     # mock a blocked cell
     surface.costs[5, 5] = np.inf
-    
+
     assert surface.costs[5, 5] == np.inf
     assert not math.isfinite(surface.costs[5, 5])
 
@@ -95,27 +95,27 @@ def test_grid_to_world(mock_project: ProjectSpatialData) -> None:
 
 def test_world_grid_round_trip(mock_project: ProjectSpatialData) -> None:
     surface = build_project_cost_surface(mock_project, resolution_m=10.0, padding_m=0.0)
-    
+
     # Grid -> World -> Grid
     r_orig, c_orig = 3, 4
     x, y = grid_to_world(r_orig, c_orig, surface)
     r_new, c_new = world_to_grid(x, y, surface)
-    
+
     assert r_orig == r_new
     assert c_orig == c_new
-    
+
     # World -> Grid -> World (approximate, snaps to center)
     x_orig, y_orig = 137.5, 162.5
     r, c = world_to_grid(x_orig, y_orig, surface)
     x_new, y_new = grid_to_world(r, c, surface)
-    
+
     assert math.hypot(x_orig - x_new, y_orig - y_new) <= 10.0 * math.sqrt(2) / 2
 
 
 def test_invalid_resolution_rejected(mock_project: ProjectSpatialData) -> None:
     with pytest.raises(ValueError):
         build_project_cost_surface(mock_project, resolution_m=0.0)
-        
+
     with pytest.raises(ValueError):
         build_project_cost_surface(mock_project, resolution_m=-10.0)
 

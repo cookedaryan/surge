@@ -19,6 +19,7 @@ def a_star(
     surface: CostSurface,
     start: GridCell,
     goal: GridCell,
+    min_cost: float | None = None,
 ) -> AStarResult | None:
     start_r, start_c = start
     goal_r, goal_c = goal
@@ -33,11 +34,12 @@ def a_star(
     ):
         return None
 
-    valid_costs = surface.costs[np.isfinite(surface.costs)]
-    if valid_costs.size == 0:
-        min_cost = 1.0
-    else:
-        min_cost = float(np.min(valid_costs))
+    if min_cost is None:
+        valid_costs = surface.costs[np.isfinite(surface.costs)]
+        if valid_costs.size == 0:
+            min_cost = 1.0
+        else:
+            min_cost = float(np.min(valid_costs))
 
     def heuristic(r: int, c: int) -> float:
         return math.hypot(goal_r - r, goal_c - c) * surface.resolution_m * min_cost

@@ -11,5 +11,5 @@ __all__ = [
     "validate_geometry",
     "parse_geojson",
     "serialize_geometry",
-    "process_project_data"
+    "process_project_data",
 ]

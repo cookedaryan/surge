@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
+from app.algorithms.physical_routing import RouteNotFoundError
 from app.schemas.optimise import (
     OptimisationRequest,
     OptimisationResponse,
@@ -20,5 +21,7 @@ def run_optimisation(
 ) -> OptimisationResponse:
     try:
         return optimisation_service.optimise(payload)
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
+    except RouteNotFoundError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

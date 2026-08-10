@@ -61,8 +61,7 @@ The builder currently creates only `1.0` cells. Tests demonstrate that callers c
 - With `padding_m=0`, points on `max_x` or `min_y` map to column `width` or row `height`, which is outside the array. A strictly positive padding currently avoids this for project points.
 - `world_to_grid` and `grid_to_world` do not enforce bounds; negative NumPy indices could wrap if a caller indexes without checking.
 - Raster dimensions and allocation size are unbounded. Very small resolution or very large extents can exhaust memory.
-- `width`, `height`, and `costs.shape` can disagree if a `CostSurface` is constructed directly.
-- The cost surface is not called by `OptimisationService` yet.
+- `width`, `height`, and `costs.shape` can disagree if a `CostSurface` is constructed directly without validation. The API currently performs cost-surface-aware A* grid routing over a uniform base surface. Terrain/obstacle parsing and weighting are planned.
 
 ## Test Coverage
 
