@@ -42,6 +42,9 @@ class RestrictedAreaControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @MockBean
+    private com.power.surge.service.AuthService authService;
+
+    @MockBean
     private RestrictedAreaService restrictedAreaService;
 
     @MockBean

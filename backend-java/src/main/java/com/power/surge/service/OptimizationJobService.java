@@ -69,11 +69,22 @@ public class OptimizationJobService {
     public OptimizationJobResponse createAndRunJob(UUID projectId, CreateOptimizationJobRequest request) {
         Project project = getProjectOrThrow(projectId);
 
-        List<WtgLocation> wtgs = wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId);
+        List<WtgLocation> allWtgs = wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId);
         List<Substation> substations = substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId);
 
-        if (wtgs.isEmpty()) {
+        // Cancelled, low-AEP and to-be-shifted locations are stored and rendered but must not reach
+        // the optimiser: including them inflates the feeder count and distorts the MST topology.
+        List<WtgLocation> wtgs = allWtgs.stream()
+                .filter(wtg -> wtg.getStatus().isOptimisable())
+                .toList();
+
+        if (allWtgs.isEmpty()) {
             throw new IllegalArgumentException("Cannot run optimization: Project has no WTG locations.");
+        }
+        if (wtgs.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Cannot run optimization: none of the " + allWtgs.size() + " turbine location(s) in this "
+                            + "project have an optimisable status (APPROVED, REGISTRATION or PROPOSED).");
         }
         if (substations.isEmpty()) {
             throw new IllegalArgumentException("Cannot run optimization: Project has no substations.");

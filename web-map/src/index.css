@@ -18,6 +18,43 @@
   --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.3);
   --font-heading: 'Outfit', sans-serif;
   --font-body: 'Inter', sans-serif;
+
+  /* Spacing & Radius Tokens */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* Motion Tokens */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+
+  /* Layout Tokens */
+  --sidebar-width: 380px;
+}
+
+/* SVG Custom Icon Utility */
+.surge-icon {
+  display: inline-block;
+  vertical-align: middle;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.surge-icon-sm {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.surge-icon-lg {
+  width: 1.4rem;
+  height: 1.4rem;
 }
 
 * {
@@ -150,13 +187,14 @@ body, html {
    Sidebar & Tabs
    -------------------------------------------------------------------------- */
 .sidebar {
-  width: 380px;
+  width: var(--sidebar-width);
   background-color: var(--bg-sidebar);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   z-index: 900;
   overflow-y: auto;
+  transition: transform var(--duration-base) var(--ease-standard);
 }
 
 .sidebar-tabs {
@@ -719,7 +757,7 @@ body, html {
   position: absolute;
   bottom: 24px;
   left: 24px;
-  right: 300px;
+  right: calc(var(--sidebar-width) + 24px);
   z-index: 850;
   padding: 16px;
   border-radius: 16px;
@@ -1088,7 +1126,9 @@ body, html {
   box-shadow: 0 0 14px rgba(59, 130, 246, 0.8);
 }
 
-.wtg-pin i {
+/* The icon library renders inline <svg>, not FontAwesome <i>. Target both so the rotor animates. */
+.wtg-pin i,
+.wtg-pin svg {
   color: #ffffff;
   animation: spinSlow 8s linear infinite;
 }
@@ -1110,6 +1150,45 @@ body, html {
 
 .sub-pin i {
   color: #ffffff;
+}
+
+/* Evacuation Tower Marker Styling
+   Deliberately smaller and cooler-toned than the WTG pin: towers are existing reference assets,
+   not part of the collector network being optimised, and a 174-tower line should not visually
+   dominate the turbines. */
+.tower-pin {
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(135deg, #64748B, #334155);
+  border: 2px solid #CBD5E1;
+  box-shadow: 0 0 10px rgba(100, 116, 139, 0.7);
+  font-size: 0.8rem;
+}
+
+.tower-pin i,
+.tower-pin svg {
+  color: #E2E8F0;
+}
+
+/* Turbine locations excluded by micro-siting status (cancelled, low AEP, to be shifted). */
+.wtg-pin-excluded {
+  background: linear-gradient(135deg, #475569, #1E293B);
+  border: 2px dashed #94A3B8;
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+.wtg-pin-excluded svg {
+  animation: none;
+}
+
+.popup-note {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  font-size: 0.75rem;
+  color: #94A3B8;
+  font-style: italic;
 }
 
 /* Generic Cyan Marker Styling */
@@ -1179,3 +1258,196 @@ body, html {
   font-weight: 600;
 }
 
+/* --------------------------------------------------------------------------
+   Responsive & Motion Enhancements
+   -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  :root {
+    --sidebar-width: 320px;
+  }
+  .app-body {
+    position: relative;
+  }
+  .sidebar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1000;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6);
+  }
+  .elevation-drawer {
+    right: 24px;
+    left: 24px;
+  }
+}
+
+.btn, .card, .toggle-switch, .tab-btn, .form-control, .form-select {
+  transition: background-color var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard),
+              transform var(--duration-fast) var(--ease-standard);
+}
+
+
+/* ==========================================================================
+   KMZ / KML Import Preview Modal
+   ========================================================================== */
+
+.import-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.import-chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: #E2E8F0;
+}
+
+.import-chip strong {
+  font-size: 0.95rem;
+  margin-right: 4px;
+}
+
+.import-chip-wtg {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(59, 130, 246, 0.14);
+}
+
+.import-chip-evacuation_tower {
+  border-color: rgba(148, 163, 184, 0.6);
+  background: rgba(100, 116, 139, 0.18);
+}
+
+.import-chip-substation {
+  border-color: rgba(245, 158, 11, 0.55);
+  background: rgba(245, 158, 11, 0.14);
+}
+
+.import-chip-survey_point {
+  border-color: rgba(139, 92, 246, 0.5);
+  background: rgba(139, 92, 246, 0.12);
+}
+
+.import-chip-unknown {
+  border-color: rgba(239, 68, 68, 0.6);
+  background: rgba(239, 68, 68, 0.14);
+}
+
+.import-notes {
+  margin-bottom: 14px;
+}
+
+.import-note {
+  font-size: 0.78rem;
+  color: #94A3B8;
+  padding: 4px 0;
+  border-left: 2px solid rgba(148, 163, 184, 0.4);
+  padding-left: 10px;
+  margin-bottom: 4px;
+}
+
+.import-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  font-size: 0.82rem;
+  color: #CBD5E1;
+}
+
+.import-hint {
+  font-size: 0.74rem;
+  color: #94A3B8;
+  font-style: italic;
+}
+
+.input-sm {
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  width: auto;
+  min-width: 90px;
+}
+
+.import-table-wrap {
+  max-height: 42vh;
+  overflow-y: auto;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+}
+
+.import-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.import-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(15, 23, 42, 0.97);
+  backdrop-filter: blur(6px);
+  text-align: left;
+  padding: 9px 12px;
+  font-weight: 600;
+  color: #94A3B8;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+  z-index: 2;
+}
+
+.import-table tbody td {
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  color: #E2E8F0;
+}
+
+.import-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.import-row-unknown {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.import-folder,
+.import-rule {
+  color: #94A3B8;
+  font-size: 0.74rem;
+}
+
+.import-rule {
+  text-transform: capitalize;
+}
+
+.import-status {
+  font-size: 0.74rem;
+  color: #CBD5E1;
+}
+
+.import-type-select {
+  padding: 4px 6px;
+  font-size: 0.76rem;
+  background: rgba(30, 41, 59, 0.9);
+  color: #E2E8F0;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+}
+
+.import-geom {
+  color: var(--text-muted);
+  text-align: center;
+  width: 24px;
+}
+
+.import-verts {
+  color: #64748B;
+  font-size: 0.68rem;
+  margin-left: 6px;
+}

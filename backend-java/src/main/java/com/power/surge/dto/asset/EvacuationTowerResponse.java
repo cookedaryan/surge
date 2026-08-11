@@ -1,20 +1,18 @@
 package com.power.surge.dto.asset;
 
-import com.power.surge.domain.WtgStatus;
-
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-public record WtgResponse(
+public record EvacuationTowerResponse(
         UUID id,
         String externalId,
-        BigDecimal capacityMw,
+        String towerType,
+        BigDecimal heightM,
+        String lineSection,
+        String sourceFolder,
         double longitude,
         double latitude,
-        WtgStatus status,
-        boolean optimisable,
-        String sourceFolder,
         Instant createdAt
 ) {
 }

@@ -30,6 +30,21 @@ async function fetchJson(url, options = {}) {
   return await response.text();
 }
 
+/** Multipart upload. Content-Type is left to the browser so the boundary is set correctly. */
+async function uploadFile(url, fileBlob) {
+  const formData = new FormData();
+  formData.append('file', fileBlob);
+  const token = localStorage.getItem('surge_jwt_token');
+  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+  const response = await fetch(url, { method: 'POST', headers, body: formData });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || `HTTP Error ${response.status}`);
+  }
+  return await response.json();
+}
+
 function emptyGeoJson() {
   return { type: 'FeatureCollection', features: [] };
 }
@@ -97,6 +112,30 @@ export const api = {
       method: 'POST',
       body: typeof geoJsonContent === 'string' ? geoJsonContent : JSON.stringify(geoJsonContent)
     });
+  },
+
+  async importKmzAssets(projectId, fileBlob) {
+    return await uploadFile(`${API_BASE_URL}/projects/${projectId}/assets/kmz`, fileBlob);
+  },
+
+  /**
+   * Classifies a KMZ/KML without persisting it. Returns per-feature detected asset types plus the
+   * rule that fired, so the user can correct misdetections before anything reaches the database.
+   */
+  async previewKmzAssets(projectId, fileBlob) {
+    return await uploadFile(`${API_BASE_URL}/projects/${projectId}/assets/kmz/preview`, fileBlob);
+  },
+
+  /** Persists a previewed import, applying any per-feature overrides. */
+  async commitAssetImport(projectId, body) {
+    return await fetchJson(`${API_BASE_URL}/projects/${projectId}/assets/import/commit`, {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+  },
+
+  async getTowers(projectId) {
+    return await fetchJson(`${API_BASE_URL}/projects/${projectId}/towers`);
   },
 
   async importParcelsGeoJson(projectId, geoJsonContent) {

@@ -3,6 +3,7 @@
    ========================================================================== */
 
 /* global L */
+import { SVG_ICONS } from './icons.js';
 
 export class SurgeMapEngine {
   constructor(containerId) {
@@ -39,6 +40,8 @@ export class SurgeMapEngine {
     this.layers = {
       wtgs: L.featureGroup().addTo(this.map),
       substations: L.featureGroup().addTo(this.map),
+      towers: L.featureGroup().addTo(this.map),
+      referenceLines: L.featureGroup().addTo(this.map),
       routes: L.featureGroup().addTo(this.map),
       parcels: L.featureGroup().addTo(this.map),
       restricted: L.featureGroup().addTo(this.map),
@@ -58,20 +61,26 @@ export class SurgeMapEngine {
 
     L.geoJSON(geoJson, {
       pointToLayer: (feature, latlng) => {
+        const props = feature.properties || {};
+        // Turbines whose micro-siting status excludes them (cancelled, low AEP, to be shifted) are
+        // drawn dimmed so it is obvious at a glance which locations the optimiser will actually use.
+        const excluded = props.optimisable === false;
         const icon = L.divIcon({
-          className: 'custom-leaflet-marker wtg-marker',
-          html: `<div class="marker-pin wtg-pin"><i class="fa-solid fa-fan"></i></div>`,
+          className: `custom-leaflet-marker wtg-marker${excluded ? ' wtg-excluded' : ''}`,
+          html: `<div class="marker-pin wtg-pin${excluded ? ' wtg-pin-excluded' : ''}">${SVG_ICONS.wtg}</div>`,
           iconSize: [28, 28],
           iconAnchor: [14, 14]
         });
         const marker = L.marker(latlng, { icon });
-        const props = feature.properties || {};
+        const status = props.status || 'UNKNOWN';
         marker.bindPopup(`
           <div class="popup-card">
-            <h4><i class="fa-solid fa-fan text-blue"></i> Wind Turbine Generator</h4>
+            <h4>${SVG_ICONS.wtg} Wind Turbine Generator</h4>
             <div class="popup-row"><span>Turbine ID:</span> <strong>${props.externalId || props.id || feature.id}</strong></div>
             <div class="popup-row"><span>Capacity:</span> <strong>${props.capacityMw || 3.0} MW</strong></div>
+            <div class="popup-row"><span>Status:</span> <strong>${status.replace(/_/g, ' ')}</strong></div>
             <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
+            ${excluded ? '<div class="popup-note">Excluded from optimisation by status.</div>' : ''}
           </div>
         `);
         return marker;
@@ -88,7 +97,7 @@ export class SurgeMapEngine {
       pointToLayer: (feature, latlng) => {
         const icon = L.divIcon({
           className: 'custom-leaflet-marker sub-marker',
-          html: `<div class="marker-pin sub-pin"><i class="fa-solid fa-bolt"></i></div>`,
+          html: `<div class="marker-pin sub-pin">${SVG_ICONS.substation}</div>`,
           iconSize: [34, 34],
           iconAnchor: [17, 17]
         });
@@ -96,7 +105,7 @@ export class SurgeMapEngine {
         const props = feature.properties || {};
         marker.bindPopup(`
           <div class="popup-card">
-            <h4><i class="fa-solid fa-building-zap text-yellow"></i> Substation</h4>
+            <h4>${SVG_ICONS.substation} Substation</h4>
             <div class="popup-row"><span>Substation ID:</span> <strong>${props.externalId || props.id || feature.id}</strong></div>
             <div class="popup-row"><span>Grid Capacity:</span> <strong>${props.capacityMw || 100} MW</strong></div>
             <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
@@ -105,6 +114,77 @@ export class SurgeMapEngine {
         return marker;
       }
     }).addTo(this.layers.substations);
+  }
+
+  // Render Evacuation / Transmission Towers
+  // Reference assets: existing line structures that are displayed but excluded from optimisation.
+  renderTowers(geoJson) {
+    this.layers.towers.clearLayers();
+    if (!geoJson || !geoJson.features) return;
+
+    L.geoJSON(geoJson, {
+      pointToLayer: (feature, latlng) => {
+        const icon = L.divIcon({
+          className: 'custom-leaflet-marker tower-marker',
+          html: `<div class="marker-pin tower-pin">${SVG_ICONS.tower}</div>`,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+        const marker = L.marker(latlng, { icon });
+        const props = feature.properties || {};
+        const towerType = props.towerType ? props.towerType.replace('_', ' ') : 'Tower';
+        marker.bindPopup(`
+          <div class="popup-card">
+            <h4>${SVG_ICONS.tower} Evacuation Tower</h4>
+            <div class="popup-row"><span>Tower ID:</span> <strong>${props.externalId || feature.id}</strong></div>
+            <div class="popup-row"><span>Structure:</span> <strong>${towerType}</strong></div>
+            ${props.lineSection ? `<div class="popup-row"><span>Line section:</span> <strong>${props.lineSection}</strong></div>` : ''}
+            <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
+            <div class="popup-note">Existing asset — not part of collector optimisation.</div>
+          </div>
+        `);
+        return marker;
+      }
+    }).addTo(this.layers.towers);
+  }
+
+  // Render existing linear site features: roads, HT/EHV lines, watercourses, prior routes.
+  // Styled to read as background context, never as SURGE output — generated feeder routes are the
+  // only bright solid lines on this map.
+  renderReferenceLines(geoJson) {
+    this.layers.referenceLines.clearLayers();
+    if (!geoJson || !geoJson.features) return;
+
+    const STYLES = {
+      ROAD:             { color: '#A8A29E', weight: 2,   dashArray: null,    label: 'Road' },
+      HT_LINE:          { color: '#F472B6', weight: 2.5, dashArray: '10 4',  label: 'HT / EHV line' },
+      WATERCOURSE:      { color: '#38BDF8', weight: 2.5, dashArray: null,    label: 'Watercourse' },
+      EVACUATION_ROUTE: { color: '#A78BFA', weight: 2,   dashArray: '4 4',   label: 'Existing route' },
+      UNKNOWN:          { color: '#64748B', weight: 1.5, dashArray: '2 4',   label: 'Unclassified line' }
+    };
+
+    L.geoJSON(geoJson, {
+      style: (feature) => {
+        const style = STYLES[feature.properties?.lineType] || STYLES.UNKNOWN;
+        return { color: style.color, weight: style.weight, dashArray: style.dashArray, opacity: 0.75 };
+      },
+      onEachFeature: (feature, layer) => {
+        const props = feature.properties || {};
+        const style = STYLES[props.lineType] || STYLES.UNKNOWN;
+        layer.bindPopup(`
+          <div class="popup-card">
+            <h4>${style.label}</h4>
+            <div class="popup-row"><span>Name:</span> <strong>${props.externalId || 'unnamed'}</strong></div>
+            ${props.voltageKv ? `<div class="popup-row"><span>Voltage:</span> <strong>${props.voltageKv} kV</strong></div>` : ''}
+            <div class="popup-note">${props.crossingConstraint
+              ? 'Crossing this feature adds cost to a route.'
+              : 'Reference only — no routing constraint.'}</div>
+          </div>
+        `);
+        layer.on('mouseover', () => layer.setStyle({ weight: style.weight + 2, opacity: 1 }));
+        layer.on('mouseout', () => layer.setStyle({ weight: style.weight, opacity: 0.75 }));
+      }
+    }).addTo(this.layers.referenceLines);
   }
 
   // Render Feeder Routes with optional scenario color override
@@ -127,7 +207,7 @@ export class SurgeMapEngine {
         const props = feature.properties || {};
         layer.bindPopup(`
           <div class="popup-card">
-            <h4><i class="fa-solid fa-route text-green"></i> Feeder Route</h4>
+            <h4>${SVG_ICONS.route} Feeder Route</h4>
             <div class="popup-row"><span>Feeder:</span> <strong>${props.feederName || 'Feeder'}</strong></div>
             <div class="popup-row"><span>Length:</span> <strong>${props.totalLengthMeters ? (props.totalLengthMeters / 1000).toFixed(2) + ' km' : 'N/A'}</strong></div>
             <div class="popup-row"><span>Poles Placed:</span> <strong>${props.poleCount || 0}</strong></div>
@@ -155,7 +235,7 @@ export class SurgeMapEngine {
         const props = feature.properties || {};
         layer.bindPopup(`
           <div class="popup-card">
-            <h4><i class="fa-solid fa-draw-polygon text-purple"></i> Cadastral Land Parcel</h4>
+            <h4>${SVG_ICONS.parcel} Cadastral Land Parcel</h4>
             <div class="popup-row"><span>Parcel ID:</span> <strong>${props.parcelId || feature.id}</strong></div>
             <div class="popup-row"><span>Owner:</span> <strong>${props.ownerName || 'Private Owner'}</strong></div>
             <div class="popup-row"><span>Acquisition Rate:</span> <strong>$${props.acquisitionCostPerM2 || 100}/m²</strong></div>
@@ -183,7 +263,7 @@ export class SurgeMapEngine {
         const props = feature.properties || {};
         layer.bindPopup(`
           <div class="popup-card">
-            <h4><i class="fa-solid fa-ban text-red"></i> Restricted Area</h4>
+            <h4>${SVG_ICONS.restricted} Restricted Area</h4>
             <div class="popup-row"><span>Zone Name:</span> <strong>${props.name || 'Exclusion Zone'}</strong></div>
             <div class="popup-row"><span>Restriction Type:</span> <strong>${props.restrictionType || 'ENVIRONMENTAL'}</strong></div>
             <div class="popup-row"><span>Buffer Distance:</span> <strong>${props.bufferMeters || 0} m</strong></div>
@@ -241,7 +321,7 @@ export class SurgeMapEngine {
       pointToLayer: (feature, latlng) => {
         const icon = L.divIcon({
           className: 'custom-leaflet-marker wtg-marker',
-          html: `<div class="marker-pin wtg-pin"><i class="fa-solid fa-location-dot text-cyan"></i></div>`,
+          html: `<div class="marker-pin wtg-pin">${SVG_ICONS.genericPoint}</div>`,
           iconSize: [28, 28],
           iconAnchor: [14, 14]
         });
@@ -250,7 +330,7 @@ export class SurgeMapEngine {
         const title = props.externalId || props.name || props.id || 'Imported Feature';
         marker.bindPopup(`
           <div class="popup-card">
-            <h4><i class="fa-solid fa-map-pin text-cyan"></i> ${title}</h4>
+            <h4>${SVG_ICONS.genericPoint} ${title}</h4>
             <div class="popup-row"><span>Type:</span> <strong>${feature.geometry ? feature.geometry.type : 'Point'}</strong></div>
             <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
           </div>

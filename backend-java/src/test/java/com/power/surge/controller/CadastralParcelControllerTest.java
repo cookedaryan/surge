@@ -42,6 +42,9 @@ class CadastralParcelControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @MockBean
+    private com.power.surge.service.AuthService authService;
+
+    @MockBean
     private ParcelService parcelService;
 
     @MockBean

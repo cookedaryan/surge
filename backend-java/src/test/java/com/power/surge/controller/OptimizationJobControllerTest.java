@@ -44,6 +44,9 @@ class OptimizationJobControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @MockBean
+    private com.power.surge.service.AuthService authService;
+
+    @MockBean
     private OptimizationJobService jobService;
 
     @MockBean

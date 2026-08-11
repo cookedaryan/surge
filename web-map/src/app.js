@@ -4,6 +4,7 @@
 
 import { api } from './api.js';
 import { SurgeMapEngine } from './map.js';
+import { classifyGeoJsonFeature, ASSET_TYPES, ASSET_TYPE_LABELS, LINE_TYPES, LINE_TYPE_LABELS } from './classify.js';
 
 class SurgeApp {
   constructor() {
@@ -74,14 +75,16 @@ class SurgeApp {
       authGatewayOverlay.classList.remove('hidden');
     });
 
-    // Header PDF Export Action
-    const btnDownloadPdf = document.getElementById('btnDownloadPdf');
-    if (btnDownloadPdf) {
-      btnDownloadPdf.addEventListener('click', () => {
-        if (!this.currentProjectId) return alert('Please select a project first.');
-        window.open(api.getPdfReportUrl(this.currentProjectId), '_blank');
-      });
-    }
+    // PDF Export Actions (Header & BOM Tab)
+    ['btnDownloadPdf', 'btnDownloadPdfHeader'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) {
+        btn.addEventListener('click', () => {
+          if (!this.currentProjectId) return alert('Please select a project first.');
+          window.open(api.getPdfReportUrl(this.currentProjectId), '_blank');
+        });
+      }
+    });
 
     // Tab switching
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -247,14 +250,28 @@ class SurgeApp {
     const layerChecks = [
       { id: 'chkShowWtgs', layer: 'wtgs' },
       { id: 'chkShowSubstations', layer: 'substations' },
+      { id: 'chkShowTowers', layer: 'towers' },
+      { id: 'chkShowReferenceLines', layer: 'referenceLines' },
       { id: 'chkShowRoutes', layer: 'routes' },
       { id: 'chkShowParcels', layer: 'parcels' },
       { id: 'chkShowRestricted', layer: 'restricted' }
     ];
     layerChecks.forEach(item => {
-      document.getElementById(item.id).addEventListener('change', (e) => {
+      const checkbox = document.getElementById(item.id);
+      if (!checkbox) return;
+      checkbox.addEventListener('change', (e) => {
         this.mapEngine.setLayerVisibility(item.layer, e.target.checked);
       });
+    });
+
+    // Import Preview Modal
+    const btnImportConfirm = document.getElementById('btnImportConfirm');
+    if (btnImportConfirm) {
+      btnImportConfirm.addEventListener('click', () => this.commitImportPreview());
+    }
+    ['btnImportCancel', 'btnCloseImportPreview'].forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.addEventListener('click', () => this.closeImportPreview());
     });
 
     // Polygon Opacity Sliders
@@ -347,14 +364,37 @@ class SurgeApp {
       // 1. Fetch Assets (WTGs & Substations)
       const assetsGeoJson = await api.getProjectAssetsGeoJson(this.currentProjectId);
       
-      const wtgsList = (assetsGeoJson.features || []).filter(f => (f.properties?.assetType || '').toUpperCase() === 'WTG');
-      const subList = (assetsGeoJson.features || []).filter(f => (f.properties?.assetType || '').toUpperCase() === 'SUBSTATION');
+      const byType = (type) => (assetsGeoJson.features || [])
+        .filter(f => (f.properties?.assetType || '').toUpperCase() === type);
 
-      document.getElementById('countWtgs').textContent = wtgsList.length;
+      const wtgsList = byType('WTG');
+      const subList = byType('SUBSTATION');
+      const towerList = byType('EVACUATION_TOWER');
+      const lineList = byType('REFERENCE_LINE');
+
+      // Only turbines with an optimisable status are counted towards the network total; the rest
+      // are rendered dimmed so the difference between "on the map" and "in the model" is visible.
+      const optimisableCount = wtgsList.filter(f => f.properties?.optimisable !== false).length;
+
+      const countWtgs = document.getElementById('countWtgs');
+      countWtgs.textContent = optimisableCount === wtgsList.length
+        ? wtgsList.length
+        : `${optimisableCount} / ${wtgsList.length}`;
+      countWtgs.title = optimisableCount === wtgsList.length
+        ? ''
+        : `${wtgsList.length - optimisableCount} turbine location(s) excluded by status`;
+
       document.getElementById('countSubstations').textContent = subList.length;
+      const countTowers = document.getElementById('countTowers');
+      if (countTowers) countTowers.textContent = towerList.length;
 
       this.mapEngine.renderWtgs({ type: 'FeatureCollection', features: wtgsList });
       this.mapEngine.renderSubstations({ type: 'FeatureCollection', features: subList });
+      this.mapEngine.renderTowers({ type: 'FeatureCollection', features: towerList });
+      this.mapEngine.renderReferenceLines({ type: 'FeatureCollection', features: lineList });
+
+      const countLines = document.getElementById('countLines');
+      if (countLines) countLines.textContent = lineList.length;
 
       // 2. Fetch Parcels
       const parcelsGeoJson = await api.getParcelsGeoJson(this.currentProjectId);
@@ -395,6 +435,170 @@ class SurgeApp {
     }
   }
 
+  // ==========================================================================
+  // KMZ / KML import preview
+  //
+  // Survey exports mix turbines, evacuation towers, substations and geotechnical markers in one
+  // file, with folder naming that varies between surveyors. The preview shows what each placemark
+  // was detected as and why, and lets the user correct it before anything is written to the
+  // database.
+  // ==========================================================================
+
+  openImportPreview(preview) {
+    this.currentImport = preview;
+    this.importOverrides = {};
+
+    const modal = document.getElementById('modalImportPreview');
+    if (!modal) {
+      // No preview UI available (e.g. embedded usage) — fall back to committing as detected.
+      this.commitImportPreview();
+      return;
+    }
+
+    const counts = preview.countsByType || {};
+    const unknownCount = counts.UNKNOWN || 0;
+
+    document.getElementById('importPreviewFileName').textContent = preview.fileName || 'Uploaded file';
+
+    const summary = document.getElementById('importPreviewSummary');
+    summary.innerHTML = Object.entries(counts)
+      .filter(([, count]) => count > 0)
+      .map(([type, count]) => `
+        <div class="import-chip import-chip-${type.toLowerCase()}">
+          <strong>${count}</strong> ${ASSET_TYPE_LABELS[type] || type}
+        </div>`)
+      .join('');
+
+    const notes = [];
+    if (preview.duplicatesRemoved > 0) {
+      notes.push(`${preview.duplicatesRemoved} duplicate placemark(s) removed — this file repeats its own folder tree.`);
+    }
+    const skipped = preview.skippedByGeometry || {};
+    const skippedTotal = Object.values(skipped).reduce((sum, n) => sum + n, 0);
+    if (skippedTotal > 0) {
+      const detail = Object.entries(skipped).map(([type, n]) => `${n} ${type}`).join(', ');
+      notes.push(`${skippedTotal} non-point feature(s) not imported as assets (${detail}).`);
+    }
+    if (unknownCount > 0) {
+      notes.push(`${unknownCount} feature(s) could not be classified and will be skipped unless you assign a type.`);
+    }
+    document.getElementById('importPreviewNotes').innerHTML =
+      notes.map(note => `<div class="import-note">${note}</div>`).join('');
+
+    const GEOMETRY_GLYPH = { Point: '●', LineString: '╱', Polygon: '▭' };
+
+    const rows = (preview.features || []).map(feature => {
+      const isLine = feature.geometryType === 'LineString';
+      // Lines pick from the line-type vocabulary, everything else from the asset-type vocabulary.
+      const options = isLine
+        ? Object.keys(LINE_TYPES).map(type => `
+            <option value="${type}" ${type === feature.lineType ? 'selected' : ''}>
+              ${LINE_TYPE_LABELS[type]}
+            </option>`).join('')
+        : Object.keys(ASSET_TYPES).map(type => `
+            <option value="${type}" ${type === feature.classifiedAs ? 'selected' : ''}>
+              ${ASSET_TYPE_LABELS[type]}
+            </option>`).join('');
+
+      const unresolved = feature.classifiedAs === 'UNKNOWN'
+        || (isLine && feature.lineType === 'UNKNOWN');
+
+      return `
+      <tr data-external-id="${this.escapeHtml(feature.externalId)}"
+          class="${unresolved ? 'import-row-unknown' : ''}">
+        <td class="import-geom" title="${feature.geometryType}">${GEOMETRY_GLYPH[feature.geometryType] || '?'}</td>
+        <td>${this.escapeHtml(feature.externalId) || '<em>unnamed</em>'}
+          ${feature.vertexCount > 1 ? `<span class="import-verts">${feature.vertexCount} pts</span>` : ''}</td>
+        <td class="import-folder">${this.escapeHtml(feature.kmlFolder || '—')}</td>
+        <td>
+          <select class="import-type-select" data-external-id="${this.escapeHtml(feature.externalId)}">
+            ${options}
+          </select>
+        </td>
+        <td class="import-status">${feature.status && feature.status !== 'UNKNOWN' ? feature.status.replace(/_/g, ' ') : '—'}</td>
+        <td class="import-rule" title="${this.escapeHtml(feature.evidence || '')}">
+          ${feature.matchedRule.replace(/_/g, ' ').toLowerCase()}
+        </td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('importPreviewRows').innerHTML = rows;
+
+    modal.querySelectorAll('.import-type-select').forEach(select => {
+      select.addEventListener('change', (e) => {
+        this.importOverrides[e.target.dataset.externalId] = e.target.value;
+      });
+    });
+
+    // "Apply to all in this folder" — the fastest way to correct a whole mis-detected folder.
+    const applyFolder = document.getElementById('btnImportApplyFolder');
+    if (applyFolder) {
+      applyFolder.onclick = () => this.applyTypeToVisibleRows();
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  applyTypeToVisibleRows() {
+    const bulkType = document.getElementById('importBulkType').value;
+    if (!bulkType) return;
+    document.querySelectorAll('#importPreviewRows tr').forEach(row => {
+      const select = row.querySelector('.import-type-select');
+      if (select) {
+        select.value = bulkType;
+        this.importOverrides[select.dataset.externalId] = bulkType;
+      }
+    });
+  }
+
+  closeImportPreview() {
+    const modal = document.getElementById('modalImportPreview');
+    if (modal) modal.classList.add('hidden');
+    this.currentImport = null;
+    this.importOverrides = {};
+  }
+
+  async commitImportPreview() {
+    if (!this.currentImport) return;
+
+    const capacityInput = document.getElementById('importDefaultCapacity');
+    const defaultCapacityMw = capacityInput && capacityInput.value
+      ? parseFloat(capacityInput.value)
+      : null;
+
+    try {
+      const result = await api.commitAssetImport(this.currentProjectId, {
+        importId: this.currentImport.importId,
+        overrides: this.importOverrides || {},
+        defaultCapacityMw,
+        skipUnclassified: true
+      });
+
+      const parts = [];
+      if (result.wtgsImported) parts.push(`${result.wtgsImported} turbines`);
+      if (result.substationsImported) parts.push(`${result.substationsImported} substations`);
+      if (result.towersImported) parts.push(`${result.towersImported} towers`);
+      if (result.unclassified) parts.push(`${result.unclassified} skipped`);
+
+      this.showToast(`Imported ${parts.join(', ') || 'nothing'}`);
+      this.closeImportPreview();
+      await this.refreshProjectData();
+    } catch (err) {
+      console.error('[Import Commit]', err);
+      this.showToast(`Import failed: ${err.message || err}`);
+    }
+  }
+
+  escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   readFileText(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -411,11 +615,35 @@ class SurgeApp {
     }
     const fileList = Array.from(files);
 
+    const kmzFiles = fileList.filter(f => f.name.toLowerCase().endsWith('.kmz') || f.name.toLowerCase().endsWith('.kml'));
+    const geoJsonFiles = fileList.filter(f => !f.name.toLowerCase().endsWith('.kmz') && !f.name.toLowerCase().endsWith('.kml'));
+
+    for (const file of kmzFiles) {
+      console.log(`[SURGE] Processing KMZ/KML file: ${file.name} (${file.size} bytes)`);
+      try {
+        // Classify first, persist only after the user confirms. A survey KMZ mixes turbines,
+        // towers, substations and geotechnical markers, and its folder naming varies by surveyor.
+        const preview = await api.previewKmzAssets(this.currentProjectId, file);
+        this.openImportPreview(preview);
+      } catch (err) {
+        console.warn(`[KMZ Import Warning] ${file.name}:`, err);
+        this.showToast(`Import error: ${err.message || err}`);
+      }
+    }
+
+    if (geoJsonFiles.length === 0) {
+      const input = document.getElementById('fileInput');
+      if (input) input.value = '';
+      return;
+    }
+
     // Clear the imported layer once before processing all files
     this.mapEngine.clearImported();
 
     let allWtgs = [];
     let allSubstations = [];
+    let allTowers = [];
+    let unclassified = [];
     let allParcels = [];
     let allRestricted = [];
     let allRoutes = [];
@@ -423,7 +651,7 @@ class SurgeApp {
 
     const selectedType = document.querySelector('input[name="assetImportType"]:checked')?.value || 'auto';
 
-    for (const file of fileList) {
+    for (const file of geoJsonFiles) {
       console.log(`[SURGE] Processing file: ${file.name} (${file.size} bytes)`);
       try {
         const text = await this.readFileText(file);
@@ -458,10 +686,20 @@ class SurgeApp {
               allWtgs.push(feat);
             } else if (selectedType === 'substation') {
               allSubstations.push(feat);
-            } else if (assetType.includes('SUB') || props.capacityMw > 50 || (props.externalId || '').includes('SUB')) {
-              allSubstations.push(feat);
             } else {
-              allWtgs.push(feat);
+              // Auto-detect uses the shared rule chain, the same one the backend applies. It used
+              // to end in "else -> WTG", which classified every unrecognised point as a turbine.
+              const detected = classifyGeoJsonFeature(feat).assetType;
+              feat.properties.assetType = detected;
+              if (detected === ASSET_TYPES.SUBSTATION) {
+                allSubstations.push(feat);
+              } else if (detected === ASSET_TYPES.EVACUATION_TOWER) {
+                allTowers.push(feat);
+              } else if (detected === ASSET_TYPES.WTG) {
+                allWtgs.push(feat);
+              } else {
+                unclassified.push(feat);
+              }
             }
           } else if (geomType === 'LineString' || geomType === 'MultiLineString') {
             allRoutes.push(feat);
@@ -472,7 +710,7 @@ class SurgeApp {
               allParcels.push(feat);
             }
           } else {
-            allWtgs.push(feat);
+            unclassified.push(feat);
           }
         }
 
@@ -503,6 +741,19 @@ class SurgeApp {
     if (allSubstations.length > 0) {
       this.mapEngine.renderSubstations({ type: 'FeatureCollection', features: allSubstations });
       document.getElementById('countSubstations').textContent = allSubstations.length;
+    }
+    if (allTowers.length > 0) {
+      this.mapEngine.renderTowers({ type: 'FeatureCollection', features: allTowers });
+      const countTowers = document.getElementById('countTowers');
+      if (countTowers) countTowers.textContent = allTowers.length;
+    }
+    if (unclassified.length > 0) {
+      const sample = unclassified.slice(0, 3)
+        .map(f => f.properties?.externalId || f.properties?.name || '?').join(', ');
+      this.showToast(
+        `${unclassified.length} feature(s) could not be classified (${sample}${unclassified.length > 3 ? ', …' : ''}). ` +
+        `Pick an asset type above and re-import, or upload as KMZ to use the preview.`
+      );
     }
     if (allParcels.length > 0) {
       this.mapEngine.renderParcels({ type: 'FeatureCollection', features: allParcels });

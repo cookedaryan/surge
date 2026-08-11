@@ -41,6 +41,21 @@ public class ApiExceptionHandler {
         return errorResponse(HttpStatus.BAD_REQUEST, exception.getMessage(), Map.of());
     }
 
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrityViolation(
+            org.springframework.dao.DataIntegrityViolationException exception
+    ) {
+        String msg = exception.getMostSpecificCause() != null ? exception.getMostSpecificCause().getMessage() : exception.getMessage();
+        return errorResponse(HttpStatus.BAD_REQUEST, "Database constraint error: " + msg, Map.of());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiErrorResponse> handleGenericException(
+            Exception exception
+    ) {
+        return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An error occurred: " + exception.getMessage(), Map.of());
+    }
+
     private ResponseEntity<ApiErrorResponse> errorResponse(
             HttpStatus status,
             String message,

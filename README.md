@@ -9,7 +9,7 @@ The SURGE platform consists of three main modules:
 1. **Backend Java API (`/backend-java`)**
    - Built on Spring Boot and backed by PostGIS.
    - Handles enterprise workflows, data persistence, reporting, asset management, and job orchestration.
-   - Manages GeoJSON ingestion, database migrations (Flyway), and API endpoints for the GIS frontend.
+   - Manages GeoJSON and KMZ/KML asset ingestion (`POST /api/v1/projects/{projectId}/assets/kmz`), database migrations (Flyway), and API endpoints for the GIS frontend.
    
 2. **Python Optimization Engine (`/optimisation-python`)**
    - A FastAPI microservice powering the computational intelligence of the system.

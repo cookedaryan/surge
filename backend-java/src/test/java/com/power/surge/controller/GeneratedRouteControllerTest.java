@@ -44,6 +44,9 @@ class GeneratedRouteControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @MockBean
+    private com.power.surge.service.AuthService authService;
+
+    @MockBean
     private RouteService routeService;
 
     @MockBean
