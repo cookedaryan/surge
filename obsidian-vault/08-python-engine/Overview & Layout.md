@@ -15,9 +15,12 @@ optimisation-python/
 |    +--- __init__.py
 |    +--- algorithms
 |    |    +--- __init__.py
+|    |    +--- a_star.py
 |    |    +--- cost_function.py
 |    |    +--- electrical_analysis.py
+|    |    +--- physical_routing.py
 |    |    +--- route_graph.py
+|    |    +--- route_refinement.py
 |    |    +--- topology.py
 |    |    \--- wtg_grouping.py
 |    +--- gis
@@ -65,6 +68,8 @@ optimisation-python/
      +--- test_geojson.py
      +--- test_geometry.py
      +--- test_preprocessing.py
+     +--- test_physical_routing.py
+     +--- test_route_refinement.py
      +--- test_health.py
      +--- test_optimise.py
      +--- test_route_graph.py
@@ -89,7 +94,9 @@ OptimisationRequest
     -> build_project_graph
     -> group_wtgs
     -> build_feeder_mst
-    -> sum per-feeder MST length
+    -> route_collector_topology
+    -> refine_routing_result
+    -> sum refined route length
     -> OptimisationResponse
 ```
 
@@ -98,6 +105,10 @@ SURGE-PY-006 is implemented in `app/algorithms/topology.py`. Each feeder subgrap
 Selected MST edges are routed via A* over a base cost surface, transformed back to WGS84, and returned as individual LineString Features. `total_length_m` represents the cost-surface-aware routed corridor length.
 
 SURGE-PY-007 adds `app/gis/cost_surface.py` as a standalone uniform raster abstraction. It is now integrated with `OptimisationService` (via SURGE-PY-008) to route the physical LineStrings.
+
+SURGE-PY-009 adds `app/algorithms/route_refinement.py`. It removes duplicate and collinear grid points, then applies deterministic farthest-visible shortcutting. A continuous supercover check validates every touched raster cell, including corner-touching cells, and the shortcut must not cost more than the subpath it replaces. Exact endpoints and feeder/node metadata remain unchanged.
+
+The API emits refined geometry and uses refined length for aggregate metrics. Route features retain both original and refined length/cost properties so the A* result remains auditable.
 
 ## Related Notes
 

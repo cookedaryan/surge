@@ -1,5 +1,6 @@
 from app.algorithms.physical_routing import route_collector_topology
 from app.algorithms.route_graph import build_project_graph
+from app.algorithms.route_refinement import refine_routing_result
 from app.algorithms.topology import build_feeder_mst
 from app.algorithms.wtg_grouping import group_wtgs
 from app.gis.cost_surface import build_project_cost_surface
@@ -36,16 +37,17 @@ class OptimisationService:
         # SURGE-PY-006: MST network generation
         topology_result = build_feeder_mst(topology_graph, grouping_result)
 
-        # SURGE-PY-007 & 008: Physical Routing
+        # SURGE-PY-007 to 009: Physical Routing and Geometry Refinement
         cost_surface = build_project_cost_surface(spatial_data)
         physical_routes = route_collector_topology(
             topology_result, topology_graph, cost_surface
         )
-        total_length_m = physical_routes.total_length_m
+        refined_routes = refine_routing_result(physical_routes, cost_surface)
+        total_length_m = refined_routes.total_refined_length_m
 
         transformer = get_transformer(spatial_data.projected_crs, WGS84_CRS)
         feeder_features = []
-        for route in physical_routes.routes:
+        for route in refined_routes.routes:
             coords = []
             for x, y in route.geometry.coords:
                 lon, lat = transformer.transform(x, y)
@@ -57,8 +59,12 @@ class OptimisationService:
                     "properties": {
                         "feederName": route.feeder_id,
                         "edge": f"{route.start_node_id}-{route.end_node_id}",
-                        "length_m": route.length_m,
-                        "traversal_cost": route.traversal_cost,
+                        "length_m": route.refined_length_m,
+                        "traversal_cost": route.refined_traversal_cost,
+                        "original_length_m": route.original_length_m,
+                        "refined_length_m": route.refined_length_m,
+                        "original_traversal_cost": route.original_traversal_cost,
+                        "refined_traversal_cost": route.refined_traversal_cost,
                     },
                     "geometry": {"type": "LineString", "coordinates": coords},
                 }
@@ -77,7 +83,8 @@ class OptimisationService:
                 total_length_m=total_length_m,
                 estimated_cost=None,
                 message=(
-                    f"Pipeline initialized. "
+                    "Pipeline completed. Refined routes over the uniform "
+                    "cost surface. "
                     f"Projected into {spatial_data.projected_crs.name}"
                 ),
             ),

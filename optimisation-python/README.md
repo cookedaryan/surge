@@ -70,3 +70,7 @@ uvicorn app.main:app --reload --port 8000
 ```bash
 pytest
 ```
+
+## Route Refinement
+
+`app/algorithms/route_refinement.py` converts raw A* grid paths into cleaner projected LineStrings. It removes duplicate and collinear coordinates and accepts a visibility shortcut only when its raster supercover contains no blocked cell and its integrated cost does not exceed the subpath it replaces. Exact endpoints and original/refined length and traversal-cost measurements are preserved. Coincident endpoints are rejected as spatially infeasible because they cannot form a non-degenerate refined route.

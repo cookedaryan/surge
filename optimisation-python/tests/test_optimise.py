@@ -54,6 +54,24 @@ def test_optimise_stub() -> None:
     assert body["request_id"] == "request-001"
     assert body["scenario"] == "Balanced"
     assert body["metrics"]["feeder_count"] == 1
+    properties = body["feeder_routes_geojson"]["features"][0]["properties"]
+    assert properties["length_m"] == properties["refined_length_m"]
+    assert properties["traversal_cost"] == properties["refined_traversal_cost"]
+    assert properties["refined_length_m"] <= properties["original_length_m"]
+    assert body["metrics"]["message"].startswith("Pipeline completed.")
+
+
+def test_coincident_route_endpoints_return_422() -> None:
+    payload = create_payload()
+    payload["wtg_geojson"]["features"][0]["geometry"]["coordinates"] = [
+        0.0,
+        50.1,
+    ]
+
+    response = client.post("/api/v1/optimise", json=payload)
+
+    assert response.status_code == 422
+    assert "coincident endpoints" in response.json()["detail"]
 
 
 def test_invalid_scenario() -> None:
