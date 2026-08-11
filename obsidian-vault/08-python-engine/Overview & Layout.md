@@ -19,6 +19,7 @@ optimisation-python/
 |    |    +--- cost_function.py
 |    |    +--- electrical_analysis.py
 |    |    +--- physical_routing.py
+|    |    +--- pole_placement.py
 |    |    +--- route_graph.py
 |    |    +--- route_refinement.py
 |    |    +--- topology.py
@@ -63,16 +64,18 @@ optimisation-python/
 \--- tests
      +--- .gitkeep
      +--- __init__.py
+     +--- test_a_star.py
      +--- test_crs.py
      +--- test_cost_surface.py
      +--- test_geojson.py
      +--- test_geometry.py
-     +--- test_preprocessing.py
-     +--- test_physical_routing.py
-     +--- test_route_refinement.py
      +--- test_health.py
      +--- test_optimise.py
+     +--- test_physical_routing.py
+     +--- test_pole_placement.py
+     +--- test_preprocessing.py
      +--- test_route_graph.py
+     +--- test_route_refinement.py
      +--- test_topology.py
      \--- test_wtg_grouping.py
 ```
@@ -96,6 +99,7 @@ OptimisationRequest
     -> build_feeder_mst
     -> route_collector_topology
     -> refine_routing_result
+    -> place_poles_on_routes
     -> sum refined route length
     -> OptimisationResponse
 ```
@@ -109,6 +113,8 @@ SURGE-PY-007 adds `app/gis/cost_surface.py` as a standalone uniform raster abstr
 SURGE-PY-009 adds `app/algorithms/route_refinement.py`. It removes duplicate and collinear grid points, then applies deterministic farthest-visible shortcutting. A continuous supercover check validates every touched raster cell, including corner-touching cells, and the shortcut must not cost more than the subpath it replaces. Exact endpoints and feeder/node metadata remain unchanged.
 
 The API emits refined geometry and uses refined length for aggregate metrics. Route features retain both original and refined length/cost properties so the A* result remains auditable.
+
+SURGE-PY-010 adds `app/algorithms/pole_placement.py`. It converts each `RefinedPhysicalRoute` into an ordered sequence of physical `Pole` structures connected by `PoleSpan` objects. Poles are placed using section-based, evenly-distributed span allocation: mandatory structures are first identified at route endpoints and at LineString vertices whose deflection angle meets or exceeds the configurable `angle_pole_threshold_deg`. The route is then divided into sections between mandatory positions, and each section is filled with intermediate poles whose spans are kept within `[min_span_m, max_span_m]`. The `max_span_m` limit is hard; `min_span_m` is a soft lower bound (routes shorter than `min_span_m` produce only two terminal poles). Pole IDs are deterministic (`{feeder_id}-P{sequence:03d}`). `PoleRouteResult` carries `start_node_id` / `end_node_id` for future network-level deduplication of shared topology endpoints.
 
 ## Related Notes
 

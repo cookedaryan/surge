@@ -1,7 +1,20 @@
 # Variable-Span Pole Placement
 
-> [!warning] Implementation status: Planned
-> No pole-placement or elevation-profile solver exists in the current Python service.
+> [!note] Implementation status: Partially implemented — SURGE-PY-010
+> `app/algorithms/pole_placement.py` provides geometry-based pole placement along refined feeder routes. DEM sag/clearance analysis and structural optimisation remain planned for later tickets.
+
+## SURGE-PY-010 Implementation
+
+`place_poles_on_route(route, config)` accepts a `RefinedPhysicalRoute` from SURGE-PY-009 and a `PolePlacementConfig` and returns a `PoleRouteResult` containing ordered `Pole` and `PoleSpan` objects.
+
+Key behaviours:
+
+- **Mandatory structures**: route start/end (terminal) and interior LineString vertices with deflection ≥ `angle_pole_threshold_deg` (angle).
+- **Section-based span distribution**: each section between mandatory poles is filled with evenly-spaced intermediate poles; `max_span_m` is a hard constraint.
+- **Short-route policy**: routes shorter than `min_span_m` produce exactly two terminal poles.
+- **Deterministic IDs**: `{feeder_id}-P{sequence:03d}` format.
+- `place_poles_on_routes()` batches multiple routes and returns a `CollectorPoleResult` with aggregate pole and span counts.
+- `start_node_id` / `end_node_id` are preserved on each `PoleRouteResult` for future network-level endpoint deduplication.
 
 ## Concepts
 

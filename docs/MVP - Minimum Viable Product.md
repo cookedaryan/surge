@@ -353,6 +353,14 @@ Pole classification for the MVP:
 
 The problem statement specifically requires independent span treatment, reduction of unnecessary poles and avoidance of expensive parcels.
 
+**SURGE-PY-010 — Implemented** (`app/algorithms/pole_placement.py`):
+
+- `PolePlacementConfig` carries `target_span_m`, `min_span_m`, `max_span_m`, `angle_pole_threshold_deg`, and `coordinate_tolerance_m` (reserved for future deduplication). All fields validated for finiteness and range.
+- Mandatory structures at route start/end (terminal) and at LineString vertices whose deflection angle ≥ `angle_pole_threshold_deg` (angle). Deflection is the angle between the two forward direction vectors at the vertex: 0° straight, 90° right-angle, 180° reversal.
+- Section-based span fill: each section between mandatory poles is filled with evenly-distributed intermediate poles. Span count is the integer nearest to `L / target` (not ceiling-rounded), preventing unnecessarily short spans. `max_span_m` is hard-enforced; `min_span_m` is soft (short routes produce two terminal poles only).
+- `PoleSpan.span_length_m` is the Euclidean chord distance between adjacent pole Points. Pole IDs are deterministic (`{feeder_id}-P{sequence:03d}`) with a continuous per-feeder sequence across all routes in a batch.
+- DEM sag, structural analysis, road/river crossings, ROW buffers, and network-level pole deduplication are deferred to later tickets.
+
 ## Step 7: ROW and land-parcel analysis
 
 Generate the ROW corridor:
