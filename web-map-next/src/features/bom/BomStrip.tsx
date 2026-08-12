@@ -5,6 +5,7 @@ export function BomStrip() {
   const currentProjectId = useUiStore((s) => s.currentProjectId);
   const currentJobId = useUiStore((s) => s.currentJobId);
   const liveOverride = useUiStore((s) => s.liveBomOverride);
+  const elevationDrawerOpen = useUiStore((s) => s.elevationDrawerOpen);
   const { bom } = useProjectData(currentProjectId, currentJobId);
 
   const lengthKm = liveOverride ? liveOverride.lengthKm : bom ? (bom.totalNetworkLengthMeters / 1000).toFixed(2) : '0.00';
@@ -20,7 +21,11 @@ export function BomStrip() {
   ];
 
   return (
-    <div className="absolute left-3.5 bottom-3.5 flex rounded-lg overflow-hidden font-ui">
+    <div
+      className={`absolute left-3.5 flex rounded-lg overflow-hidden font-ui transition-all ${
+        elevationDrawerOpen ? 'bottom-[220px]' : 'bottom-3.5'
+      }`}
+    >
       {segments.map((seg, i) => (
         <div
           key={seg.label}

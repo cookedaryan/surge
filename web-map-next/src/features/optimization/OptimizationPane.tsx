@@ -54,7 +54,7 @@ export function OptimizationPane() {
           <label className="flex justify-between text-[11.5px] text-textMuted mb-1.5">
             Feeder capacity <span className="font-mono text-text tabular">{feederCapacityMw.toFixed(1)} MW</span>
           </label>
-          <Slider value={feederCapacityMw} onValueChange={setFeederCapacityMw} min={5} max={50} step={0.5} />
+          <Slider value={feederCapacityMw} onValueChange={setFeederCapacityMw} min={5} max={50} step={1} />
         </div>
         <div>
           <label className="flex justify-between text-[11.5px] text-textMuted mb-1.5">
@@ -66,7 +66,7 @@ export function OptimizationPane() {
           <label className="flex justify-between text-[11.5px] text-textMuted mb-1.5">
             System voltage <span className="font-mono text-text tabular">{voltageKv.toFixed(1)} kV</span>
           </label>
-          <Slider value={voltageKv} onValueChange={setVoltageKv} min={11} max={66} step={0.5} />
+          <Slider value={voltageKv} onValueChange={setVoltageKv} min={11} max={132} step={11} />
         </div>
         <Button variant="primary" className="justify-center" disabled={isRunning || runOptimization.isPending} onClick={handleRun}>
           {isRunning ? 'Running…' : 'Run optimization pipeline'}
