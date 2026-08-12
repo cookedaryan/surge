@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "00-dashboard/Dashboard.md",
-                "mode": "source",
+                "file": "08-python-engine/Geospatial Integrity & CRS.md",
+                "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Dashboard"
+              "title": "Geospatial Integrity & CRS"
             }
           }
         ],
@@ -214,7 +214,18 @@
   },
   "active": "89226eb629610e5e",
   "lastOpenFiles": [
+    "08-python-engine/Candidate PNC Scenario Generation.md",
+    "08-python-engine/Surge MVP Ticket Plan.md",
+    "08-python-engine/presentation-boundary.md",
+    "14-decisions/ADR-007 Pandapower AC Load Flow Validation.md",
+    "08-python-engine/AC Load Flow Validation.md",
     "08-python-engine/Electrical Feeder Screening.md",
+    "06-gis/GIS Cost Surface.md",
+    "06-gis/ROW Corridor Analysis.md",
+    "00-dashboard/Dashboard.md",
+    "08-python-engine/PNC Network Assembly.md",
+    "00-dashboard/Dashboard.md~",
+    "Untitled.canvas",
     "04-architecture/Python Engine.md",
     "08-python-engine/Route Scoring Architecture.md",
     "08-python-engine/Overview & Layout.md",
@@ -231,16 +242,6 @@
     "04-architecture/Frontend.md",
     "04-architecture/Deployment.md",
     "04-architecture/Database.md",
-    "04-architecture/Authentication.md",
-    "02-requirements/User Stories.md",
-    "02-requirements/Non Functional Requirements.md",
-    "02-requirements/Functional Requirements.md",
-    "02-requirements/Constraints.md",
-    "01-vision/Vision.md",
-    "01-vision/Roadmap.md",
-    "01-vision/Goals.md",
-    "01-vision/Scope.md",
-    "00-dashboard/Dashboard.md~",
     "journal",
     "walkthrough",
     "assets/ui",

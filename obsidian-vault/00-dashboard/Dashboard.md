@@ -23,7 +23,7 @@ Welcome to the **SURGE Knowledge Vault**.
 | Domain | Status | Owner | Next Milestone |
 | --- | --- | --- | --- |
 | Architecture | Complete & Containerized | Core Team | End-to-End E2E Integration Suite |
-| Python Engine | MILP Grouping & MST Topology Active | Algo Team | Spatial A* Multi-Objective Terrain Routing |
+| Python Engine | PY-014-PY-016 Complete; PY-017 In Progress | Algo Team | PY-018 Scoring + Recommendation |
 | Backend API | JWT Auth, SSE Streaming & Audit Logs Ready | Backend Team | Pandapower Load Flow Integration |
 | GIS & Database | PostGIS V1-V3 Schema & Spatial Queries Ready | GIS Team | DEM Elevation Raster Processing |
 | Web GIS UI | GeoJSON Drag & Drop & Map Rendering Active | Frontend Team | Interactive Point-to-Point Line Drawing |
@@ -53,10 +53,11 @@ Welcome to the **SURGE Knowledge Vault**.
 ## Next Steps & Roadmap
 
 1. ⚙️ **Python Optimization Algorithms**:
-   - Convert per-feeder MST edges into terrain- and restriction-aware routed GeoJSON
-   - Multi-objective A* grid/mesh routing avoiding restricted polygon areas
-   - Pandapower electrical load flow & loss analysis integration
-   - Terrain-aware pole placement & dynamic span calculation
+   - Finish SURGE-PY-017 deterministic candidate PNC generation
+   - Add SURGE-PY-018 electrical-aware deterministic scoring and recommendation
+   - Connect the pipeline through the SURGE-PY-019 orchestrator
+   - Extend `/api/v1/optimise` compatibly and validate the PY-020 golden fixture
+   - Keep raw terrain/restriction rasterization and ML ranking post-MVP
 2. 🔄 **Backend Enhancements**:
    - Async job execution with WebSocket / SSE progress updates
    - Side-by-side multi-scenario comparison endpoints
@@ -77,3 +78,5 @@ Welcome to the **SURGE Knowledge Vault**.
 - [[Roadmap]]
 - [[Scope]]
 - [[Overview & Layout]]
+- [[Surge MVP Ticket Plan]]
+- [Python Engine Roadmap](../../docs/Python%20Engine%20Roadmap.md)

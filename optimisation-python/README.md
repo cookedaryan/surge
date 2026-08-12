@@ -2,6 +2,19 @@
 
 FastAPI microservice dedicated to GIS processing, route optimisation, electrical analysis, ML inference, and GeoJSON result generation for the SURGE project.
 
+## Current MVP status
+
+The API-integrated baseline currently returns one refined routed network over a
+uniform prepared cost surface. SURGE-PY-014 PNC assembly, SURGE-PY-015
+pandapower validation, and SURGE-PY-016 presentation packaging are implemented
+as standalone modules. SURGE-PY-017 deterministic candidate PNC generation is
+implemented. PY-018 through PY-020 own scoring/recommendation, orchestration,
+and compatible API/end-to-end integration respectively. ML ranking and raw GIS
+constraint rasterization are post-MVP.
+
+See [`../docs/Surge MVP Ticket Plan.md`](../docs/Surge%20MVP%20Ticket%20Plan.md)
+for the authoritative ticket boundaries.
+
 ## Project Structure
 
 ```text

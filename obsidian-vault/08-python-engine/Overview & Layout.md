@@ -28,6 +28,11 @@ optimisation-python/
 |    +--- electrical
 |    |    +--- __init__.py
 |    |    +--- feeder_validation.py
+|    |    +--- load_flow
+|    |    |    +--- analysis.py
+|    |    |    +--- builder.py
+|    |    |    +--- config.py
+|    |    |    \--- models.py
 |    |    +--- models.py
 |    |    \--- voltage_drop.py
 |    +--- gis
@@ -41,6 +46,16 @@ optimisation-python/
 |    +--- models
 |    |    +--- __init__.py
 |    |    \--- spatial.py
+|    +--- pnc
+|    |    +--- assembly.py
+|    |    +--- errors.py
+|    |    +--- geojson.py
+|    |    \--- models.py
+|    +--- presentation
+|    |    +--- exceptions.py
+|    |    +--- geojson.py
+|    |    +--- models.py
+|    |    \--- result_builder.py
 |    +--- api
 |    |    +--- __init__.py
 |    |    \--- v1
@@ -134,6 +149,14 @@ SURGE-PY-012 (formerly PY-015) adds standalone `app/algorithms/route_scoring.py`
 
 SURGE-PY-013 adds standalone `app/electrical/models.py`, `app/electrical/voltage_drop.py`, and `app/electrical/feeder_validation.py`. It reconciles a complete projected project, radial topology, and refined-route set before calculating a deterministic balanced three-phase screening result. Post-order traversal aggregates operating WTG power on each edge; nominal-voltage current is checked against conductor ampacity; and linear segment voltage changes are accumulated to every turbine. Malformed or incomplete inputs raise `ValueError`, while valid networks that exceed ampacity, cumulative voltage-deviation, or substation-capacity limits return explicit `ElectricalViolation` records. This is a standalone linear proxy—not pandapower or final design validation—and `OptimisationService` does not invoke it. See [[Electrical Feeder Screening]].
 
+SURGE-PY-014 adds `app/pnc`, which can run the grouping-to-routing pipeline and assemble a validated `ProjectPNCNetwork`, or assemble from compatible precomputed topology and refined routes without rerunning them.
+
+SURGE-PY-015 adds standalone `app/electrical/load_flow`. It builds a deterministic pandapower network from a PNC and returns convergence, bus, segment, feeder, loss, loading, voltage, and violation results without modifying the proposed network. See [[AC Load Flow Validation]].
+
+SURGE-PY-016 adds standalone `app/presentation`. It reconciles the canonical projected `ProjectPNCNetwork` with its pandapower `LoadFlowNetworkResult`, rejects missing, duplicate, mismatched, or non-finite electrical references, and returns strict summary models plus WGS-84 GeoJSON. Features receive stable IDs, nullable electrical telemetry, exact voltage/overload flags, and a collection bounding box. A non-converged solver result still produces a topology-only map with an explicit violation. This result is not yet returned by `/api/v1/optimise` or imported by Java. See [[presentation-boundary|Python Presentation Boundary]].
+
+SURGE-PY-017 candidate PNC scenario generation is in progress under `app/optimisation`. Its boundary is deterministic generation of 1-5 distinct, structurally valid `ProjectPNCNetwork` candidates from prepared project data and a prepared cost surface. Electrical evaluation, scoring, recommendation, orchestration, and API integration remain PY-018 through PY-020. See [[Candidate PNC Scenario Generation]] and [[Surge MVP Ticket Plan]].
+
 ## Related Notes
 
 - [[Python Engine]]
@@ -142,3 +165,6 @@ SURGE-PY-013 adds standalone `app/electrical/models.py`, `app/electrical/voltage
 - [[GIS Cost Surface]]
 - [[Feeder Planning]]
 - [[FastAPI Endpoints|FastAPI Microservice Specification]]
+- [[presentation-boundary|Python Presentation Boundary]]
+- [[Surge MVP Ticket Plan]]
+- [[Candidate PNC Scenario Generation]]

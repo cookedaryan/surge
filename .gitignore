@@ -94,8 +94,9 @@ data/
 # ==========================================
 # 7. OBSIDIAN VAULT & OS METADATA
 # ==========================================
-.obsidian/workspace*
-.obsidian/cache*
+.obsidian
+.tmp.drivedownload
+.tmp.driveupload
 .DS_Store
 Thumbs.db
 *.swp

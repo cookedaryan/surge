@@ -110,7 +110,7 @@ def evaluate_network_candidates(
 ) -> RouteScoringResult:
     """
     Score, normalize, and rank comparable network-level route candidates.
-    This is a standalone analytical method. It relies on the caller providing 
+    This is a standalone analytical method. It relies on the caller providing
     deduplicated footprint areas and unique parcel identities.
     """
     if not candidates:
@@ -127,10 +127,10 @@ def evaluate_network_candidates(
         if c.candidate_id in candidate_ids:
             raise ValueError(f"Duplicate candidate ID: {c.candidate_id}")
         candidate_ids.add(c.candidate_id)
-        
+
         if not c.comparison_group_id or not c.comparison_group_id.strip():
             raise ValueError("Comparison group ID cannot be blank or whitespace-only")
-        
+
         floats = [
             c.total_length_m,
             c.traversal_cost,
@@ -143,7 +143,7 @@ def evaluate_network_candidates(
             raise ValueError(
                 "All candidate floating-point metrics must be non-negative"
             )
-            
+
         counts = [
             c.road_crossing_count,
             c.generated_pole_record_count,
@@ -248,7 +248,7 @@ def evaluate_network_candidates(
                         weighted_score=0.0,
                     )
                 )
-            
+
             candidate_scores.append(
                 CandidateScore(
                     candidate_id=candidate.candidate_id,
@@ -275,7 +275,7 @@ def evaluate_network_candidates(
                 norm_val = (raw - norm_range.minimum) / (
                     norm_range.maximum - norm_range.minimum
                 )
-                
+
             # Clamp in case of floating point drift near boundaries
             norm_val = max(0.0, min(1.0, norm_val))
 
@@ -295,7 +295,7 @@ def evaluate_network_candidates(
         total = math.fsum(weighted_scores)
         # Ensure exact bounding
         total = max(0.0, min(1.0, total))
-        
+
         candidate_scores.append(
             CandidateScore(
                 candidate_id=candidate.candidate_id,
@@ -308,19 +308,19 @@ def evaluate_network_candidates(
 
     # Step 4: Deterministic ranking
     feasible_scores = [cs for cs in candidate_scores if cs.feasible]
-    
+
     # We also need length for tie-breaking. We can fetch it back from the dictionary
     def sort_key(cs: CandidateScore) -> tuple[float, float, str]:
         # total_score is not None for feasible scores
         c = candidate_dict[cs.candidate_id]
-        return (cs.total_score, c.total_length_m, cs.candidate_id) # type: ignore
+        return (cs.total_score, c.total_length_m, cs.candidate_id)  # type: ignore
 
     feasible_scores.sort(key=sort_key)
-    
+
     ranked_ids = tuple(cs.candidate_id for cs in feasible_scores)
     best_id = ranked_ids[0] if ranked_ids else None
 
-    # Normalization ranges shouldn't be empty, but if no feasible 
+    # Normalization ranges shouldn't be empty, but if no feasible
     # candidates exist, it's empty
     ranges_tuple = tuple(ranges_dict[k] for k in criteria_keys if k in ranges_dict)
 

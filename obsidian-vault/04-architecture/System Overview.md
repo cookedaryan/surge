@@ -26,8 +26,9 @@ SURGE uses a microservices architecture separating system orchestration and API 
             ├── Uniform-Surface A* Routing & Refinement (implemented)
             ├── Pole Placement (implemented standalone)
             ├── ROW Corridor & Constraint Analysis (implemented standalone)
-            ├── Pandapower Electrical Load Flow
-            └── ML Route Ranking & GeoJSON Result Generation
+            ├── PNC Assembly, Pandapower Load Flow & GeoJSON (standalone)
+            ├── Candidate PNC Generation (PY-017 in progress)
+            └── Deterministic Recommendation & Orchestration (PY-018-PY-020)
 ```
 
 ---
@@ -35,7 +36,7 @@ SURGE uses a microservices architecture separating system orchestration and API 
 ## Microservice Responsibility Split
 
 - **Java Spring Boot Backend (`backend-java`)**: Primary system orchestrator. Manages user authentication, project workspace lifecycle, PostGIS database persistence, job dispatch, engineering report generation (BOM & CSV), and IPC communication with the Python engine.
-- **Python FastAPI Microservice (`optimisation-python`)**: Stateless computation engine invoked by Spring Boot. Its service pipeline currently performs Point validation, UTM projection, feeder grouping, complete-graph construction, per-feeder MST topology, uniform cost-surface routing, and obstacle-safe route refinement. Pole placement and ROW constraint analysis exist as standalone tested modules but are not called by the service because the request/response contract does not yet carry their required inputs or outputs. True terrain routing and Pandapower analysis remain planned.
+- **Python FastAPI Microservice (`optimisation-python`)**: Stateless computation engine invoked by Spring Boot. Its service pipeline currently performs Point validation, UTM projection, feeder grouping, complete-graph construction, per-feeder MST topology, uniform cost-surface routing, and obstacle-safe route refinement. Pole placement, ROW analysis, PNC assembly, pandapower AC load flow, and presentation packaging exist as standalone tested modules. Candidate PNC generation is in progress under PY-017; scoring, orchestration, and compatible API integration remain PY-018 through PY-020. Raw terrain/restriction rasterization and ML ranking are post-MVP.
 - **PostGIS Database (`db`)**: Relational and geospatial PostgreSQL 16 + PostGIS 3.4 database serving spatial tables (`wtg_locations`, `substations`, `cadastral_parcels`, `restricted_areas`, `generated_routes`).
 - **Web GIS Client (`web-map`)**: Interactive Vite + Leaflet web dashboard for drag-and-drop GeoJSON ingestion, live GIS layer rendering, parameter tweaking, and report download export.
 
@@ -53,6 +54,7 @@ The system is fully containerized using Docker Compose (`docker-compose.yml`):
 ## Related Notes
 - [[Backend]]
 - [[Python Engine]]
+- [[Surge MVP Ticket Plan]]
 - [[FastAPI Endpoints|FastAPI Microservice Specification]]
 - [[Frontend]]
 - [[Database]]

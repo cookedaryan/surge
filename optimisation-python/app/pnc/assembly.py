@@ -230,9 +230,7 @@ def _validate_precomputed_routes(
     # --- 1. Feeder-level checks: no blank/duplicate IDs, substation present, --
     # ---    WTG coverage (orphan + duplicate assignment) ----------------------
 
-    expected_wtg_ids = {
-        turbine_node_id(t.turbine_id) for t in project.turbines
-    }
+    expected_wtg_ids = {turbine_node_id(t.turbine_id) for t in project.turbines}
     assigned_wtgs: set[str] = set()
     feeder_ids: set[str] = set()
     feeder_nodes: dict[str, set[str]] = {}
@@ -241,9 +239,7 @@ def _validate_precomputed_routes(
         if not feeder.feeder_id.strip():
             raise ValueError("Feeder ID cannot be blank")
         if feeder.feeder_id in feeder_ids:
-            raise ValueError(
-                f"Duplicate feeder ID in topology: {feeder.feeder_id!r}"
-            )
+            raise ValueError(f"Duplicate feeder ID in topology: {feeder.feeder_id!r}")
         feeder_ids.add(feeder.feeder_id)
 
         node_set = set(feeder.node_ids)
@@ -288,9 +284,7 @@ def _validate_precomputed_routes(
     actual_keys: dict[tuple[str, str, str], str] = {}
 
     for route in refined.routes:
-        identity = (
-            f"{route.feeder_id}/{route.start_node_id}-{route.end_node_id}"
-        )
+        identity = f"{route.feeder_id}/{route.start_node_id}-{route.end_node_id}"
 
         # Geometry validity
         if not isinstance(route.geometry, LineString) or route.geometry.is_empty:
@@ -305,19 +299,14 @@ def _validate_precomputed_routes(
                 f"Route {identity}: geometry is invalid or has fewer than "
                 f"2 coordinates.",
             )
-        if any(
-            not all(math.isfinite(c) for c in coord) for coord in coords
-        ):
+        if any(not all(math.isfinite(c) for c in coord) for coord in coords):
             raise PNCAssemblyError(
                 PNCAssemblyErrorCode.UNROUTED_TOPOLOGY_EDGE,
                 f"Route {identity}: geometry contains non-finite coordinates.",
             )
 
         # Length validity
-        if (
-            not math.isfinite(route.refined_length_m)
-            or route.refined_length_m <= 0
-        ):
+        if not math.isfinite(route.refined_length_m) or route.refined_length_m <= 0:
             raise PNCAssemblyError(
                 PNCAssemblyErrorCode.UNROUTED_TOPOLOGY_EDGE,
                 f"Route {identity}: refined_length_m must be positive and "
@@ -424,9 +413,7 @@ def _feeder_suffix(normalised_feeder_id: str) -> str:
     return normalised_feeder_id.replace("-", "")
 
 
-def _bfs_ordered_nodes(
-    mst_graph: nx.Graph, substation_id: str
-) -> tuple[str, ...]:
+def _bfs_ordered_nodes(mst_graph: nx.Graph, substation_id: str) -> tuple[str, ...]:
     """Return a deterministic BFS traversal from *substation_id*.
 
     Neighbours are sorted lexicographically at every level so that the output
@@ -463,7 +450,8 @@ def _build_route_lookup(
     """
     lookup: dict[tuple[str, str, str], RefinedPhysicalRoute] = {}
     for route in refined.routes:
-        key = (route.feeder_id, *sorted((route.start_node_id, route.end_node_id)))
+        low, high = sorted((route.start_node_id, route.end_node_id))
+        key = (route.feeder_id, low, high)
         assert key not in lookup, (
             f"Duplicate route key {key} reached _build_route_lookup — "
             "this should have been caught by _validate_precomputed_routes."
@@ -483,9 +471,7 @@ def _collect_wtg_coordinates(
     wtg_coordinates: dict[str, Point],
 ) -> None:
     """Populate *wtg_coordinates* from the project turbine list."""
-    turbine_map = {
-        turbine_node_id(t.turbine_id): t.location for t in project.turbines
-    }
+    turbine_map = {turbine_node_id(t.turbine_id): t.location for t in project.turbines}
     for node_id in wtg_node_ids:
         if node_id not in wtg_coordinates:
             # _validate_precomputed_routes has already verified coverage;
@@ -536,7 +522,8 @@ def _build_pnc_network(
 
         segments: list[PNCSegment] = []
         for seg_idx, (u, v) in enumerate(sorted_edges):
-            canonical_key = (ft.feeder_id, *sorted((u, v)))
+            low, high = sorted((u, v))
+            canonical_key = (ft.feeder_id, low, high)
             route = route_lookup[canonical_key]
 
             seg_id = f"SEG-{suffix}-{seg_idx + 1:04d}"

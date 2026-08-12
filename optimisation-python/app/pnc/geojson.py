@@ -42,9 +42,7 @@ def network_to_feature_collection(
         *None*).
     """
     transformer = (
-        get_transformer(network.crs, output_crs)
-        if output_crs is not None
-        else None
+        get_transformer(network.crs, output_crs) if output_crs is not None else None
     )
 
     def _project_point(point: Any) -> list[float]:

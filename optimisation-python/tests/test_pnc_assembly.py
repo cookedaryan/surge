@@ -266,9 +266,7 @@ class TestMultipleFeeders:
         self, project: ProjectSpatialData, cost_surface: CostSurface
     ) -> None:
         n = build_pnc_network("P002", project, 12.0, cost_surface)
-        all_assigned = [
-            wid for feeder in n.feeders for wid in feeder.wtg_ids
-        ]
+        all_assigned = [wid for feeder in n.feeders for wid in feeder.wtg_ids]
         assert len(all_assigned) == len(set(all_assigned))
         assert len(all_assigned) == 4
 
@@ -463,9 +461,7 @@ class TestGeoJsonOutput:
         project = _make_project(("T1", 45.0, 395.0), ("T2", 95.0, 395.0))
         return build_pnc_network("P007", project, 20.0, cost_surface)
 
-    def test_type_is_feature_collection(
-        self, network: ProjectPNCNetwork
-    ) -> None:
+    def test_type_is_feature_collection(self, network: ProjectPNCNetwork) -> None:
         assert network_to_feature_collection(network)["type"] == "FeatureCollection"
 
     def test_contains_substation(self, network: ProjectPNCNetwork) -> None:
@@ -656,21 +652,13 @@ class TestTwoPathEquivalence:
         fids_pre = sorted(f.feeder_id for f in n_pre.feeders)
         assert fids_full == fids_pre
 
-        segs_full = sorted(
-            s.segment_id for f in n_full.feeders for s in f.segments
-        )
-        segs_pre = sorted(
-            s.segment_id for f in n_pre.feeders for s in f.segments
-        )
+        segs_full = sorted(s.segment_id for f in n_full.feeders for s in f.segments)
+        segs_pre = sorted(s.segment_id for f in n_pre.feeders for s in f.segments)
         assert segs_full == segs_pre
 
-    def test_determinism_through_both_paths(
-        self, cost_surface: CostSurface
-    ) -> None:
+    def test_determinism_through_both_paths(self, cost_surface: CostSurface) -> None:
         """Identical inputs produce identical IDs through both paths."""
-        project = _make_project(
-            ("T1", 45.0, 395.0), ("T2", 145.0, 395.0)
-        )
+        project = _make_project(("T1", 45.0, 395.0), ("T2", 145.0, 395.0))
         topology, refined_routes = _run_pipeline_stages(project, 20.0, cost_surface)
 
         n1 = build_pnc_network("DET", project, 20.0, cost_surface)
@@ -713,9 +701,7 @@ class TestPrecomputedRouteValidation:
 
     def test_extra_route_rejected(
         self,
-        one_wtg_setup: tuple[
-            ProjectSpatialData, str, str, CollectorTopologyResult
-        ],
+        one_wtg_setup: tuple[ProjectSpatialData, str, str, CollectorTopologyResult],
     ) -> None:
         project, sub_id, w1_id, topology = one_wtg_setup
         # Topology has only SUB→T1; add an extra phantom route
@@ -736,9 +722,7 @@ class TestPrecomputedRouteValidation:
 
     def test_duplicate_route_rejected(
         self,
-        one_wtg_setup: tuple[
-            ProjectSpatialData, str, str, CollectorTopologyResult
-        ],
+        one_wtg_setup: tuple[ProjectSpatialData, str, str, CollectorTopologyResult],
     ) -> None:
         project, sub_id, w1_id, topology = one_wtg_setup
         routing = RefinedRoutingResult(
@@ -757,9 +741,7 @@ class TestPrecomputedRouteValidation:
 
     def test_reversed_duplicate_route_rejected(
         self,
-        one_wtg_setup: tuple[
-            ProjectSpatialData, str, str, CollectorTopologyResult
-        ],
+        one_wtg_setup: tuple[ProjectSpatialData, str, str, CollectorTopologyResult],
     ) -> None:
         project, sub_id, w1_id, topology = one_wtg_setup
         # Second route has start/end swapped — still same canonical edge
@@ -779,9 +761,7 @@ class TestPrecomputedRouteValidation:
 
     def test_wrong_feeder_route_rejected(
         self,
-        one_wtg_setup: tuple[
-            ProjectSpatialData, str, str, CollectorTopologyResult
-        ],
+        one_wtg_setup: tuple[ProjectSpatialData, str, str, CollectorTopologyResult],
     ) -> None:
         project, sub_id, w1_id, topology = one_wtg_setup
         # Route claims feeder "F_WRONG" which doesn't exist in topology
@@ -798,9 +778,7 @@ class TestPrecomputedRouteValidation:
 
     def test_endpoint_not_in_feeder_topology_rejected(
         self,
-        one_wtg_setup: tuple[
-            ProjectSpatialData, str, str, CollectorTopologyResult
-        ],
+        one_wtg_setup: tuple[ProjectSpatialData, str, str, CollectorTopologyResult],
     ) -> None:
         project, sub_id, w1_id, topology = one_wtg_setup
         outsider = turbine_node_id("T_OUTSIDE")
@@ -818,16 +796,14 @@ class TestPrecomputedRouteValidation:
 
     def test_invalid_geometry_rejected(
         self,
-        one_wtg_setup: tuple[
-            ProjectSpatialData, str, str, CollectorTopologyResult
-        ],
+        one_wtg_setup: tuple[ProjectSpatialData, str, str, CollectorTopologyResult],
     ) -> None:
         project, sub_id, w1_id, topology = one_wtg_setup
         route = RefinedPhysicalRoute(
             feeder_id="F1",
             start_node_id=sub_id,
             end_node_id=w1_id,
-            geometry=LineString(),       # empty — invalid
+            geometry=LineString(),  # empty — invalid
             original_length_m=40.0,
             refined_length_m=40.0,
             original_traversal_cost=40.0,
@@ -846,9 +822,7 @@ class TestPrecomputedRouteValidation:
 
     def test_zero_length_rejected(
         self,
-        one_wtg_setup: tuple[
-            ProjectSpatialData, str, str, CollectorTopologyResult
-        ],
+        one_wtg_setup: tuple[ProjectSpatialData, str, str, CollectorTopologyResult],
     ) -> None:
         project, sub_id, w1_id, topology = one_wtg_setup
         route = RefinedPhysicalRoute(
@@ -857,7 +831,7 @@ class TestPrecomputedRouteValidation:
             end_node_id=w1_id,
             geometry=LineString([(5.0, 395.0), (45.0, 395.0)]),
             original_length_m=40.0,
-            refined_length_m=0.0,        # invalid: zero length
+            refined_length_m=0.0,  # invalid: zero length
             original_traversal_cost=40.0,
             refined_traversal_cost=0.0,
         )
@@ -874,9 +848,7 @@ class TestPrecomputedRouteValidation:
 
     def test_length_geometry_mismatch_rejected(
         self,
-        one_wtg_setup: tuple[
-            ProjectSpatialData, str, str, CollectorTopologyResult
-        ],
+        one_wtg_setup: tuple[ProjectSpatialData, str, str, CollectorTopologyResult],
     ) -> None:
         project, sub_id, w1_id, topology = one_wtg_setup
         geom = LineString([(5.0, 395.0), (45.0, 395.0)])  # length ≈ 40 m
@@ -886,7 +858,7 @@ class TestPrecomputedRouteValidation:
             end_node_id=w1_id,
             geometry=geom,
             original_length_m=40.0,
-            refined_length_m=999.0,     # wildly inconsistent
+            refined_length_m=999.0,  # wildly inconsistent
             original_traversal_cost=40.0,
             refined_traversal_cost=40.0,
         )
@@ -903,9 +875,7 @@ class TestPrecomputedRouteValidation:
 
     def test_incorrect_aggregate_total_rejected(
         self,
-        one_wtg_setup: tuple[
-            ProjectSpatialData, str, str, CollectorTopologyResult
-        ],
+        one_wtg_setup: tuple[ProjectSpatialData, str, str, CollectorTopologyResult],
     ) -> None:
         project, sub_id, w1_id, topology = one_wtg_setup
         geom = LineString([(5.0, 395.0), (45.0, 395.0)])
@@ -922,7 +892,7 @@ class TestPrecomputedRouteValidation:
         routing = RefinedRoutingResult(
             routes=(route,),
             total_original_length_m=40.0,
-            total_refined_length_m=9999.0,   # wrong total
+            total_refined_length_m=9999.0,  # wrong total
         )
         with pytest.raises(ValueError, match="total_refined_length_m"):
             assemble_pnc_network("EX21", project, topology, routing)

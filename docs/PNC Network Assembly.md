@@ -11,10 +11,13 @@ The `pnc/` package is the orchestration layer that converts the output of
 individual feeder-network algorithms into a single, complete **Project PNC
 Network**.
 
-The caller provides spatial data and constraints:
+For the full pipeline, the caller provides projected spatial data, feeder
+capacity, and a prepared cost surface:
 
 ```python
-network = assemble_pnc_network(
+from app.pnc import build_pnc_network
+
+network = build_pnc_network(
     project_id="PROJECT-001",
     project=project_spatial_data,
     feeder_capacity_mw=50.0,
@@ -35,7 +38,7 @@ optimisation-python/app/pnc/
 ├── __init__.py       # public surface
 ├── errors.py         # PNCAssemblyError, PNCAssemblyErrorCode
 ├── models.py         # PNCSegment, PNCFeeder, ProjectPNCNetwork
-├── assembly.py       # assemble_pnc_network() orchestrator
+├── assembly.py       # build_pnc_network() + assemble_pnc_network()
 └── geojson.py        # network_to_feature_collection()
 ```
 

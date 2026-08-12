@@ -29,7 +29,7 @@ app/pnc/
 ├── __init__.py       # public surface
 ├── errors.py         # PNCAssemblyError + PNCAssemblyErrorCode
 ├── models.py         # PNCSegment, PNCFeeder, ProjectPNCNetwork
-├── assembly.py       # assemble_pnc_network() orchestrator
+├── assembly.py       # build_pnc_network() + assemble_pnc_network()
 └── geojson.py        # network_to_feature_collection() converter
 ```
 
@@ -38,9 +38,9 @@ app/pnc/
 ## Entry Point
 
 ```python
-from app.pnc import assemble_pnc_network
+from app.pnc import build_pnc_network
 
-network = assemble_pnc_network(
+network = build_pnc_network(
     project_id="PROJECT-001",
     project=project_spatial_data,
     feeder_capacity_mw=50.0,

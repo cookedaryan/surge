@@ -3,6 +3,11 @@
 ## Purpose
 The route scoring engine (`app/algorithms/route_scoring.py`) provides preliminary multi-criteria spatial and constructability scoring for engineering network alternatives. It evaluates candidate networks against predefined criteria, normalizes their performance metrics, and determines an overall ranking based on configurable weights.
 
+This module was delivered under SURGE-PY-012. It is not the canonical
+SURGE-PY-018 recommendation boundary by itself. PY-018 must consume PY-015
+electrical outcomes, reject infeasible candidates, and return an explainable
+recommendation. See [[Surge MVP Ticket Plan]].
+
 ## Missing Criteria (MVP Limitations)
 This implementation evaluates engineering footprint and topology, but currently omits two major domains:
 1. **Financial Scoring**: There is no evaluation of estimated CAPEX or lifecycle costs. The criteria evaluate engineering quantities (e.g. pole count, length), which do not perfectly map to monetary cost.

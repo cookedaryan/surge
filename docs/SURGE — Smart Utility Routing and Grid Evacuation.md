@@ -8,12 +8,12 @@ The target lifecycle includes WTG grouping, radial feeder topology, geographic r
 
 ## Current Repository Baseline
 
-The long-term capabilities above are not all implemented. As of 2026-08-08:
+The long-term capabilities above are not all implemented. As of 2026-08-12:
 
 - The Vite/vanilla-JavaScript/Leaflet client can manage projects, upload and display GeoJSON, submit jobs, and display report data. Several API failures use demo fallbacks.
 - The Java 21/Spring Boot backend persists projects and spatial assets in PostGIS, synchronously calls Python, stores jobs/routes, and aggregates BOM/CSV data.
 - The Python/FastAPI service validates WTG and substation Points, projects them into one UTM CRS, creates a complete candidate graph, and groups WTGs with K-Means-assisted MILP.
-- Python currently returns cost-surface-aware routed LineStrings over a uniform base surface. True terrain routing, poles, ROW intersection, electrical load flow, lifecycle scoring, and ML ranking remain planned.
+- Python currently returns cost-surface-aware routed LineStrings over a uniform base surface. Standalone PNC assembly, pandapower AC load-flow validation, map-ready result packaging, and deterministic candidate PNC generation are implemented. Raw terrain/restriction rasterization, lifecycle scoring, ML ranking, and API integration of the richer result remain planned.
 - Authentication, asynchronous processing, CI/CD, Kubernetes, and production deployment controls remain planned.
 
 ## How the Components Work Together

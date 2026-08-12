@@ -1,6 +1,6 @@
 # SURGE — Smart Utility Routing and Grid Evacuation
 
-SURGE is an enterprise, production-grade platform for renewable-energy collector and evacuation systems. It provides multi-objective routing, WTG grouping, feeder topology generation, intelligent pole placement, variable spans calculation, and engineering compliance analysis.
+SURGE targets an enterprise platform for renewable-energy collector and evacuation systems. The repository contains an active MVP implementation; production hardening and several advanced engineering capabilities remain planned.
 
 ## Core Components
 
@@ -13,8 +13,9 @@ The SURGE platform consists of three main modules:
    
 2. **Python Optimization Engine (`/optimisation-python`)**
    - A FastAPI microservice powering the computational intelligence of the system.
-   - Processes GIS datasets, generates terrain and cost surfaces, runs A* routing, and validates electrical loads using `pandapower`.
-   - Returns explainable route alternatives to the Java backend.
+   - The API-integrated baseline validates/project Points, groups WTGs, builds MST topology, and routes/refines LineStrings over a uniform cost surface.
+   - PNC assembly, pandapower validation, map-ready result packaging, and deterministic candidate generation are implemented as standalone modules.
+   - Electrical-aware recommendation, orchestration, and the richer compatible API response are frozen as SURGE-PY-018 through SURGE-PY-020.
 
 3. **Web GIS Map Frontend (`/web-map`)**
    - An interactive map interface built with Vite, HTML5, Vanilla CSS, and Leaflet.
@@ -25,7 +26,8 @@ The SURGE platform consists of three main modules:
 
 Detailed documentation is available in the `/docs` directory.
 - For architectural details and MVP scope, see `docs/MVP - Minimum Viable Product.md`.
-- For the latest project context and cross-component updates, please refer to `optimisation-python/CONTEXT.md`.
+- For the frozen Python ticket sequence, see `docs/Surge MVP Ticket Plan.md`.
+- For the latest project context and cross-component updates, see `CONTEXT.md`.
 
 ## Quick Start
 
