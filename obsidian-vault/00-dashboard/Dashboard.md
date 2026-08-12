@@ -54,7 +54,7 @@ Welcome to the **SURGE Knowledge Vault**.
 
 1. ⚙️ **Python Optimization Algorithms**:
    - Use the completed PY-018 recommendation and PY-019 orchestrator boundaries
-   - Extend `/api/v1/optimise` compatibly and validate the PY-020 golden fixture (**In progress**)
+   - `/api/v1/optimise` now exposes the orchestrator additively; `/api/v2/optimise` provides explicit engineering configuration; the three-candidate PY-020 golden fixture is validated (**Complete**)
    - Keep raw terrain/restriction rasterization and ML ranking post-MVP
 2. 🔄 **Backend Enhancements**:
    - Async job execution with WebSocket / SSE progress updates

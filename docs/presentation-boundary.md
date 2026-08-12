@@ -2,14 +2,14 @@
 
 ## Purpose and boundary
 
-SURGE-PY-016 adds `app.presentation`, the adapter between the internal engineering models and a future public API response. `build_project_result()` combines:
+SURGE-PY-016 adds `app.presentation`, the adapter between the internal engineering models and the public optimisation response. `build_project_result()` combines:
 
 - `ProjectPNCNetwork`, the authoritative projected physical network produced by PNC assembly; and
 - `LoadFlowNetworkResult`, the pandapower analysis result for that exact network.
 
 It returns `ProjectOptimizationResult`, which contains network and feeder summaries, electrical violations, and a map-ready GeoJSON `FeatureCollection`. The module does not generate topology, route cables, or run load flow. Its calculations are limited to presentation concerns such as rounding, ordering, grouping violations, and calculating a WGS-84 bounding box.
 
-The existing `/api/v1/optimise` response and the Java DTO/import boundary do not yet use this model. API integration remains a separate ticket.
+SURGE-PY-020 exposes this model as `recommended_result` from both optimisation API versions. V1 retains the Java-compatible `feeder_routes_geojson` field by selecting the recommendation's segment features and adding the legacy `feederName`, edge, length, and traversal-cost properties. Point features and electrical telemetry remain available in the typed `recommended_result.feature_collection`.
 
 ## How the pieces work together
 

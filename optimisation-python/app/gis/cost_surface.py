@@ -38,12 +38,18 @@ def build_project_cost_surface(
     project: ProjectSpatialData,
     resolution_m: float = 10.0,
     padding_m: float = 100.0,
+    *,
+    max_cells: int | None = None,
 ) -> CostSurface:
     """
     Creates a CostSurface covering the full project extent (WTGs + Substation).
     """
     if not math.isfinite(resolution_m) or resolution_m <= 0:
         raise ValueError("Resolution must be a positive finite number.")
+    if max_cells is not None and (
+        not isinstance(max_cells, int) or isinstance(max_cells, bool) or max_cells < 1
+    ):
+        raise ValueError("max_cells must be a positive integer when provided.")
 
     points = [wtg.location for wtg in project.turbines]
     points.append(project.substation.location)
@@ -68,12 +74,19 @@ def build_project_cost_surface(
     width = max(1, width)
     height = max(1, height)
 
+    total_cells = width * height
+    if max_cells is not None and total_cells > max_cells:
+        raise ValueError(
+            "Cost surface exceeds maximum allowed cells "
+            f"({total_cells} > {max_cells}). Reduce padding or increase resolution."
+        )
+
     # Affine transform for Raster (origin top-left, y points down)
     transform = Affine.translation(min_x, max_y) * Affine.scale(
         resolution_m, -resolution_m
     )
 
-    # Initialize base cost array (base traversal cost = 1.0)
+    # Allocate only after validating the complete raster dimensions.
     costs = np.ones((height, width), dtype=np.float32)
 
     return CostSurface(

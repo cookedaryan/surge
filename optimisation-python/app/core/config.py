@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     project_name: str = "SURGE GIS Optimization Service"
     version: str = "0.1.0"
     api_v1_prefix: str = "/api/v1"
+    api_v2_prefix: str = "/api/v2"
 
     environment: Literal[
         "development",

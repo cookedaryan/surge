@@ -372,58 +372,7 @@ def optimise_project(
         candidate_map[s.scenario_id] for s in generation_result.candidates
     )
 
-    # 6. Presentation Packaging
-    packaged_candidates: list[CandidateWorkflowResult] = []
-    for candidate in ordered_candidates:
-        if candidate.load_flow_result is None:
-            packaged_candidates.append(candidate)
-            continue
-        try:
-            presentation = build_project_result(
-                pnc_network=candidate.scenario.network,
-                load_flow_result=candidate.load_flow_result,
-            )
-            packaged_candidates.append(
-                replace(candidate, presentation_result=presentation)
-            )
-        except PresentationDataMismatchError as exc:
-            logger.warning(
-                "%s packaging failed: %s", candidate.scenario.scenario_id, str(exc)
-            )
-            failure = CandidateFailure(
-                stage=WorkflowStage.PACKAGING,
-                code=WorkflowFailureCode.PACKAGING_FAILED,
-                message=str(exc),
-                scenario_id=candidate.scenario.scenario_id,
-            )
-            failures.append(failure)
-            packaged_candidates.append(replace(candidate, packaging_failure=failure))
-        except Exception as exc:
-            logger.exception(
-                "Unexpected packaging failure for %s",
-                candidate.scenario.scenario_id,
-            )
-            failure = CandidateFailure(
-                stage=WorkflowStage.PACKAGING,
-                code=WorkflowFailureCode.UNEXPECTED_EXCEPTION,
-                message=str(exc),
-                scenario_id=candidate.scenario.scenario_id,
-            )
-            return OptimisationWorkflowResult(
-                status=OptimisationStatus.FAILED,
-                generation_result=generation_result,
-                candidates=(),
-                recommendation=None,
-                recommended_result=None,
-                failures=(failure,),
-            )
-
-    ordered_candidates = tuple(packaged_candidates)
-    candidate_map = {
-        candidate.scenario.scenario_id: candidate for candidate in ordered_candidates
-    }
-
-    # 7. Recommendation and Status
+    # 6. Recommendation and Status
     recommended_result = None
     if recommendation and recommendation.recommended_scenario_id:
         winner_id = recommendation.recommended_scenario_id
@@ -438,14 +387,38 @@ def optimise_project(
         ):
             raise RuntimeError("Recommended scenario must be eligible.")
 
-        recommended_result = winner_candidate.presentation_result
-        # If packaging failed for the winner, we have a problem
-        if not recommended_result:
-            logger.error("Recommended scenario %s failed packaging.", winner_id)
-            status = OptimisationStatus.FAILED
-            # In this case, we have a recommendation but no recommended_result,
-            # which violates SUCCESS invariants.
-            # We should probably clear recommendation or just fail the workflow.
+        try:
+            presentation = build_project_result(
+                pnc_network=winner_candidate.scenario.network,
+                load_flow_result=winner_candidate.load_flow_result,
+            )
+            # Create a new instance with the presentation result
+            winner_candidate = replace(
+                winner_candidate, presentation_result=presentation
+            )
+            candidate_map[winner_id] = winner_candidate
+            # Update ordered_candidates
+            ordered_candidates = tuple(
+                candidate_map[s.scenario_id] for s in generation_result.candidates
+            )
+            recommended_result = presentation
+            logger.info("Recommended candidate: %s", winner_id)
+        except PresentationDataMismatchError as exc:
+            logger.warning("%s packaging failed: %s", winner_id, str(exc))
+            failure = CandidateFailure(
+                stage=WorkflowStage.PACKAGING,
+                code=WorkflowFailureCode.PACKAGING_FAILED,
+                message=str(exc),
+                scenario_id=winner_id,
+            )
+            failures.append(failure)
+
+            winner_candidate = replace(winner_candidate, packaging_failure=failure)
+            candidate_map[winner_id] = winner_candidate
+            ordered_candidates = tuple(
+                candidate_map[s.scenario_id] for s in generation_result.candidates
+            )
+
             return OptimisationWorkflowResult(
                 status=OptimisationStatus.FAILED,
                 generation_result=generation_result,
@@ -454,8 +427,30 @@ def optimise_project(
                 recommended_result=None,
                 failures=tuple(failures),
             )
+        except Exception as exc:
+            logger.exception("Unexpected packaging failure for %s", winner_id)
+            failure = CandidateFailure(
+                stage=WorkflowStage.PACKAGING,
+                code=WorkflowFailureCode.UNEXPECTED_EXCEPTION,
+                message=str(exc),
+                scenario_id=winner_id,
+            )
+            failures.append(failure)
 
-        logger.info("Recommended candidate: %s", winner_id)
+            winner_candidate = replace(winner_candidate, packaging_failure=failure)
+            candidate_map[winner_id] = winner_candidate
+            ordered_candidates = tuple(
+                candidate_map[s.scenario_id] for s in generation_result.candidates
+            )
+
+            return OptimisationWorkflowResult(
+                status=OptimisationStatus.FAILED,
+                generation_result=generation_result,
+                candidates=ordered_candidates,
+                recommendation=None,
+                recommended_result=None,
+                failures=tuple(failures),
+            )
 
         if (
             len(ordered_candidates) < generation_result.requested_candidate_count

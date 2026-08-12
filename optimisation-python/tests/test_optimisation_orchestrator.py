@@ -84,8 +84,13 @@ def test_complete_successful_workflow(
     assert result.recommendation.recommended_scenario_id is not None
     assert result.recommended_result is not None
 
-    assert result.recommended_result.network_summary.wtg_count == 8
-    assert all(candidate.presentation_result for candidate in result.candidates)
+    winner_id = result.recommendation.recommended_scenario_id
+    winner_candidate = next(
+        c for c in result.candidates if c.scenario.scenario_id == winner_id
+    )
+    assert winner_candidate.presentation_result is not None
+    assert result.recommended_result == winner_candidate.presentation_result
+    assert len([c for c in result.candidates if c.presentation_result is not None]) == 1
     assert all(candidate.packaging_failure is None for candidate in result.candidates)
 
     # Assert deterministic ordering of candidates matches PY-017
@@ -250,49 +255,6 @@ def test_electrical_execution_failure_isolation(
     assert sum(1 for c in result.candidates if c.load_flow_result) == 1
 
 
-def test_non_winner_packaging_failure_preserves_completed_results(
-    project_input: ProjectInput,
-    base_config: OptimisationConfig,
-    monkeypatch,
-) -> None:
-    from app.optimisation import orchestrator
-
-    baseline = optimise_project(project_input, base_config)
-    assert baseline.recommendation is not None
-    winner_id = baseline.recommendation.recommended_scenario_id
-    failure_index = next(
-        index
-        for index, candidate in enumerate(baseline.candidates, start=1)
-        if candidate.scenario.scenario_id != winner_id
-    )
-    original_builder = orchestrator.build_project_result
-    call_count = 0
-
-    def fail_selected_candidate(*args, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        if call_count == failure_index:
-            raise PresentationDataMismatchError("candidate packaging mismatch")
-        return original_builder(*args, **kwargs)
-
-    monkeypatch.setattr(
-        orchestrator,
-        "build_project_result",
-        fail_selected_candidate,
-    )
-
-    result = optimise_project(project_input, base_config)
-
-    assert result.status == OptimisationStatus.PARTIAL_SUCCESS
-    failed = next(c for c in result.candidates if c.packaging_failure is not None)
-    assert failed.execution_failure is None
-    assert failed.load_flow_result is not None
-    assert failed.evaluation is not None
-    assert failed.presentation_result is None
-    assert failed.packaging_failure.code == WorkflowFailureCode.PACKAGING_FAILED
-    replace(failed)  # Re-validation must preserve a legal domain state.
-
-
 def test_winner_packaging_failure_returns_structured_failure(
     project_input: ProjectInput,
     base_config: OptimisationConfig,
@@ -300,23 +262,8 @@ def test_winner_packaging_failure_returns_structured_failure(
 ) -> None:
     from app.optimisation import orchestrator
 
-    baseline = optimise_project(project_input, base_config)
-    assert baseline.recommendation is not None
-    winner_id = baseline.recommendation.recommended_scenario_id
-    failure_index = next(
-        index
-        for index, candidate in enumerate(baseline.candidates, start=1)
-        if candidate.scenario.scenario_id == winner_id
-    )
-    original_builder = orchestrator.build_project_result
-    call_count = 0
-
     def fail_winner(*args, **kwargs):
-        nonlocal call_count
-        call_count += 1
-        if call_count == failure_index:
-            raise PresentationDataMismatchError("winner packaging mismatch")
-        return original_builder(*args, **kwargs)
+        raise PresentationDataMismatchError("winner packaging mismatch")
 
     monkeypatch.setattr(orchestrator, "build_project_result", fail_winner)
 

@@ -1,8 +1,8 @@
 # Surge MVP Ticket Plan
 
-**Canonical as of:** 2026-08-12  
-**MVP freeze:** SURGE-PY-020  
-**Current ticket:** SURGE-PY-020 (in progress)
+**Canonical as of:** 2026-08-13
+**MVP freeze:** SURGE-PY-020
+**Current ticket:** SURGE-PY-020 (complete)
 
 This note is the Obsidian mirror of
 [`docs/Surge MVP Ticket Plan.md`](../../docs/Surge%20MVP%20Ticket%20Plan.md) and
@@ -19,7 +19,7 @@ onward. Earlier day-based plans are historical context only.
 | SURGE-PY-017 | Candidate PNC Scenario Generation | Complete | Generate 1-5 deterministic, distinct, structurally valid PNC candidates. |
 | SURGE-PY-018 | Multi-Objective Scoring + Recommendation | Complete | Score electrically evaluated candidates and return an explainable deterministic recommendation. |
 | SURGE-PY-019 | End-to-End Optimisation Orchestrator | Complete | Connect preprocessing, candidate generation, load flow, scoring, recommendation, and presentation behind one internal call. |
-| SURGE-PY-020 | MVP Demo API + End-to-End Validation | In progress | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
+| SURGE-PY-020 | MVP Demo API + End-to-End Validation | Complete | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
 
 No feature may be inserted between these tickets unless it blocks the vertical
 workflow. If work expands beyond these boundaries, reduce MVP scope rather than
@@ -84,6 +84,18 @@ complete WTG and route coverage, per-candidate load-flow execution,
 deterministic recommendation, and valid GeoJSON. General projects may return
 fewer candidates when fewer unique valid networks exist.
 
+The implemented V1 endpoint preserves the Java request and legacy response
+fields, runs `optimise_project`, and adds workflow status, generation,
+candidate, recommendation, presentation, and failure data. A caller that omits
+cable properties receives the documented 33 kV MVP compatibility profile,
+whose ampacity is derived from legacy `feeder_capacity_mw`; explicit cable
+configuration overrides that profile.
+
+`POST /api/v2/optimise` exposes an explicit engineering request requiring
+cable properties. Its golden fixture produces three unique valid candidates
+and verifies deterministic repeated output, coverage, ranking,
+recommendation, and WGS-84 GeoJSON.
+
 ## Constraint and demo scope
 
 Raw project boundaries, terrain, restrictions, parcels, ROW layers, and their
@@ -102,8 +114,7 @@ WTG/substation inputs and must not claim raw constraint-layer ingestion.
 | Sat 15 Aug | PY-020 compatible API and golden fixture |
 | Sun 16 Aug | End-to-end stabilization and demonstration only |
 
-PY-017 is implemented. Three tickets remain before the SURGE-PY-020 MVP freeze:
-PY-018, PY-019, and PY-020.
+The deterministic MVP sequence through PY-020 is complete.
 
 ## Post-MVP
 

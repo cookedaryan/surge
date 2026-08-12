@@ -168,14 +168,6 @@ class OptimisationWorkflowResult:
                     raise ValueError(
                         "Completed candidates require load-flow and evaluation results."
                     )
-                if (
-                    candidate.presentation_result is None
-                    and candidate.packaging_failure is None
-                ):
-                    raise ValueError(
-                        "Completed candidates require presentation output or a "
-                        "packaging failure."
-                    )
 
         if self.status in (
             OptimisationStatus.SUCCESS,

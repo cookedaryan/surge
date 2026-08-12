@@ -1,8 +1,8 @@
 # Surge MVP Ticket Plan
 
-**Canonical as of:** 2026-08-12  
-**MVP freeze:** SURGE-PY-020  
-**Current ticket:** SURGE-PY-020 (in progress)
+**Canonical as of:** 2026-08-13
+**MVP freeze:** SURGE-PY-020
+**Current ticket:** SURGE-PY-020 (complete)
 
 This document is authoritative for Python ticket numbering and MVP scope from
 SURGE-PY-014 onward. Earlier day-based plans are historical context only.
@@ -17,7 +17,7 @@ SURGE-PY-014 onward. Earlier day-based plans are historical context only.
 | SURGE-PY-017 | Candidate PNC Scenario Generation | Complete | Generate 1-5 deterministic, distinct, structurally valid PNC candidates. |
 | SURGE-PY-018 | Multi-Objective Scoring + Recommendation | Complete | Score electrically evaluated candidates and return an explainable deterministic recommendation. |
 | SURGE-PY-019 | End-to-End Optimisation Orchestrator | Complete | Connect preprocessing, candidate generation, load flow, scoring, recommendation, and presentation behind one internal call. |
-| SURGE-PY-020 | MVP Demo API + End-to-End Validation | In progress | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
+| SURGE-PY-020 | MVP Demo API + End-to-End Validation | Complete | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
 
 No feature may be inserted between these tickets unless it blocks the vertical
 workflow. If work expands beyond these boundaries, reduce MVP scope rather than
@@ -87,10 +87,11 @@ owned by earlier tickets.
 
 The implemented workflow validates shared project, raster, electrical, and
 operating-point inputs before candidate generation. Candidate-local solver and
-presentation failures remain attached to the affected candidate, while shared
-or unexpected stage failures return a structured `FAILED` result. Every
-electrically evaluated candidate retains its scoring result and either a
-presentation result or an explicit packaging failure. Frozen workflow models
+electrical failures remain attached to the affected candidate, while shared or
+unexpected stage failures return a structured `FAILED` result. Every
+electrically evaluated candidate retains its scoring result. The recommended
+candidate additionally receives a presentation result; a recommendation
+packaging failure returns a structured `FAILED` result. Frozen workflow models
 enforce these state combinations.
 
 ### SURGE-PY-020 - MVP Demo API + End-to-End Validation
@@ -111,6 +112,21 @@ behaviour, complete WTG coverage, routed physical segments, load-flow execution
 for every accepted candidate, a deterministic recommendation, and valid
 GeoJSON. The general scenario-generation contract may return fewer candidates
 when a project has fewer unique valid networks.
+
+The implemented V1 endpoint keeps the Java request and the legacy
+`request_id`, lowercase `status`, `scenario`, `feeder_routes_geojson`, and
+`metrics` fields. It now runs `optimise_project` and adds `workflow_status`,
+generation diagnostics, candidate comparisons, recommendation details, the
+typed presentation result, and failures. When the legacy caller does not
+supply cable data, the adapter derives ampacity from `feeder_capacity_mw` and
+uses the documented 33 kV MVP compatibility cable parameters; explicit cable
+configuration overrides that compatibility profile.
+
+`POST /api/v2/optimise` exposes the same orchestrator through an explicit
+engineering request that requires cable properties. The golden fixture
+requests and receives three unique electrically valid candidates, then checks
+repeat-call equality, complete WTG and segment coverage, ranked candidates,
+recommendation, and WGS-84 GeoJSON.
 
 ## Constraint and demo scope
 
@@ -135,8 +151,7 @@ claimed in the Sunday API demonstration until a later ticket integrates them.
 | Sat 15 Aug | PY-020 compatible API and golden fixture |
 | Sun 16 Aug | End-to-end stabilization and demonstration only |
 
-PY-017 is implemented. Three tickets remain before the MVP freeze:
-PY-018, PY-019, and PY-020.
+The deterministic MVP sequence through PY-020 is complete.
 
 ## Explicit post-MVP work
 

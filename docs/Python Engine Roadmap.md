@@ -6,7 +6,7 @@ This document preserves the original delivery plan and tracks the Python engine'
 > for SURGE-PY-014 onward by [Surge MVP Ticket Plan](Surge%20MVP%20Ticket%20Plan.md).
 > The numbering is frozen through SURGE-PY-020. SURGE-PY-017 through PY-019
 > are implemented; compatible API integration and golden-fixture validation
-> are in progress under PY-020. ML ranking remains post-MVP.
+> and PY-020 are complete. ML ranking remains post-MVP.
 
 ## Original delivery target
 
@@ -415,7 +415,7 @@ SURGE Full Quality Check
 - [x] SURGE-PY-017: Candidate PNC Scenario Generation
 - [x] SURGE-PY-018: Multi-Objective Scoring + Recommendation
 - [x] SURGE-PY-019: End-to-End Optimisation Orchestrator
-- [ ] SURGE-PY-020: MVP Demo API + End-to-End Validation (**in progress; MVP freeze**)
+- [x] SURGE-PY-020: MVP Demo API + End-to-End Validation (**complete; MVP freeze**)
 
 The exact boundaries, compatibility rules, remaining schedule, and explicit
 post-MVP cuts are defined in [Surge MVP Ticket Plan](Surge%20MVP%20Ticket%20Plan.md).
