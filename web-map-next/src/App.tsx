@@ -3,11 +3,14 @@ import { RailNav } from './app/RailNav';
 import { SidePanel, Pane } from './app/SidePanel';
 import { MapArea } from './app/MapArea';
 import { MapAreaContent } from './features/map/MapAreaContent';
+import { AuthGateway } from './features/auth/AuthGateway';
+import { AuthTopBarActions } from './features/auth/AuthTopBarActions';
 
 export default function App() {
   return (
     <div className="h-full flex flex-col font-ui text-text">
-      <TopBar />
+      <AuthGateway />
+      <TopBar actionsSlot={<AuthTopBarActions />} />
       <div className="flex-1 flex min-h-0">
         <RailNav />
         <SidePanel>

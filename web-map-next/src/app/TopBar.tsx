@@ -1,4 +1,11 @@
-export function TopBar() {
+import { ReactNode } from 'react';
+
+interface TopBarProps {
+  projectSlot?: ReactNode;
+  actionsSlot?: ReactNode;
+}
+
+export function TopBar({ projectSlot, actionsSlot }: TopBarProps) {
   return (
     <header className="h-[52px] flex-none flex items-center gap-5 px-4 bg-panel border-b border-border font-ui">
       <div className="flex items-center gap-2">
@@ -10,9 +17,9 @@ export function TopBar() {
           Collector &amp; Evacuation Engine
         </span>
       </div>
-      <div id="topbar-project-slot" className="flex items-center gap-2" />
+      <div className="flex items-center gap-2">{projectSlot}</div>
       <div className="flex-1" />
-      <div id="topbar-actions-slot" className="flex items-center gap-2" />
+      <div className="flex items-center gap-2">{actionsSlot}</div>
     </header>
   );
 }
