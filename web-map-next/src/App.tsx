@@ -2,6 +2,7 @@ import { TopBar } from './app/TopBar';
 import { RailNav } from './app/RailNav';
 import { SidePanel, Pane } from './app/SidePanel';
 import { MapArea } from './app/MapArea';
+import { MapAreaContent } from './features/map/MapAreaContent';
 
 export default function App() {
   return (
@@ -17,9 +18,7 @@ export default function App() {
           <Pane tab="audit"><div className="text-textFaint text-xs">Audit pane — Task 18</div></Pane>
         </SidePanel>
         <MapArea>
-          <div className="flex items-center justify-center h-full text-textFaint text-xs">
-            Map canvas — Task 10
-          </div>
+          <MapAreaContent />
         </MapArea>
       </div>
     </div>
