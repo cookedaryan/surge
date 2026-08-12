@@ -1,5 +1,6 @@
 .venv
 .vscode/
+.superpowers/
 
 # ==========================================
 # 1. JETBRAINS / INTELLIJ IDEA (.idea & modules)
