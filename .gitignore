@@ -94,9 +94,9 @@ data/
 # ==========================================
 # 7. OBSIDIAN VAULT & OS METADATA
 # ==========================================
-.obsidian
-.tmp.drivedownload
-.tmp.driveupload
+obsidian-vault/.obsidian
+obsidian-vault/.tmp.drivedownload
+obsidian-vault/.tmp.driveupload
 .DS_Store
 Thumbs.db
 *.swp
