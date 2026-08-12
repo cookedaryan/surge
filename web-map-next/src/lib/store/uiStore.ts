@@ -39,6 +39,10 @@ interface UiState {
 
   importPreviewOpen: boolean;
   setImportPreviewOpen: (v: boolean) => void;
+
+  toast: string | null;
+  showToast: (message: string) => void;
+  clearToast: () => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -77,5 +81,9 @@ export const useUiStore = create<UiState>((set) => ({
   setNewProjectModalOpen: (v) => set({ newProjectModalOpen: v }),
 
   importPreviewOpen: false,
-  setImportPreviewOpen: (v) => set({ importPreviewOpen: v })
+  setImportPreviewOpen: (v) => set({ importPreviewOpen: v }),
+
+  toast: null,
+  showToast: (message) => set({ toast: message }),
+  clearToast: () => set({ toast: null })
 }));
