@@ -10,6 +10,7 @@ import { AssetsPane } from './features/assets/AssetsPane';
 import { MapAreaContent } from './features/map/MapAreaContent';
 import type { MapCanvasHandle } from './features/map/MapCanvas';
 import { Toast } from './components/Toast';
+import { OptimizationPane } from './features/optimization/OptimizationPane';
 
 export default function App() {
   const mapRef = useRef<MapCanvasHandle>(null);
@@ -23,7 +24,7 @@ export default function App() {
         <RailNav />
         <SidePanel>
           <Pane tab="assets"><AssetsPane mapRef={mapRef} /></Pane>
-          <Pane tab="optimize"><div className="text-textFaint text-xs">Optimization pane — Task 15</div></Pane>
+          <Pane tab="optimize"><OptimizationPane /></Pane>
           <Pane tab="layers"><div className="text-textFaint text-xs">Layers pane — Task 16</div></Pane>
           <Pane tab="bom"><div className="text-textFaint text-xs">BOM pane — Task 17</div></Pane>
           <Pane tab="audit"><div className="text-textFaint text-xs">Audit pane — Task 18</div></Pane>
