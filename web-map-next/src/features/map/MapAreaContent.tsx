@@ -4,6 +4,7 @@ import { useUiStore } from '../../lib/store';
 import { useProjectData } from './useProjectData';
 import { MapCanvas, type MapCanvasHandle } from './MapCanvas';
 import { Legend } from './Legend';
+import { BomStrip } from '../bom/BomStrip';
 
 interface MapAreaContentProps {
   mapRef: RefObject<MapCanvasHandle>;
@@ -16,6 +17,7 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
   const parcelOpacity = useUiStore((s) => s.parcelOpacity);
   const restrictedOpacity = useUiStore((s) => s.restrictedOpacity);
   const routeEditMode = useUiStore((s) => s.routeEditMode);
+  const setLiveBomOverride = useUiStore((s) => s.setLiveBomOverride);
 
   const data = useProjectData(currentProjectId, currentJobId);
 
@@ -39,9 +41,12 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
         parcelOpacity={parcelOpacity}
         restrictedOpacity={restrictedOpacity}
         routeEditMode={routeEditMode}
-        onRouteVertexMoved={() => {}}
+        onRouteVertexMoved={(lengthMeters, poles, cost) =>
+          setLiveBomOverride({ lengthKm: (lengthMeters / 1000).toFixed(2), poles, cost })
+        }
       />
       <Legend />
+      <BomStrip />
     </>
   );
 }

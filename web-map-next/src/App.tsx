@@ -12,6 +12,8 @@ import type { MapCanvasHandle } from './features/map/MapCanvas';
 import { Toast } from './components/Toast';
 import { OptimizationPane } from './features/optimization/OptimizationPane';
 import { LayersPane } from './features/layers/LayersPane';
+import { BomPane } from './features/bom/BomPane';
+import { ExportPdfButton } from './features/bom/ExportPdfButton';
 
 export default function App() {
   const mapRef = useRef<MapCanvasHandle>(null);
@@ -20,14 +22,17 @@ export default function App() {
     <div className="h-full flex flex-col font-ui text-text">
       <AuthGateway />
       <Toast />
-      <TopBar projectSlot={<ProjectSelector />} actionsSlot={<AuthTopBarActions />} />
+      <TopBar
+        projectSlot={<ProjectSelector />}
+        actionsSlot={<><ExportPdfButton /><AuthTopBarActions /></>}
+      />
       <div className="flex-1 flex min-h-0">
         <RailNav />
         <SidePanel>
           <Pane tab="assets"><AssetsPane mapRef={mapRef} /></Pane>
           <Pane tab="optimize"><OptimizationPane /></Pane>
           <Pane tab="layers"><LayersPane /></Pane>
-          <Pane tab="bom"><div className="text-textFaint text-xs">BOM pane — Task 17</div></Pane>
+          <Pane tab="bom"><BomPane /></Pane>
           <Pane tab="audit"><div className="text-textFaint text-xs">Audit pane — Task 18</div></Pane>
         </SidePanel>
         <MapArea>

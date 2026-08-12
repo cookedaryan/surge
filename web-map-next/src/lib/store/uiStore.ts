@@ -43,6 +43,9 @@ interface UiState {
   toast: string | null;
   showToast: (message: string) => void;
   clearToast: () => void;
+
+  liveBomOverride: { lengthKm: string; poles: number; cost: number } | null;
+  setLiveBomOverride: (v: { lengthKm: string; poles: number; cost: number } | null) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -85,5 +88,8 @@ export const useUiStore = create<UiState>((set) => ({
 
   toast: null,
   showToast: (message) => set({ toast: message }),
-  clearToast: () => set({ toast: null })
+  clearToast: () => set({ toast: null }),
+
+  liveBomOverride: null,
+  setLiveBomOverride: (v) => set({ liveBomOverride: v })
 }));
