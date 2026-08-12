@@ -14,6 +14,7 @@ import { OptimizationPane } from './features/optimization/OptimizationPane';
 import { LayersPane } from './features/layers/LayersPane';
 import { BomPane } from './features/bom/BomPane';
 import { ExportPdfButton } from './features/bom/ExportPdfButton';
+import { AuditPane } from './features/audit/AuditPane';
 
 export default function App() {
   const mapRef = useRef<MapCanvasHandle>(null);
@@ -33,7 +34,7 @@ export default function App() {
           <Pane tab="optimize"><OptimizationPane /></Pane>
           <Pane tab="layers"><LayersPane /></Pane>
           <Pane tab="bom"><BomPane /></Pane>
-          <Pane tab="audit"><div className="text-textFaint text-xs">Audit pane — Task 18</div></Pane>
+          <Pane tab="audit"><AuditPane /></Pane>
         </SidePanel>
         <MapArea>
           <MapAreaContent mapRef={mapRef} />
