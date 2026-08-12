@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "surge-web-map",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web-map", "run", "dev", "--", "--host"],
+      "port": 5173
+    }
+  ]
+}
