@@ -4,7 +4,7 @@
 
 The SURGE Python service is a stateless FastAPI computation boundary. It currently validates project Point GeoJSON, transforms coordinates into one UTM CRS, builds a complete NetworkX candidate graph, groups WTGs under feeder-capacity constraints, creates one minimum spanning tree per feeder, routes each selected edge across a raster cost surface, and exposes refined WGS84 LineStrings.
 
-SURGE-PY-007 through SURGE-PY-009 provide a uniform projected cost-surface abstraction, A* physical routing, and obstacle-safe route refinement. The cost surface currently defaults to 1.0 everywhere, meaning routes optimize for distance until terrain and exclusion layers are rasterized.
+SURGE-PY-007 through SURGE-PY-009 provide a uniform projected cost-surface abstraction, A* physical routing, and obstacle-safe route refinement. The cost surface currently defaults to 1.0 everywhere, meaning routes optimize for distance until terrain and exclusion layers are rasterized. SURGE-PY-010 provides pole placement over refined routes, and SURGE-PY-011 provides right-of-way corridor and constraint-intersection analysis. Both are standalone algorithms that are not yet invoked by the service pipeline or represented in the API response.
 
 ## Pipeline
 
@@ -32,13 +32,15 @@ ProjectSpatialData -> uniform CostSurface + Affine transform
 | `app/api/v1` | FastAPI routes and expected-error translation | Implemented |
 | `app/schemas` | Pydantic request/response contract | Implemented |
 | `app/gis` | GeoJSON parsing, validation, UTM selection, transforms | Implemented for WTG/substation Points |
-| `app/gis/cost_surface.py` | Uniform raster, affine transform, and coordinate helpers | Implemented standalone |
+| `app/gis/cost_surface.py` | Uniform raster, affine transform, and coordinate helpers | Implemented and service-integrated |
 | `app/models` | Frozen projected spatial domain objects | Implemented |
 | `route_graph.py` | Complete undirected graph with Euclidean metric edges | Implemented |
 | `wtg_grouping.py` | Capacity-constrained feeder assignment | Implemented |
 | `topology.py` | SURGE-PY-006 per-feeder MST topology | Implemented internally |
 | `physical_routing.py` | SURGE-PY-008 A* translation from topology edges to projected physical routes | Implemented |
 | `route_refinement.py` | SURGE-PY-009 duplicate/collinear removal and supercover-validated visibility shortcuts | Implemented |
+| `pole_placement.py` | SURGE-PY-010 geometry-based terminal, angle, and intermediate pole placement | Implemented standalone; not service-integrated |
+| `app/gis/row_analysis.py` | SURGE-PY-011 projected ROW buffers, indexed constraint intersections, and impact aggregates | Implemented standalone; no constraint API input yet |
 | `cost_function.py` | Lifecycle-cost evaluation | Placeholder |
 | `electrical_analysis.py` | Load flow, voltage drop, and losses | Placeholder |
 
@@ -74,6 +76,28 @@ Each `RefinedPhysicalRoute` retains original and refined length and traversal co
 
 Coincident endpoints are rejected during refinement because they collapse to fewer than two distinct coordinates and cannot produce a non-degenerate engineering route. The API maps this spatial infeasibility to HTTP 422.
 
+## SURGE-PY-010: Pole Placement
+
+`place_poles_on_route` consumes one projected `RefinedPhysicalRoute`. It always creates terminal poles at the route endpoints and makes an interior LineString vertex mandatory when its deflection angle meets or exceeds `angle_pole_threshold_deg`. Deflection is measured between consecutive forward segment vectors: 0° is straight, 90° is a right-angle turn, and 180° is a reversal. At a threshold of 180°, exact reversals remain mandatory.
+
+Mandatory positions split the route into independent sections. A section at or below `min_span_m` receives no intermediate fill pole. For a longer section, the initial span count is `round(section_length / target_span_m)` using Python's ties-to-even rule and is increased as necessary to keep the arc-length interval at or below `max_span_m`. Consequently, `max_span_m` is hard while `min_span_m` is a soft subdivision threshold; the implementation does not promise that every resulting span is at least the minimum.
+
+`Pole.distance_along_route_m` stores arc length along the LineString, while `PoleSpan.span_length_m` stores the Euclidean chord between consecutive pole Points. Batch placement maintains a continuous sequence per `feeder_id`, preventing ID collisions between multiple routes from the same feeder. Shared topology endpoints are still represented by separate route-local terminal poles; network-level spatial deduplication is deferred.
+
+The module does not yet use DEM profiles, calculate sag or clearance, select structural pole classes, insert crossing structures, or create ROW geometry. `OptimisationService` does not call it, and `/api/v1/optimise` does not return its results.
+
+## SURGE-PY-011: ROW Corridor and Constraint Analysis
+
+`analyse_row_corridors` consumes projected `RefinedPhysicalRoute` objects, explicit route CRS provenance, projected project constraints, and a `RowConfig`. CRS is intentionally separate from corridor configuration: Shapely geometries do not carry CRS metadata, so the caller supplies the route CRS while `ProjectConstraintLayers` carries the constraint CRS. The analysis requires equivalent projected CRS definitions whose axes are measured in metres.
+
+Each route segment is buffered by half the configured total corridor width. The implementation uses flat end caps by default so the ROW stops at the exact route endpoints, and it records both the sum of segment-level corridor areas and the unique union footprint. The distinction matters where feeder segments overlap at substations, junctions, or shared alignments.
+
+Constraint geometries are validated and repaired before one Shapely `STRtree` is built and reused for all corridors. Areal layers such as parcels, forests, restricted zones, and environmental areas require Polygon or MultiPolygon geometry. Roads and water may be linear or areal. Empty non-critical features are reported as skipped; empty critical features and invalid or incompatible geometries fail the analysis rather than silently weakening compliance checks.
+
+Every `RowIntersection` retains feeder and route-edge identity. It distinguishes corridor overlap area, route-centreline overlap length, linear-constraint length inside the corridor, and boundary-only contact. Aggregates report unique parcels, road crossing events, restricted route-feature events, unique restricted features, and whether any included intersection has `severity="hard"`. Linear road crossings count transverse point events, while areal roads count positive-length route passages.
+
+This is currently a standalone spatial algorithm. `OptimisationRequest` does not carry parcel, road, forest, water, environmental, or restricted-zone layers; `OptimisationService` does not invoke ROW analysis; and the API does not serialize or persist its result. An integration ticket must define constraint transport, projected conversion, response GeoJSON, and Java persistence before callers can use these outputs end to end.
+
 ## Input Assumptions
 
 The topology function is designed for outputs from `build_project_graph` and `group_wtgs`. It now rejects zero/multiple substations, feeder-count mismatch, duplicate assignments, missing assigned nodes, count-based incomplete coverage, and disconnected results. Coverage compares counts rather than exact node sets; the normal graph builder keeps those equivalent, but direct callers should still supply correctly typed nodes and finite `weight`/`distance_m` attributes.
@@ -82,4 +106,4 @@ The topology function is designed for outputs from `build_project_graph` and `gr
 
 Focused topology tests cover membership, substation inclusion, connectivity, acyclicity, edge count, minimum-weight selection, length aggregation, multiple feeders, single-WTG feeders, and unknown turbine rejection.
 
-Route-refinement tests cover duplicate and collinear removal, exact endpoints, cost-preserving shortcuts, obstacle and finite-penalty detours, corner and outer-boundary supercover behavior, metadata, determinism, cost recomputation, and batch totals. API coverage includes refined response properties and coincident-endpoint rejection. Cross-service persistence and zero-padding cost-surface construction remain outside this test boundary.
+Route-refinement tests cover duplicate and collinear removal, exact endpoints, cost-preserving shortcuts, obstacle and finite-penalty detours, corner and outer-boundary supercover behavior, metadata, determinism, cost recomputation, and batch totals. Pole-placement tests cover terminal, angle, and intermediate structures; span allocation; feeder-wide IDs; chord lengths; input validation; and aggregate counts. ROW-analysis tests cover metric CRS enforcement, explicit buffer behavior, repaired and empty constraints, indexed intersections, route-edge traceability, line and polygon roads, hard violations, overlap thresholds, deterministic ordering, and summed versus unique ROW area. API coverage includes refined response properties and coincident-endpoint rejection. Pole/ROW API integration, cross-service persistence, and zero-padding cost-surface construction remain outside this test boundary.

@@ -23,7 +23,7 @@ Welcome to the **SURGE Knowledge Vault**.
 | Domain | Status | Owner | Next Milestone |
 | --- | --- | --- | --- |
 | Architecture | Complete & Containerized | Core Team | End-to-End E2E Integration Suite |
-| Python Engine | MILP Grouping & MST Topology Active | Algo Team | Spatial A* Multi-Objective Terrain Routing |
+| Python Engine | MILP, MST, A*, Refinement, Pole & ROW Algorithms Active | Algo Team | Constraint/Pole/ROW Service Integration |
 | Backend API | JWT Auth, SSE Streaming & Audit Logs Ready | Backend Team | Pandapower Load Flow Integration |
 | GIS & Database | PostGIS V1-V3 Schema & Spatial Queries Ready | GIS Team | DEM Elevation Raster Processing |
 | Web GIS UI | GeoJSON Drag & Drop & Map Rendering Active | Frontend Team | Interactive Point-to-Point Line Drawing |
@@ -53,10 +53,11 @@ Welcome to the **SURGE Knowledge Vault**.
 ## Next Steps & Roadmap
 
 1. ⚙️ **Python Optimization Algorithms**:
-   - Convert per-feeder MST edges into terrain- and restriction-aware routed GeoJSON
-   - Multi-objective A* grid/mesh routing avoiding restricted polygon areas
+   - Rasterize terrain, restrictions, land, and accessibility into the existing cost surface
+   - Extend the existing A* stage from uniform-distance routing to multi-objective routing
    - Pandapower electrical load flow & loss analysis integration
-   - Terrain-aware pole placement & dynamic span calculation
+   - Integrate the standalone PY-010 pole results into the service/API and add terrain-aware span rules
+   - Integrate standalone PY-011 ROW analysis with projected parcel, road, environmental, and restricted-zone inputs
 2. 🔄 **Backend Enhancements**:
    - Async job execution with WebSocket / SSE progress updates
    - Side-by-side multi-scenario comparison endpoints

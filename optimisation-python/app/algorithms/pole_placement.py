@@ -24,8 +24,9 @@ Design decisions
   place_poles_on_routes() which can serve as the integration point for a
   future deduplication pass.  coordinate_tolerance_m is validated and stored
   in config ready for that future pass.
-* max_span_m is a hard constraint.  min_span_m is a soft lower bound: routes
-  shorter than min_span_m are accepted and produce only two terminal poles.
+* max_span_m is a hard constraint.  min_span_m is a soft subdivision
+  threshold: a section at or below it receives no fill pole.  Mandatory angle
+  poles can still give a short route more than two poles.
 * PoleSpan.span_length_m is the Euclidean chord distance between the two pole
   Points (i.e. start.geometry.distance(end.geometry)), not the arc-length
   difference along the LineString.  The two values coincide for poles that
@@ -68,19 +69,20 @@ class PolePlacementConfig:
     ----------
     target_span_m:
         Preferred pole-to-pole distance in metres.  The span-count algorithm
-        selects the integer count closest to ``L / target``, so the result is
-        the feasible span count that best matches the preference.
+        starts with Python's rounded value of ``L / target`` and then increases
+        it when required by ``max_span_m``.  This is a deterministic heuristic;
+        it does not minimize actual span-length deviation in every tie case.
     min_span_m:
-        Soft lower bound.  Routes shorter than this still produce two terminal
-        poles.  Interior section fills that would produce spans shorter than
-        this are skipped (the mandatory endpoints cover the section).
+        Soft subdivision threshold.  A section at or below this length receives
+        no intermediate fill pole.  It is not a guaranteed lower bound on every
+        resulting span, and mandatory angle poles are still retained.
     max_span_m:
         Hard upper bound.  The span-count calculation always ensures spans
         remain at or below this limit.
     angle_pole_threshold_deg:
         Deflection angle (degrees) at or above which an interior LineString
         vertex becomes a mandatory angle pole.  0° means every vertex is
-        mandatory; 180° means no vertex is mandatory.
+        mandatory; 180° means only exact reversals are mandatory.
 
         Deflection is measured as the angle between the two forward direction
         vectors at the vertex (incoming → vertex, vertex → outgoing): 0° for
@@ -287,10 +289,9 @@ def calculate_span_count(
     Python's built-in rounding), so a section of 101 m with target 100 m
     correctly produces one 101 m span rather than two 50.5 m spans.
 
-    The while-loop then increases the count until the actual span fits within
-    ``max_span_m``.  The count is never decreased below the rounded candidate:
-    if the actual span after rounding is below ``min_span_m`` the caller
-    applies the short-section policy (§16) rather than rejecting the result.
+    The while-loop then increases the count until the arc-length interval fits
+    within ``max_span_m``.  This helper does not enforce ``min_span_m``; the
+    caller uses that value only to decide whether a section should be filled.
 
     Parameters
     ----------
@@ -364,9 +365,9 @@ def place_poles_on_route(
          ``config.angle_pole_threshold_deg`` (angle poles)
        - ``route.geometry.length`` (end terminal)
     3. Divide the route into sections between consecutive mandatory positions.
-    4. Fill each section with evenly-distributed intermediate poles such that
-       all arc-length intervals remain within [min_span_m, max_span_m].
-       Sections shorter than ``min_span_m`` are not subdivided.
+    4. Fill each section longer than ``min_span_m`` with evenly-distributed
+       intermediate poles.  ``max_span_m`` is enforced on arc-length intervals;
+       ``min_span_m`` is only the subdivision threshold.
     5. Classify each pole as ``"terminal"``, ``"angle"``, or
        ``"intermediate"``.
     6. Build PoleSpan objects whose ``span_length_m`` is the Euclidean chord

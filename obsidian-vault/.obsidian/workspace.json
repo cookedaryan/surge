@@ -214,6 +214,8 @@
   },
   "active": "89226eb629610e5e",
   "lastOpenFiles": [
+    "08-python-engine/Route Scoring Architecture.md",
+    "06-gis/ROW Corridor Analysis.md",
     "05-optimization/Routing.md",
     "journal/2026-08-09.md",
     "06-gis/GIS Cost Surface.md",
@@ -239,8 +241,6 @@
     "journal/2026-08-08.md",
     "journal/2026-08-04.md",
     "walkthrough/2026-08-07-GIS-Foundation.md",
-    "05-optimization/Cost Model.md",
-    "FastAPI Microservice Specification.md",
     "journal",
     "walkthrough",
     "assets/ui",

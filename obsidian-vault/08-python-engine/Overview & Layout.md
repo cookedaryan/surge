@@ -22,6 +22,7 @@ optimisation-python/
 |    |    +--- pole_placement.py
 |    |    +--- route_graph.py
 |    |    +--- route_refinement.py
+|    |    +--- route_scoring.py
 |    |    +--- topology.py
 |    |    \--- wtg_grouping.py
 |    +--- gis
@@ -30,6 +31,7 @@ optimisation-python/
 |    |    +--- cost_surface.py
 |    |    +--- geojson.py
 |    |    +--- geometry.py
+|    |    +--- row_analysis.py
 |    |    \--- preprocessing.py
 |    +--- models
 |    |    +--- __init__.py
@@ -76,6 +78,8 @@ optimisation-python/
      +--- test_preprocessing.py
      +--- test_route_graph.py
      +--- test_route_refinement.py
+     +--- test_route_scoring.py
+     +--- test_row_analysis.py
      +--- test_topology.py
      \--- test_wtg_grouping.py
 ```
@@ -99,7 +103,6 @@ OptimisationRequest
     -> build_feeder_mst
     -> route_collector_topology
     -> refine_routing_result
-    -> place_poles_on_routes
     -> sum refined route length
     -> OptimisationResponse
 ```
@@ -114,7 +117,13 @@ SURGE-PY-009 adds `app/algorithms/route_refinement.py`. It removes duplicate and
 
 The API emits refined geometry and uses refined length for aggregate metrics. Route features retain both original and refined length/cost properties so the A* result remains auditable.
 
-SURGE-PY-010 adds `app/algorithms/pole_placement.py`. It converts each `RefinedPhysicalRoute` into an ordered sequence of physical `Pole` structures connected by `PoleSpan` objects. Poles are placed using section-based, evenly-distributed span allocation: mandatory structures are first identified at route endpoints and at LineString vertices whose deflection angle meets or exceeds the configurable `angle_pole_threshold_deg`. The route is then divided into sections between mandatory positions, and each section is filled with intermediate poles whose spans are kept within `[min_span_m, max_span_m]`. The `max_span_m` limit is hard; `min_span_m` is a soft lower bound (routes shorter than `min_span_m` produce only two terminal poles). Pole IDs are deterministic (`{feeder_id}-P{sequence:03d}`). `PoleRouteResult` carries `start_node_id` / `end_node_id` for future network-level deduplication of shared topology endpoints.
+SURGE-PY-010 adds the standalone `app/algorithms/pole_placement.py` module. It converts each projected `RefinedPhysicalRoute` into ordered `Pole` structures connected by `PoleSpan` objects, but `OptimisationService` does not yet invoke it and the API does not return pole results.
+
+The module first makes route endpoints and qualifying deflection vertices mandatory, then treats the geometry between consecutive mandatory positions as independent sections. Sections longer than `min_span_m` receive evenly spaced fill poles based on `round(section_length / target_span_m)`; the count increases until the arc-length interval satisfies the hard `max_span_m` limit. The minimum is a soft subdivision threshold, not a guaranteed lower bound. `PoleSpan.span_length_m` records the Euclidean chord between pole Points, while each pole's `distance_along_route_m` records LineString arc length. Batch placement maintains continuous, non-colliding sequences per feeder. Shared endpoint deduplication, terrain/clearance rules, and service/API integration remain future work. See [[Pole Placement]].
+
+SURGE-PY-011 adds standalone `app/gis/row_analysis.py`. It buffers projected refined route segments into flat-ended metric corridors, validates and repairs projected constraint geometries, uses one STRtree for candidate filtering, and returns deterministic route/constraint intersection events. Results distinguish summed segment area from the dissolved unique ROW footprint and retain route-edge identity, overlap area, centreline exposure length, road crossings, restricted events, and hard violations. CRS provenance is supplied explicitly with `pyproj.CRS`; route and constraint CRS values must be equivalent projected systems measured in metres. The service does not yet receive constraint layers or expose ROW results. See [[ROW Corridor Analysis]].
+
+SURGE-PY-012 (formerly PY-015) adds standalone `app/algorithms/route_scoring.py`. It is a preliminary multi-criteria spatial and constructability scoring engine designed to evaluate complete network alternatives. It computes deterministic min-max normalization exclusively on feasible candidates, preserves raw metrics and exact normalization ranges for explainability, and handles hard constraint violations by marking candidates infeasible. Financial and electrical criteria are currently omitted. `OptimisationService` does not yet invoke it as the pipeline currently produces only a single network alternative. See [[Route Scoring Architecture]].
 
 ## Related Notes
 

@@ -1,6 +1,6 @@
 # Two-Week MVP and AI-Assisted Development Workflow
 
-> **Document status:** This is a target MVP design, not a statement that every listed capability exists. The current repository implements the application/database foundation, Python Point preprocessing, candidate-graph construction, and WTG grouping. Route generation, terrain, poles, ROW intersections, electrical analysis, lifecycle scoring, and ML ranking remain planned. See `Python Engine - Architecture.md` and the Obsidian dashboard for the current implementation boundary.
+> **Document status:** This is a target MVP design, not a statement that every listed capability exists. The Python service currently implements Point preprocessing, candidate-graph construction, capacity-constrained grouping, per-feeder MST topology, A* routing over a uniform cost surface, and obstacle-safe route refinement. SURGE-PY-010 adds standalone geometry-based pole placement, and SURGE-PY-011 adds standalone projected ROW and constraint-intersection analysis; neither stage is called by `OptimisationService` or returned by the API. Terrain-layer rasterization, constraint transport, electrical analysis, lifecycle scoring, and ML ranking remain planned. See `Python Engine - Architecture.md` and the Obsidian dashboard for the current implementation boundary.
 
 The supplied problem statement defines an **enterprise, production-grade platform** for renewable-energy collector and evacuation systems, not merely a shortest-path application.
 
@@ -357,9 +357,11 @@ The problem statement specifically requires independent span treatment, reductio
 
 - `PolePlacementConfig` carries `target_span_m`, `min_span_m`, `max_span_m`, `angle_pole_threshold_deg`, and `coordinate_tolerance_m` (reserved for future deduplication). All fields validated for finiteness and range.
 - Mandatory structures at route start/end (terminal) and at LineString vertices whose deflection angle ≥ `angle_pole_threshold_deg` (angle). Deflection is the angle between the two forward direction vectors at the vertex: 0° straight, 90° right-angle, 180° reversal.
-- Section-based span fill: each section between mandatory poles is filled with evenly-distributed intermediate poles. Span count is the integer nearest to `L / target` (not ceiling-rounded), preventing unnecessarily short spans. `max_span_m` is hard-enforced; `min_span_m` is soft (short routes produce two terminal poles only).
+- Section-based span fill: for each section longer than `min_span_m`, the initial span count is `round(L / target_span_m)` using Python's ties-to-even rounding, with a minimum of one. The count is then increased until the arc-length interval is no greater than `max_span_m`. The maximum is a hard limit; the minimum is a subdivision threshold, not a guaranteed lower bound for every result span. A short section receives no fill pole, although its endpoints can still include mandatory angle poles.
 - `PoleSpan.span_length_m` is the Euclidean chord distance between adjacent pole Points. Pole IDs are deterministic (`{feeder_id}-P{sequence:03d}`) with a continuous per-feeder sequence across all routes in a batch.
-- DEM sag, structural analysis, road/river crossings, ROW buffers, and network-level pole deduplication are deferred to later tickets.
+- DEM sag, structural analysis, pole-aware road/river crossings, and network-level pole deduplication are deferred to later tickets. ROW buffering now exists independently in SURGE-PY-011 but is not integrated with pole placement.
+
+**Integration boundary:** PY-010 consumes `RefinedPhysicalRoute` objects and is fully unit-tested as an algorithm module. It is not part of the current `/api/v1/optimise` execution flow, and the optimisation response does not yet expose poles or spans.
 
 ## Step 7: ROW and land-parcel analysis
 
@@ -400,6 +402,16 @@ Where:
     
 
 This must operate on real polygons and multipolygons, not rectangular parcel approximations.
+
+**SURGE-PY-011 — Implemented standalone** (`app/gis/row_analysis.py`):
+
+- Buffers each projected refined route segment by half the configured total ROW width, using explicit flat end caps by default.
+- Validates equivalent projected metric CRS provenance for routes and constraints.
+- Repairs compatible invalid geometries, rejects unsafe critical features, and indexes validated constraints once with Shapely STRtree.
+- Preserves feeder and route-edge identity and separates overlap area, route-centreline exposure, linear-constraint exposure, and boundary-only contact.
+- Reports summed segment area and dissolved unique ROW footprint, unique parcels, road crossing events, restricted events, and hard violations.
+
+**Integration boundary:** Constraint GeoJSON is not present in `OptimisationRequest`; the service does not invoke this analysis; results are not transformed to WGS84, returned, persisted, or combined with parcel compensation rates. The implementation proves the projected spatial-analysis core only.
 
 ## Step 8: Electrical validation
 

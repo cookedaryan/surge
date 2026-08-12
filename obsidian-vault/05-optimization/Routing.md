@@ -81,7 +81,9 @@ The original and refined traversal costs use related but different measurement m
 - Performance limits for very long obstacle-rich paths
 - Feeder-segment aggregation in Java reports
 - Route smoothing beyond visibility shortcutting
-- Pole placement and ROW corridor generation
+- Service/API integration for the standalone pole-placement engine
+- Terrain-, crossing-, and clearance-aware pole rules
+- Service/API integration for [[ROW Corridor Analysis]], including projected constraint ingestion and WGS84 result serialization
 
 ## Related Notes
 
