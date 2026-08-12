@@ -48,7 +48,7 @@ services:
 
   frontend:
     build:
-      context: ./web-map
+      context: ./web-map-next
       dockerfile: Dockerfile
     container_name: surge-web-map
     restart: always

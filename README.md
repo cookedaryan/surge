@@ -16,10 +16,10 @@ The SURGE platform consists of three main modules:
    - Processes GIS datasets, generates terrain and cost surfaces, runs A* routing, and validates electrical loads using `pandapower`.
    - Returns explainable route alternatives to the Java backend.
 
-3. **Web GIS Map Frontend (`/web-map`)**
-   - An interactive map interface built with Vite, HTML5, Vanilla CSS, and Leaflet.
+3. **Web GIS Map Frontend (`/web-map-next`)**
+   - An interactive map interface built with React, TypeScript, Vite, Tailwind CSS, and Leaflet.
    - Allows users to drag-and-drop GeoJSON features, configure optimization scenarios, visualize routes, and download Bill of Materials (BOM) CSV reports.
-   - Features a premium dark mode glassmorphism design.
+   - Uses a "technical dashboard" design system — near-black surfaces, hairline borders, a single accent color, and monospace numerals for engineering readouts. `web-map/` (the previous vanilla-JS implementation) is retained for reference but no longer built or deployed.
 
 ## Documentation and Context
 
@@ -31,7 +31,7 @@ Detailed documentation is available in the `/docs` directory.
 
 ### Web Map Frontend
 ```bash
-cd web-map
+cd web-map-next
 npm install
 npm run dev
 ```
