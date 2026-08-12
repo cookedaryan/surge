@@ -1,6 +1,9 @@
+from app.algorithms.physical_routing import route_collector_topology
 from app.algorithms.route_graph import build_project_graph
+from app.algorithms.route_refinement import refine_routing_result
 from app.algorithms.topology import build_feeder_mst
 from app.algorithms.wtg_grouping import group_wtgs
+from app.gis.cost_surface import build_project_cost_surface
 from app.gis.crs import WGS84_CRS, get_transformer
 from app.gis.preprocessing import process_project_data
 from app.schemas.optimise import (
@@ -15,49 +18,58 @@ class OptimisationService:
         self,
         payload: OptimisationRequest,
     ) -> OptimisationResponse:
-        """Day-1 optimisation pipeline stub."""
+        """Runs the complete optimisation pipeline."""
 
         # Phase 1: Spatial Data Preprocessing
         spatial_data = process_project_data(
             wtg_geojson=payload.wtg_geojson,
-            substation_geojson=payload.substation_geojson
+            substation_geojson=payload.substation_geojson,
         )
 
         # Phase 2: Topology Graph Generation
         topology_graph = build_project_graph(spatial_data)
-        
+
         # Phase 3: Capacity-Constrained WTG Grouping
         grouping_result = group_wtgs(
-            spatial_data, 
-            payload.electrical_params.feeder_capacity_mw
+            spatial_data, payload.electrical_params.feeder_capacity_mw
         )
 
         # SURGE-PY-006: MST network generation
         topology_result = build_feeder_mst(topology_graph, grouping_result)
-        total_length_m = sum(f.total_length_m for f in topology_result.feeders)
-        
+
+        # SURGE-PY-007 to 009: Physical Routing and Geometry Refinement
+        cost_surface = build_project_cost_surface(spatial_data)
+        physical_routes = route_collector_topology(
+            topology_result, topology_graph, cost_surface
+        )
+        refined_routes = refine_routing_result(physical_routes, cost_surface)
+        total_length_m = refined_routes.total_refined_length_m
+
         transformer = get_transformer(spatial_data.projected_crs, WGS84_CRS)
         feeder_features = []
-        for feeder in topology_result.feeders:
-            for u, v in feeder.mst_edges:
-                p1 = topology_graph.nodes[u]["geometry"]
-                p2 = topology_graph.nodes[v]["geometry"]
-                
-                lon1, lat1 = transformer.transform(p1.x, p1.y)
-                lon2, lat2 = transformer.transform(p2.x, p2.y)
-                
-                feeder_features.append({
+        for route in refined_routes.routes:
+            coords = []
+            for x, y in route.geometry.coords:
+                lon, lat = transformer.transform(x, y)
+                coords.append([lon, lat])
+
+            feeder_features.append(
+                {
                     "type": "Feature",
                     "properties": {
-                        "feeder_id": feeder.feeder_id,
-                        "edge": f"{u}-{v}"
+                        "feederName": route.feeder_id,
+                        "edge": f"{route.start_node_id}-{route.end_node_id}",
+                        "length_m": route.refined_length_m,
+                        "traversal_cost": route.refined_traversal_cost,
+                        "original_length_m": route.original_length_m,
+                        "refined_length_m": route.refined_length_m,
+                        "original_traversal_cost": route.original_traversal_cost,
+                        "refined_traversal_cost": route.refined_traversal_cost,
                     },
-                    "geometry": {
-                        "type": "LineString",
-                        "coordinates": [[lon1, lat1], [lon2, lat2]]
-                    }
-                })
-        
+                    "geometry": {"type": "LineString", "coordinates": coords},
+                }
+            )
+
         return OptimisationResponse(
             request_id=payload.request_id,
             status="success",
@@ -71,7 +83,8 @@ class OptimisationService:
                 total_length_m=total_length_m,
                 estimated_cost=None,
                 message=(
-                    f"Pipeline initialized. "
+                    "Pipeline completed. Refined routes over the uniform "
+                    "cost surface. "
                     f"Projected into {spatial_data.projected_crs.name}"
                 ),
             ),

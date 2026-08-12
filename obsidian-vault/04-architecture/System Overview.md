@@ -23,9 +23,9 @@ SURGE uses a microservices architecture separating system orchestration and API 
             ├── WTG Grouping & Capacity-Constrained Clustering
             ├── Per-Feeder Euclidean MST Topology (implemented)
             ├── Uniform GIS Cost Surface (implemented foundation)
-            ├── Multi-Objective A* Routing (planned)
-            ├── Pole Placement & Variable Span Optimization
-            ├── ROW Corridor & Cadastral Parcel Analysis
+            ├── Uniform-Surface A* Routing & Refinement (implemented)
+            ├── Pole Placement (implemented standalone)
+            ├── ROW Corridor & Constraint Analysis (implemented standalone)
             ├── Pandapower Electrical Load Flow
             └── ML Route Ranking & GeoJSON Result Generation
 ```
@@ -35,7 +35,7 @@ SURGE uses a microservices architecture separating system orchestration and API 
 ## Microservice Responsibility Split
 
 - **Java Spring Boot Backend (`backend-java`)**: Primary system orchestrator. Manages user authentication, project workspace lifecycle, PostGIS database persistence, job dispatch, engineering report generation (BOM & CSV), and IPC communication with the Python engine.
-- **Python FastAPI Microservice (`optimisation-python`)**: Stateless computation engine invoked by Spring Boot. It currently performs Point validation, UTM projection, feeder grouping, complete-graph construction, per-feeder MST topology, preliminary edge GeoJSON serialization, and standalone uniform cost-surface construction. A* routing and Pandapower analysis remain planned.
+- **Python FastAPI Microservice (`optimisation-python`)**: Stateless computation engine invoked by Spring Boot. Its service pipeline currently performs Point validation, UTM projection, feeder grouping, complete-graph construction, per-feeder MST topology, uniform cost-surface routing, and obstacle-safe route refinement. Pole placement and ROW constraint analysis exist as standalone tested modules but are not called by the service because the request/response contract does not yet carry their required inputs or outputs. True terrain routing and Pandapower analysis remain planned.
 - **PostGIS Database (`db`)**: Relational and geospatial PostgreSQL 16 + PostGIS 3.4 database serving spatial tables (`wtg_locations`, `substations`, `cadastral_parcels`, `restricted_areas`, `generated_routes`).
 - **Web GIS Client (`web-map`)**: Interactive Vite + Leaflet web dashboard for drag-and-drop GeoJSON ingestion, live GIS layer rendering, parameter tweaking, and report download export.
 

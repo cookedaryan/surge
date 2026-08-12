@@ -12,14 +12,15 @@ def test_get_utm_crs() -> None:
     crs = get_utm_crs(-74.0, 40.7)
     assert crs.to_epsg() == 32618
 
+
 def test_transform_geometry() -> None:
     # Point in London
     pt_wgs = Point(0.1276, 51.5072)
     utm_crs = get_utm_crs(pt_wgs.x, pt_wgs.y)
-    
+
     transformer = get_transformer(WGS84_CRS, utm_crs)
     pt_utm = transform_geometry(pt_wgs, transformer)
-    
+
     # Check transformed coordinates are somewhat large (metres)
     assert pt_utm.x > 10000
     assert pt_utm.y > 10000

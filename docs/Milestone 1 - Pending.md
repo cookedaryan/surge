@@ -387,13 +387,13 @@ SURGE Full Quality Check
 - [x] SURGE-PY-005: Implement capacity-constrained WTG clustering
 - [x] SURGE-PY-006: Implement per-feeder MST collector topology
 - [x] SURGE-PY-007: Implement uniform GIS cost-surface abstraction and coordinate helpers
-- [ ] SURGE-PY-008: Implement A* routing over the cost surface
-- [ ] SURGE-PY-009: Convert selected topology edges into routed GeoJSON corridors and alternatives
+- [x] SURGE-PY-008: Implement A* routing over the cost surface
+- [x] SURGE-PY-009: Simplify A* route geometry with obstacle-safe visibility refinement
 - [ ] SURGE-PY-010: Implement pole placement
 - [ ] SURGE-PY-011: Implement variable-span optimisation
 - [ ] SURGE-PY-012: Generate ROW corridor
-- [ ] SURGE-PY-013: Calculate parcel impact and compensation
-- [ ] SURGE-PY-014: Implement electrical load-flow validation
+- [x] SURGE-PY-013: Implement standalone deterministic electrical screening
+- [ ] SURGE-PY-014: Calculate parcel impact and compensation (formerly PY-013)
 - [ ] SURGE-PY-015: Implement route scoring and ML ranking
 - [ ] SURGE-PY-016: Integrate Python service with Java backend
 

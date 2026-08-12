@@ -7,25 +7,21 @@ def test_parse_geojson_feature() -> None:
     geojson_feature = {
         "type": "Feature",
         "properties": {"name": "Test"},
-        "geometry": {
-            "type": "Point",
-            "coordinates": [1.0, 2.0]
-        }
+        "geometry": {"type": "Point", "coordinates": [1.0, 2.0]},
     }
     geom = parse_geojson(geojson_feature)
     assert isinstance(geom, Point)
     assert geom.x == 1.0
     assert geom.y == 2.0
 
+
 def test_parse_geojson_geometry_only() -> None:
-    geojson_geom = {
-        "type": "Point",
-        "coordinates": [1.0, 2.0]
-    }
+    geojson_geom = {"type": "Point", "coordinates": [1.0, 2.0]}
     geom = parse_geojson(geojson_geom)
     assert isinstance(geom, Point)
     assert geom.x == 1.0
     assert geom.y == 2.0
+
 
 def test_serialize_geometry() -> None:
     geom = Point(1.0, 2.0)

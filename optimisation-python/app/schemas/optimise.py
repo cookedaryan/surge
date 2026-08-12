@@ -26,9 +26,7 @@ class OptimisationRequest(BaseModel):
     wtg_geojson: GeoJSON
     substation_geojson: GeoJSON
 
-    electrical_params: ElectricalParams = Field(
-        default_factory=ElectricalParams
-    )
+    electrical_params: ElectricalParams = Field(default_factory=ElectricalParams)
 
 
 class OptimisationMetrics(BaseModel):
@@ -43,6 +41,4 @@ class OptimisationResponse(BaseModel):
     status: Literal["success", "failed"]
     scenario: OptimisationScenario
     feeder_routes_geojson: GeoJSON | None = None
-    metrics: OptimisationMetrics = Field(
-        default_factory=OptimisationMetrics
-    )
+    metrics: OptimisationMetrics = Field(default_factory=OptimisationMetrics)

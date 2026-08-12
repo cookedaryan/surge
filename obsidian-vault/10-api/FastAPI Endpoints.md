@@ -90,8 +90,14 @@ The Python optimization microservice exposes RESTful endpoints prefixed with `/a
       {
         "type": "Feature",
         "properties": {
-          "feeder_id": "F1",
-          "edge": "substation:SUB-001-wtg:WTG-001"
+          "feederName": "F1",
+          "edge": "substation:SUB-001-wtg:WTG-001",
+          "length_m": 2738.4,
+          "traversal_cost": 2738.4,
+          "original_length_m": 2743.1,
+          "refined_length_m": 2738.4,
+          "original_traversal_cost": 2743.1,
+          "refined_traversal_cost": 2738.4
         },
         "geometry": {
           "type": "LineString",
@@ -107,7 +113,7 @@ The Python optimization microservice exposes RESTful endpoints prefixed with `/a
     "feeder_count": 1,
     "total_length_m": 2743.0606898885517,
     "estimated_cost": null,
-    "message": "Pipeline initialized. Projected into WGS 84 / UTM zone 43N"
+    "message": "Pipeline completed. Refined routes over the uniform cost surface. Projected into WGS 84 / UTM zone 43N"
   }
 }
 ```
@@ -116,16 +122,21 @@ The Python optimization microservice exposes RESTful endpoints prefixed with `/a
 - `request_id`: Echoes correlation ID from request.
 - `status`: `"success"` or `"failed"`.
 - `scenario`: Selected optimization scenario.
-- `feeder_routes_geojson`: RFC 7946 FeatureCollection containing one two-point WGS84 LineString per selected MST edge. These features expose preliminary topology, not cost-surface routes.
+- `feeder_routes_geojson`: RFC 7946 FeatureCollection containing one refined WGS84 LineString per selected MST edge.
+- `length_m` / `traversal_cost`: Compatibility properties containing the refined measurements.
+- `original_length_m` / `original_traversal_cost`: Measurements retained from the raw A* route.
+- `refined_length_m` / `refined_traversal_cost`: Measurements recalculated from the refined geometry. Refined cost integrates physical length through each crossed raster cell.
 - `metrics.feeder_count`: Number of capacity-constrained feeder assignments.
-- `metrics.total_length_m`: Sum of all per-feeder MST edge distances in the selected projected CRS. This is straight-line preliminary topology length, not terrain-routed line length.
+- `metrics.total_length_m`: Sum of all per-feeder routed edge distances in the selected projected CRS. This is the cost-surface-aware routed line length over the base uniform raster.
 - `metrics.estimated_cost`: Currently `null`; the lifecycle cost function is not implemented.
 - `metrics.message`: Pipeline status and selected projected CRS. The exact UTM zone depends on input coordinates.
 
 ### Current Pipeline Semantics
 
-A `success` response means Point preprocessing, candidate-graph construction, WTG grouping, per-feeder MST construction, and WGS84 serialization completed. It does not mean that A*, obstacle avoidance, cost-surface routing, pole placement, ROW analysis, electrical validation, or lifecycle cost has completed.
+A `success` response means Point preprocessing, candidate-graph construction, WTG grouping, per-feeder MST construction, A* routing, cost-preserving route refinement, and WGS84 serialization completed. The current cost surface is uniform, so success does not mean terrain, restriction, pole, ROW, electrical, or lifecycle-cost analysis has completed.
 
-Each Feature represents an MST edge rather than an entire feeder route. The property is currently named `feeder_id`; Java's route importer does not recognize that spelling, so cross-service feeder identity is not preserved yet.
+Each Feature represents an A* routed segment rather than an entire feeder route. The property is named `feederName`, which Java's route importer recognizes. Java will persist each feature as a distinct record, meaning one feeder produces multiple feeder-summary segment rows until aggregation is implemented.
+
+Spatial infeasibility is returned as HTTP 422. This includes blocked or out-of-bounds endpoints, no available path, CRS/cost-surface validation failures, and coincident route endpoints that cannot form a non-degenerate refined LineString.
 
 See [[Per-Feeder MST Topology]] for the MST algorithm and its assumptions.

@@ -53,33 +53,22 @@ Welcome to the **SURGE Knowledge Vault**.
 ## Next Steps & Roadmap
 
 1. ⚙️ **Python Optimization Algorithms**:
-   - SURGE-PY-008: Multi-objective A* grid/mesh routing avoiding restricted polygon areas
-   - SURGE-PY-009: Convert per-feeder MST edges into routed GeoJSON corridors
-   - SURGE-PY-010/011: Terrain-aware pole placement & dynamic span calculation
-   - SURGE-PY-012/013: ROW corridor buffering & cadastral parcel compensation calculation
-   - SURGE-PY-014: Pandapower electrical load flow & loss analysis integration
-   - SURGE-PY-015: ML-based explainable route alternative ranking model
-
-2. ☕ **Backend Java (`backend-java`) Tasks**:
-   - SURGE-JV-001: Data Persistence & PostGIS Spatial Model Integration (Flyway V3, Poles, Parcels, Electrical metrics)
-   - SURGE-JV-002: Asynchronous Job Processing & Status Polling / SSE (`@Async` task execution)
-   - SURGE-JV-003: Engineering BOM & Report Export Service (CSV & PDF report generation)
-   - SURGE-JV-004: PostGIS Query Optimization & Spatial Indexing (`ST_Intersects`, `ST_Buffer`, GIST indexes)
-   - SURGE-JV-005: Security, API Rate Limiting & Global Exception Handling
-   - SURGE-QA-002: Backend Integration & Testcontainers Verification (JUnit 5, PostGIS container testing)
-
-3. 💻 **Web GIS Map (`web-map`) Tasks**:
-   - SURGE-FE-001: Multi-Layer Web GIS Visualizer (Color-coded feeder polylines, pole markers, parcel boundaries, restricted areas, slope heatmap)
-   - SURGE-FE-002: Route Scenario Comparison & Ranking Dashboard (Side-by-side comparison modal/view)
-   - SURGE-FE-003: Real-Time Optimization Status & Async Polling/SSE UI
-   - SURGE-FE-004: Interactive Pole/Route Nudging & Incremental Re-validation
-   - SURGE-FE-005: Visual Excellence & Micro-Animations (Glassmorphism dark mode UI polish, responsive scaling)
-   - SURGE-QA-003: Automated Web Map Testing (Vitest & Playwright E2E testing)
-
+   - Convert per-feeder MST edges into terrain- and restriction-aware routed GeoJSON
+   - Multi-objective A* grid/mesh routing avoiding restricted polygon areas
+   - Pandapower electrical load flow & loss analysis integration
+   - Terrain-aware pole placement & dynamic span calculation
+2. 🔄 **Backend Enhancements**:
+   - Async job execution with WebSocket / SSE progress updates
+   - Side-by-side multi-scenario comparison endpoints
+   - JWT Spring Security & RBAC authorization
+   - PDF engineering report export (Apache PDFBox / JasperReports)
+3. 🗺️ **Web GIS UI Enhancements**:
+   - Multi-scenario comparison side-by-side UI
+   - Manual vertex editing and route line tweaking on Leaflet map
+   - Elevation profile graphs for route paths
 4. 🚀 **DevOps & Verification**:
-   - SURGE-QA-004: Full System Integration Suite (`docker-compose` end-to-end verification, performance benchmarking with 50+ WTGs)
+   - End-to-end integration test suite (Web UI -> Spring Boot -> PostGIS -> Python Engine)
    - GitHub Actions CI/CD pipelines for automated testing & Docker container builds
-
 
 ---
 

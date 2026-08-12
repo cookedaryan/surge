@@ -4,7 +4,7 @@
 
 `optimisation-python` is a stateless computation service called by Spring Boot. It validates optimization inputs and performs projected spatial calculations. Java remains responsible for projects, persistence, workflow state, public application APIs, and future authentication.
 
-## Implemented Pipeline
+## Implemented Service Pipeline
 
 1. Pydantic validates request IDs, scenario, and electrical parameters.
 2. GIS preprocessing validates WTG/substation Point GeoJSON and chooses one UTM CRS.
@@ -12,10 +12,12 @@
 4. NetworkX builds a complete undirected candidate graph.
 5. K-Means-assisted MILP creates capacity-constrained WTG groups.
 6. [[Per-Feeder MST Topology]] selects one radial minimum-distance tree per feeder.
-7. Selected MST edges are transformed back to WGS84 and returned as two-point LineString Features.
-8. The response reports feeder count and the sum of preliminary MST lengths.
+7. A* routes each selected edge over a uniform projected cost surface.
+8. Route refinement removes duplicate/collinear points and applies obstacle-safe visibility shortcuts.
+9. Refined routes are transformed back to WGS84 and returned as individual LineString Features.
+10. The response reports feeder count and the sum of refined physical-route lengths.
 
-[[GIS Cost Surface]] is implemented as a standalone uniform raster foundation but is not called by this request pipeline. A successful response does not mean A*, terrain routing, pole placement, ROW analysis, electrical simulation, lifecycle cost, or ML ranking has run.
+[[GIS Cost Surface]] is implemented as a uniform base raster foundation, and the pipeline uses A* to route MST edges over it. [[Pole Placement]], [[ROW Corridor Analysis]], and [[Electrical Feeder Screening]] are implemented as standalone algorithms, but none is invoked by this service pipeline or exposed by the API. True terrain routing, nonlinear load flow, lifecycle cost, and ML ranking have not yet run.
 
 ## Package Responsibilities
 
@@ -30,23 +32,30 @@
 | `app/algorithms/route_graph.py` | Complete metric candidate graph |
 | `app/algorithms/wtg_grouping.py` | Capacity-constrained feeder assignments |
 | `app/algorithms/topology.py` | Per-feeder MSTs and preliminary length |
+| `app/algorithms/physical_routing.py` | A* translation from topology edges to projected physical routes |
+| `app/algorithms/route_refinement.py` | Obstacle-safe simplification and refined route measurements |
+| `app/algorithms/pole_placement.py` | Standalone terminal, angle, and intermediate pole placement over refined routes |
+| `app/gis/row_analysis.py` | Standalone metric ROW buffers, indexed constraint intersections, and land-impact aggregates |
+| `app/electrical` | Standalone radial-feeder current, ampacity, and linear voltage-deviation screening |
 | `cost_function.py` | Placeholder; not implemented |
-| `electrical_analysis.py` | Placeholder; not implemented |
 
 ## Why the Stages Are Separate
 
-Grouping decides which WTGs share a feeder. MST topology decides which assigned nodes connect. Future routing will replace each selected straight edge with a feasible geographic path. Electrical and lifecycle-cost stages will then evaluate those routed alternatives.
+Grouping decides which WTGs share a feeder. MST topology decides which assigned nodes connect. A* replaces each selected straight edge with a cost-surface path, and refinement simplifies that path without crossing blocked cells or increasing its integrated cost. The standalone pole-placement stage can consume those refined paths once service/API integration is defined. Electrical and lifecycle-cost stages will later evaluate the routed alternatives.
 
 This separation keeps each algorithm testable, but intermediate results must eventually be represented in the public contract if Java and the frontend need to inspect or persist them.
 
 ## Current Limitations
 
 - MST edges are returned as individual preliminary LineStrings; complete `FeederTopology` models and assignments are not returned.
-- Python's `feeder_id` property is not recognized by the current Java route importer, which falls back to generated feeder names.
-- `total_length_m` is projected straight-line MST length, not routed line length.
-- The cost surface is not integrated into `OptimisationService`.
+- Python uses the `feederName` property, which is recognized by the Java route importer. However, because each edge is returned as a separate LineString, Java persists them as separate feeder segments. Aggregation is deferred.
+- `total_length_m` is the cost-surface-aware routed line length over the base uniform raster.
 - The endpoint is synchronous and CPU-bound work is performed in the request path.
-- A*, Dijkstra, DEM processing, obstacles, poles, ROW, pandapower, and ML are not implemented.
+- The cost surface supports blocked cells, but production DEM, restriction, land, and accessibility layers are not yet rasterized.
+- Geometry-based pole placement exists, but it is not service-integrated and does not yet use terrain, sag, clearance, crossings, or structural pole selection.
+- ROW analysis exists as a projected standalone module, but no constraint layers reach Python through the request contract and no ROW result is returned or persisted.
+- Deterministic electrical screening exists, but pandapower/nonlinear load flow, losses, transformer models, protection analysis, and API integration are not implemented.
+- Dijkstra and ML ranking are not implemented.
 
 ## Related Notes
 
@@ -58,5 +67,6 @@ This separation keeps each algorithm testable, but intermediate results must eve
 - [[WTG Grouping]]
 - [[Per-Feeder MST Topology]]
 - [[Routing]]
+- [[Electrical Feeder Screening]]
 - [[ADR-005 Python Service Architecture and Schemas]]
 - [[ADR-006 Spatial Models and Unified UTM]]

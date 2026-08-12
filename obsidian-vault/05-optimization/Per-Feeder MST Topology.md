@@ -1,7 +1,7 @@
 # SURGE-PY-006: Per-Feeder MST Topology
 
 > [!success] Algorithm status: Implemented and exposed as preliminary GeoJSON
-> The per-feeder MST is built, contributes to `metrics.total_length_m`, and is serialized as one two-point LineString Feature per selected edge. These are straight topology edges, not cost-surface routes.
+> The per-feeder MST is built, routed over a base uniform cost surface, contributes to `metrics.total_length_m`, and is serialized as one routed LineString Feature per selected edge.
 
 ## Purpose
 
@@ -55,7 +55,7 @@ The substation is intentionally included in every feeder tree. WTGs belong to on
 - `feeder_id`
 - ordered `node_ids`
 - `total_capacity_mw` copied from the grouping result
-- `total_length_m`, the sum of selected straight-line edge distances
+- `total_length_m`, the sum of routed edge distances
 - deterministic `mst_edges`
 - the NetworkX `mst_graph`
 
@@ -76,7 +76,7 @@ GeoJSON preprocessing
     -> OptimisationResponse.metrics.total_length_m
 ```
 
-`metrics.total_length_m` is a preliminary topology length. For every selected edge, the service reads the projected endpoint Points, transforms both back to WGS84, and emits a two-coordinate LineString Feature with `feeder_id` and an `edge` label.
+`metrics.total_length_m` is the routed path length. For every selected edge, the service routes it over the base cost surface, transforms coordinates back to WGS84, and emits a LineString Feature with `feederName` and an `edge` label.
 
 The GeoJSON now makes topology visible, but it uses the route response field before physical routing exists. Downstream consumers must treat these features as preliminary edges.
 
