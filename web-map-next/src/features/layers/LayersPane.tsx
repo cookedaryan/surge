@@ -20,6 +20,7 @@ export function LayersPane() {
   const setRestrictedOpacity = useUiStore((s) => s.setRestrictedOpacity);
   const routeEditMode = useUiStore((s) => s.routeEditMode);
   const setRouteEditMode = useUiStore((s) => s.setRouteEditMode);
+  const setLiveBomOverride = useUiStore((s) => s.setLiveBomOverride);
 
   return (
     <>
@@ -52,7 +53,13 @@ export function LayersPane() {
       <Card>
         <div className="flex items-center justify-between">
           <span className="text-xs text-text">Interactive route editing</span>
-          <Switch checked={routeEditMode} onCheckedChange={setRouteEditMode} />
+          <Switch
+            checked={routeEditMode}
+            onCheckedChange={(v) => {
+              setRouteEditMode(v);
+              if (!v) setLiveBomOverride(null);
+            }}
+          />
         </div>
         <p className="text-[11px] text-textFaint mt-1.5 mb-0">Drag route vertices on the map; BOM totals update live while enabled.</p>
       </Card>

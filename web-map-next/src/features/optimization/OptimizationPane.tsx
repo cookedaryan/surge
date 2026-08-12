@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardTitle, Select, Slider, Button } from '../../components/ui';
 import { useRunOptimization } from '../../lib/query';
 import { useUiStore } from '../../lib/store';
@@ -12,10 +13,12 @@ const SCENARIOS = [
 ];
 
 export function OptimizationPane() {
+  const queryClient = useQueryClient();
   const currentProjectId = useUiStore((s) => s.currentProjectId);
   const currentJobId = useUiStore((s) => s.currentJobId);
   const setCurrentJobId = useUiStore((s) => s.setCurrentJobId);
   const showToast = useUiStore((s) => s.showToast);
+  const setLiveBomOverride = useUiStore((s) => s.setLiveBomOverride);
 
   const [scenario, setScenario] = useState('Balanced');
   const [feederCapacityMw, setFeederCapacityMw] = useState(20.0);
@@ -25,6 +28,9 @@ export function OptimizationPane() {
   const runOptimization = useRunOptimization(currentProjectId);
   const progress = useJobProgress(currentProjectId, currentJobId, () => {
     showToast('Optimization completed cleanly!');
+    queryClient.invalidateQueries({ queryKey: ['routes', currentProjectId, currentJobId] });
+    queryClient.invalidateQueries({ queryKey: ['bom', currentProjectId] });
+    setLiveBomOverride(null);
   });
 
   async function handleRun() {

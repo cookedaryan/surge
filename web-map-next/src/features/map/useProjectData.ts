@@ -24,6 +24,8 @@ export interface ProjectMapData {
   isLoading: boolean;
 }
 
+const EMPTY_FC: FeatureCollection = { type: 'FeatureCollection', features: [] };
+
 function byType(fc: FeatureCollection | undefined, type: string): Feature[] {
   return (fc?.features || []).filter((f) => ((f.properties as any)?.assetType || '').toUpperCase() === type);
 }
@@ -39,7 +41,7 @@ export function useProjectData(projectId: string | null, jobId: string | null): 
   const routesQuery = useRoutes(projectId, jobId);
   const bomQuery = useBomReport(projectId);
 
-  return useMemo(() => {
+  const grouped = useMemo(() => {
     const wtgsList = byType(assetsQuery.data, 'WTG');
     const subList = byType(assetsQuery.data, 'SUBSTATION');
     const towerList = byType(assetsQuery.data, 'EVACUATION_TOWER');
@@ -51,9 +53,6 @@ export function useProjectData(projectId: string | null, jobId: string | null): 
       substations: toCollection(subList),
       towers: toCollection(towerList),
       referenceLines: toCollection(lineList),
-      parcels: parcelsQuery.data ?? { type: 'FeatureCollection', features: [] },
-      restrictedAreas: restrictedQuery.data ?? { type: 'FeatureCollection', features: [] },
-      routes: routesQuery.data ?? { type: 'FeatureCollection', features: [] },
       counts: {
         wtgsTotal: wtgsList.length,
         wtgsOptimisable,
@@ -62,9 +61,16 @@ export function useProjectData(projectId: string | null, jobId: string | null): 
         referenceLines: lineList.length,
         parcels: (parcelsQuery.data?.features || []).length,
         restrictedAreas: (restrictedQuery.data?.features || []).length
-      },
-      bom: bomQuery.data,
-      isLoading: assetsQuery.isLoading || parcelsQuery.isLoading || restrictedQuery.isLoading || routesQuery.isLoading
+      }
     };
-  }, [assetsQuery.data, parcelsQuery.data, restrictedQuery.data, routesQuery.data, bomQuery.data, assetsQuery.isLoading, parcelsQuery.isLoading, restrictedQuery.isLoading, routesQuery.isLoading]);
+  }, [assetsQuery.data, parcelsQuery.data, restrictedQuery.data]);
+
+  return {
+    ...grouped,
+    parcels: parcelsQuery.data ?? EMPTY_FC,
+    restrictedAreas: restrictedQuery.data ?? EMPTY_FC,
+    routes: routesQuery.data ?? EMPTY_FC,
+    bom: bomQuery.data,
+    isLoading: assetsQuery.isLoading || parcelsQuery.isLoading || restrictedQuery.isLoading || routesQuery.isLoading
+  };
 }

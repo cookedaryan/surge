@@ -35,3 +35,47 @@ body {
 }
 .tabular { font-variant-numeric: tabular-nums; }
 .leaflet-container { background: var(--surface-2) !important; }
+
+.custom-leaflet-marker { background: transparent; border: none; }
+
+.marker-pin {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  padding: 4px;
+}
+
+.wtg-pin { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.sub-pin { background: var(--warning); border-color: var(--warning); color: #071022; }
+.tower-pin { background: var(--surface-2); border-color: var(--border-strong); color: var(--text-faint); }
+
+.wtg-marker.wtg-excluded { opacity: 0.4; }
+.wtg-pin-excluded { background: var(--surface-2); border-color: var(--border-strong); color: var(--text-faint); }
+
+.vertex-drag-handle { cursor: grab; }
+
+.leaflet-popup-content-wrapper {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+}
+.leaflet-popup-tip { background: var(--panel); border: 1px solid var(--border-strong); }
+.leaflet-popup-content { margin: 10px 12px; font-family: -apple-system, "Segoe UI", Inter, sans-serif; }
+.leaflet-popup-close-button { color: var(--text-faint) !important; }
+
+.popup-card h4 { margin: 0 0 6px; font-size: 12.5px; font-weight: 700; display: flex; align-items: center; gap: 6px; color: var(--text); }
+.popup-card h4 svg { width: 14px; height: 14px; color: var(--accent); }
+.popup-row { display: flex; justify-content: space-between; gap: 12px; font-size: 11.5px; padding: 2px 0; color: var(--text-muted); }
+.popup-row strong { color: var(--text); font-weight: 600; }
+.popup-note { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); font-size: 10.5px; color: var(--text-faint); }
+
+.text-cyan { color: var(--accent); }

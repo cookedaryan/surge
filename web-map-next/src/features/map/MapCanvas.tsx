@@ -62,7 +62,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
 
   useEffect(() => {
     engineRef.current?.enableRouteEditing(props.routeEditMode, props.onRouteVertexMoved);
-  }, [props.routeEditMode]);
+  }, [props.routeEditMode, props.routes]);
 
   useImperativeHandle(
     ref,

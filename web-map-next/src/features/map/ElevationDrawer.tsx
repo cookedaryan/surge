@@ -12,10 +12,10 @@ export function ElevationDrawer({ routes }: ElevationDrawerProps) {
   const setOpen = useUiStore((s) => s.setElevationDrawerOpen);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
+  const hasRoutes = routes.features.length > 0;
   useEffect(() => {
-    if (routes.features.length > 0) setOpen(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routes]);
+    if (hasRoutes) setOpen(true);
+  }, [hasRoutes, setOpen]);
 
   useEffect(() => {
     if (open && svgRef.current) renderElevationProfile(svgRef.current, routes);

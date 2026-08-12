@@ -25,8 +25,11 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
 
   useEffect(() => {
     if (!data.isLoading) mapRef.current?.fitAllBounds();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.wtgs, data.substations, data.towers, data.referenceLines, data.parcels, data.restrictedAreas, data.routes]);
+  }, [currentProjectId, currentJobId, data.isLoading]);
+
+  useEffect(() => {
+    setLiveBomOverride(null);
+  }, [currentProjectId, currentJobId, setLiveBomOverride]);
 
   return (
     <>

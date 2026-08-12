@@ -10,6 +10,16 @@ export function useJobProgress(projectId: string | null, jobId: string | null, o
       setProgress(null);
       return;
     }
+
+    if (jobId.startsWith('job-demo')) {
+      setProgress({ status: 'RUNNING', progressPercent: 70, message: 'Calculating A* cost surface & feeder topology...' });
+      const timer = setTimeout(() => {
+        setProgress({ status: 'COMPLETED', progressPercent: 100, message: 'Optimization completed cleanly!' });
+        onComplete();
+      }, 1200);
+      return () => clearTimeout(timer);
+    }
+
     setProgress({ status: 'RUNNING', progressPercent: 10, message: 'Initializing optimization job request...' });
     const stop = api.listenJobProgress(
       projectId,
