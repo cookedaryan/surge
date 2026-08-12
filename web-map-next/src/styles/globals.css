@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0A0A0C;
+  --panel: #111113;
+  --surface: #17171B;
+  --surface-2: #1C1C20;
+  --border: rgba(255,255,255,0.09);
+  --border-strong: rgba(255,255,255,0.17);
+  --text: #F2F3F5;
+  --text-muted: #8B909C;
+  --text-faint: #55585F;
+  --accent: #4E8CFF;
+  --accent-soft: rgba(78,140,255,0.14);
+  --accent-ink: #071022;
+  --success: #34D399;
+  --success-soft: rgba(52,211,153,0.14);
+  --warning: #F5A524;
+  --warning-soft: rgba(245,165,36,0.14);
+  --danger: #F0555A;
+  --danger-soft: rgba(240,85,90,0.14);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", Inter, sans-serif;
+  font-size: 13.5px;
+  -webkit-font-smoothing: antialiased;
+}
+.tabular { font-variant-numeric: tabular-nums; }
+.leaflet-container { background: var(--surface-2) !important; }
