@@ -161,9 +161,7 @@ def _refine_physical_route(
         raise ValueError("Cannot refine a route with coincident endpoints")
 
     without_collinear = remove_collinear_points(without_duplicates)
-    original_integrated_cost = _polyline_traversal_cost(
-        without_collinear, cost_surface
-    )
+    original_integrated_cost = _polyline_traversal_cost(without_collinear, cost_surface)
     refined_coordinates = _shortcut_visible_points(without_collinear, cost_surface)
     refined_geometry = LineString(refined_coordinates)
 
@@ -264,9 +262,7 @@ def _cells_touching_grid_point(col: float, row: float) -> tuple[GridCell, ...]:
 
 def _indices_touching_axis_coordinate(value: float) -> tuple[int, ...]:
     nearest_integer = round(value)
-    if math.isclose(
-        value, nearest_integer, rel_tol=0.0, abs_tol=_GRID_TOLERANCE
-    ):
+    if math.isclose(value, nearest_integer, rel_tol=0.0, abs_tol=_GRID_TOLERANCE):
         return nearest_integer - 1, nearest_integer
     return (math.floor(value),)
 
@@ -360,9 +356,7 @@ def _segment_traversal_cost(
     segment_length = math.dist(start, end)
     traversal_cost = 0.0
 
-    for interval_start, interval_end in zip(
-        breakpoints, breakpoints[1:], strict=False
-    ):
+    for interval_start, interval_end in zip(breakpoints, breakpoints[1:], strict=False):
         midpoint = (interval_start + interval_end) / 2.0
         col = start_col + (end_col - start_col) * midpoint
         row = start_row + (end_row - start_row) * midpoint

@@ -52,15 +52,17 @@ def make_candidate(
 def test_weights_sum_to_one() -> None:
     w = default_weights()
     assert math.isclose(
-        sum([
-            w.length,
-            w.traversal_cost,
-            w.row_area,
-            w.parcel_count,
-            w.road_crossings,
-            w.environmental_impact,
-            w.pole_count,
-        ]),
+        sum(
+            [
+                w.length,
+                w.traversal_cost,
+                w.row_area,
+                w.parcel_count,
+                w.road_crossings,
+                w.environmental_impact,
+                w.pole_count,
+            ]
+        ),
         1.0,
     )
 
@@ -140,7 +142,7 @@ def test_nan_and_infinite_metrics_rejected() -> None:
 
 
 def test_fractional_counts_rejected() -> None:
-    c1 = make_candidate("A", road_crossing_count=1.5) # type: ignore
+    c1 = make_candidate("A", road_crossing_count=1.5)  # type: ignore
     with pytest.raises(ValueError, match="must be integers"):
         evaluate_network_candidates((c1,), default_weights())
 
@@ -156,11 +158,11 @@ def test_normalization_between_zero_and_one() -> None:
     c1 = make_candidate("A", total_length_m=1000.0)
     c2 = make_candidate("B", total_length_m=2000.0)
     c3 = make_candidate("C", total_length_m=1500.0)
-    
+
     # Weights for length=1.0, rest=0
     w = RouteScoringWeights(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2, c3), w)
-    
+
     a_score = next(s for s in res.scores if s.candidate_id == "A")
     b_score = next(s for s in res.scores if s.candidate_id == "B")
     c_score = next(s for s in res.scores if s.candidate_id == "C")
@@ -174,10 +176,10 @@ def test_normalization_between_zero_and_one() -> None:
 def test_equal_metric_values_normalize_safely() -> None:
     c1 = make_candidate("A", total_length_m=1000.0)
     c2 = make_candidate("B", total_length_m=1000.0)
-    
+
     w = RouteScoringWeights(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2), w)
-    
+
     assert res.scores[0].total_score == 0.0
     assert res.scores[1].total_score == 0.0
     assert res.normalization_ranges[0].constant is True
@@ -188,40 +190,38 @@ def test_constant_criterion_with_nonzero_weight() -> None:
     # so the weight for road_crossings (0.5) contributes 0 to the total score.
     c1 = make_candidate("A", total_length_m=1000.0, road_crossing_count=1)
     c2 = make_candidate("B", total_length_m=2000.0, road_crossing_count=1)
-    
+
     w = RouteScoringWeights(0.5, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2), w)
-    
+
     a = next(s for s in res.scores if s.candidate_id == "A")
     b = next(s for s in res.scores if s.candidate_id == "B")
-    
+
     assert a.total_score == pytest.approx(0.0)
     assert b.total_score == pytest.approx(0.5)  # 0.5 * 1.0 (length) + 0.5 * 0.0 (roads)
 
 
 def test_zero_weight_criterion() -> None:
-    # A is much worse in row_area, but row_area weight is 0. 
+    # A is much worse in row_area, but row_area weight is 0.
     # Length weight is 1.0. A is better in length.
     c1 = make_candidate(
         "A", total_length_m=1000.0, unique_row_footprint_area_m2=999999.0
     )
-    c2 = make_candidate(
-        "B", total_length_m=2000.0, unique_row_footprint_area_m2=0.0
-    )
-    
+    c2 = make_candidate("B", total_length_m=2000.0, unique_row_footprint_area_m2=0.0)
+
     w = RouteScoringWeights(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2), w)
-    
+
     assert res.best_candidate_id == "A"
 
 
 def test_score_bounded_within_0_1() -> None:
     c1 = make_candidate("A", total_length_m=10.0, traversal_cost=10.0)
     c2 = make_candidate("B", total_length_m=20.0, traversal_cost=20.0)
-    
+
     w = RouteScoringWeights(0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2), w)
-    
+
     for s in res.scores:
         assert s.total_score is not None
         assert 0.0 <= s.total_score <= 1.0
@@ -229,21 +229,21 @@ def test_score_bounded_within_0_1() -> None:
 
 def test_weighted_score_calculated_correctly() -> None:
     c1 = make_candidate(
-        "A", 
-        total_length_m=1000.0, # min
-        road_crossing_count=2, # max
+        "A",
+        total_length_m=1000.0,  # min
+        road_crossing_count=2,  # max
     )
     c2 = make_candidate(
-        "B", 
-        total_length_m=2000.0, # max
-        road_crossing_count=0, # min
+        "B",
+        total_length_m=2000.0,  # max
+        road_crossing_count=0,  # min
     )
     w = RouteScoringWeights(0.7, 0.0, 0.0, 0.0, 0.3, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2), w)
-    
+
     a = next(s for s in res.scores if s.candidate_id == "A")
     b = next(s for s in res.scores if s.candidate_id == "B")
-    
+
     # A length norm = 0, road norm = 1.0 -> 0*0.7 + 1*0.3 = 0.3
     assert a.total_score == pytest.approx(0.3)
     # B length norm = 1, road norm = 0.0 -> 1*0.7 + 0*0.3 = 0.7
@@ -263,7 +263,7 @@ def test_multiple_routes_normalized_together() -> None:
     c3 = make_candidate("C", total_length_m=300.0)
     w = RouteScoringWeights(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2, c3), w)
-    
+
     b = next(s for s in res.scores if s.candidate_id == "B")
     # (200 - 100) / (300 - 100) = 0.5
     assert b.total_score == pytest.approx(0.5)
@@ -273,11 +273,11 @@ def test_adding_candidate_changes_relative_normalization() -> None:
     c1 = make_candidate("A", total_length_m=100.0)
     c2 = make_candidate("B", total_length_m=200.0)
     w = RouteScoringWeights(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    
+
     res_2 = evaluate_network_candidates((c1, c2), w)
     b_score_2 = next(s for s in res_2.scores if s.candidate_id == "B").total_score
     assert b_score_2 == pytest.approx(1.0)
-    
+
     # Adding a worse candidate makes B look relatively better
     c3 = make_candidate("C", total_length_m=300.0)
     res_3 = evaluate_network_candidates((c1, c2, c3), w)
@@ -299,10 +299,10 @@ def test_infeasible_candidates_excluded_from_normalization_bounds() -> None:
     c1 = make_candidate("A", total_length_m=100.0)
     c2 = make_candidate("B", total_length_m=500.0, hard_violation_ids=frozenset(["v1"]))
     c3 = make_candidate("C", total_length_m=200.0)
-    
+
     w = RouteScoringWeights(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2, c3), w)
-    
+
     # Since C is the worst *feasible*, it should get score 1.0
     c_score = next(s for s in res.scores if s.candidate_id == "C")
     assert c_score.total_score == pytest.approx(1.0)
@@ -314,10 +314,10 @@ def test_extreme_infeasible_values_do_not_distort_feasible_scores() -> None:
     c_infeasible = make_candidate(
         "C", total_length_m=999999.0, hard_violation_ids=frozenset(["v"])
     )
-    
+
     w = RouteScoringWeights(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2, c_infeasible), w)
-    
+
     b_score = next(s for s in res.scores if s.candidate_id == "B")
     # If C distorted it, B would be near 0. But C is excluded, so B is the max (1.0).
     assert b_score.total_score == pytest.approx(1.0)
@@ -326,7 +326,7 @@ def test_extreme_infeasible_values_do_not_distort_feasible_scores() -> None:
 def test_all_candidates_infeasible() -> None:
     c1 = make_candidate("A", hard_violation_ids=frozenset(["v1"]))
     c2 = make_candidate("B", hard_violation_ids=frozenset(["v2"]))
-    
+
     res = evaluate_network_candidates((c1, c2), default_weights())
     assert all(not s.feasible for s in res.scores)
     assert res.best_candidate_id is None
@@ -337,7 +337,7 @@ def test_all_candidates_infeasible() -> None:
 def test_raw_metrics_preserved_for_infeasible_candidates() -> None:
     c1 = make_candidate("A", total_length_m=123.4, hard_violation_ids=frozenset(["v"]))
     res = evaluate_network_candidates((c1,), default_weights())
-    
+
     # We should have criteria populated for telemetry, but marked infeasible
     assert not res.scores[0].feasible
     assert "Hard violation: v" in res.scores[0].rejection_reasons
@@ -358,10 +358,10 @@ def test_deterministic_ranking() -> None:
     c1 = make_candidate("A", total_length_m=300.0)
     c2 = make_candidate("B", total_length_m=100.0)
     c3 = make_candidate("C", total_length_m=200.0)
-    
+
     w = RouteScoringWeights(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2, c3), w)
-    
+
     assert res.ranked_candidate_ids == ("B", "C", "A")
 
 
@@ -371,11 +371,11 @@ def test_score_tie_breaking() -> None:
     # If they tied in length too, alphabetical ID breaks the tie.
     c1 = make_candidate("A", total_length_m=100.0, road_crossing_count=2)
     c2 = make_candidate("B", total_length_m=90.0, road_crossing_count=2)
-    
+
     # Give all weight to road crossing, so they have the exact same score (0.0).
     w = RouteScoringWeights(0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0)
     res = evaluate_network_candidates((c1, c2), w)
-    
+
     assert res.scores[0].total_score == res.scores[1].total_score
     assert res.ranked_candidate_ids == ("B", "A")
 
@@ -383,10 +383,10 @@ def test_score_tie_breaking() -> None:
 def test_score_breakdown_preserves_raw_metrics() -> None:
     c1 = make_candidate("A", total_length_m=1234.5)
     res = evaluate_network_candidates((c1,), default_weights())
-    
+
     score = res.scores[0]
     length_crit = next(c for c in score.criteria if c.criterion == "length")
-    
+
     assert length_crit.raw_value == 1234.5
     assert length_crit.normalized_value == 0.0
 
@@ -394,10 +394,10 @@ def test_score_breakdown_preserves_raw_metrics() -> None:
 def test_normalization_ranges_preserved() -> None:
     c1 = make_candidate("A", total_length_m=100.0)
     c2 = make_candidate("B", total_length_m=200.0)
-    
+
     res = evaluate_network_candidates((c1, c2), default_weights())
     length_range = next(r for r in res.normalization_ranges if r.criterion == "length")
-    
+
     assert length_range.minimum == 100.0
     assert length_range.maximum == 200.0
     assert not length_range.constant
@@ -406,7 +406,7 @@ def test_normalization_ranges_preserved() -> None:
 def test_rejection_reasons_preserved() -> None:
     c1 = make_candidate("A", hard_violation_ids=frozenset(["zone1", "zone2"]))
     res = evaluate_network_candidates((c1,), default_weights())
-    
+
     reasons = ("Hard violation: zone1", "Hard violation: zone2")
     assert res.scores[0].rejection_reasons == reasons
 
@@ -416,12 +416,12 @@ def test_input_order_independence() -> None:
     c2 = make_candidate("B", total_length_m=200.0)
     c3 = make_candidate("C", total_length_m=300.0)
     w = default_weights()
-    
+
     res_1 = evaluate_network_candidates((c1, c2, c3), w)
     res_2 = evaluate_network_candidates((c3, c2, c1), w)
-    
+
     assert res_1.ranked_candidate_ids == res_2.ranked_candidate_ids
-    
+
     scores_1_dict = {s.candidate_id: s.total_score for s in res_1.scores}
     scores_2_dict = {s.candidate_id: s.total_score for s in res_2.scores}
     assert scores_1_dict == scores_2_dict

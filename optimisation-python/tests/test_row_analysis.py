@@ -203,9 +203,7 @@ def test_tangent_or_collinear_road_contact_is_not_a_crossing() -> None:
 
 
 def test_polygon_road_passage_is_one_crossing() -> None:
-    road = make_feature(
-        "R1", "road", Polygon([(45, -5), (55, -5), (55, 5), (45, 5)])
-    )
+    road = make_feature("R1", "road", Polygon([(45, -5), (55, -5), (55, 5), (45, 5)]))
 
     result = analyse(features=(road,))
 
@@ -215,9 +213,7 @@ def test_polygon_road_passage_is_one_crossing() -> None:
 
 def test_route_along_polygon_road_boundary_is_not_a_crossing() -> None:
     route = make_route(((0, 5), (100, 5)))
-    road = make_feature(
-        "R1", "road", Polygon([(45, -5), (55, -5), (55, 5), (45, 5)])
-    )
+    road = make_feature("R1", "road", Polygon([(45, -5), (55, -5), (55, 5), (45, 5)]))
 
     result = analyse(routes=(route,), features=(road,))
 
@@ -441,9 +437,7 @@ def test_route_length_metadata_must_match_geometry() -> None:
 def test_analysis_is_deterministic() -> None:
     features = (
         make_feature("R", "road", LineString([(50, -20), (50, 20)])),
-        make_feature(
-            "P", "parcel", Polygon([(10, -5), (20, -5), (20, 5), (10, 5)])
-        ),
+        make_feature("P", "parcel", Polygon([(10, -5), (20, -5), (20, 5), (10, 5)])),
     )
 
     first = analyse(features=features)

@@ -139,4 +139,23 @@ Each Feature represents an A* routed segment rather than an entire feeder route.
 
 Spatial infeasibility is returned as HTTP 422. This includes blocked or out-of-bounds endpoints, no available path, CRS/cost-surface validation failures, and coincident route endpoints that cannot form a non-degenerate refined LineString.
 
+### SURGE-PY-020 compatibility rule
+
+The richer MVP result uses `POST /api/v1/optimise`. Because the Java backend
+already consumes this response, PY-020 retains
+`request_id`, `status`, `scenario`, `feeder_routes_geojson`, and `metrics`.
+Legacy route and metric fields will describe the recommended candidate. New
+candidate-comparison, recommendation, electrical-summary, and map-ready result
+fields are additive. V1 maps the recommended segment features back to
+`feeder_routes_geojson`, including `feederName`, and returns the full typed map
+under `recommended_result`. When no cable configuration is supplied, it uses a
+documented 33 kV compatibility cable whose ampacity is derived from the legacy
+feeder capacity.
+
+`POST /api/v2/optimise` uses an explicit request with routing, operating-point,
+cable, scenario-count, and scoring-weight configuration. Cross-field request
+errors return HTTP 422. Both versions call the same deterministic orchestrator.
+Raw project-boundary and restriction-layer ingestion is not part of the frozen
+MVP API scope. See [[Surge MVP Ticket Plan]].
+
 See [[Per-Feeder MST Topology]] for the MST algorithm and its assumptions.

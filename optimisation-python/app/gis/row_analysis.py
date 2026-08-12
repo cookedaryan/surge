@@ -235,9 +235,7 @@ def analyse_row_corridors(
     restricted_events = tuple(
         item for item in ordered_intersections if item.layer_type == "restricted"
     )
-    restricted_keys = {
-        (item.layer_type, item.feature_id) for item in restricted_events
-    }
+    restricted_keys = {(item.layer_type, item.feature_id) for item in restricted_events}
 
     return RowAnalysisResult(
         corridors=corridors,
@@ -324,8 +322,7 @@ def _validate_and_repair_constraints(
             )
         if feature.severity is not None and feature.severity not in _SEVERITIES:
             raise ValueError(
-                f"Constraint {feature_id} has unsupported severity "
-                f"{feature.severity!r}"
+                f"Constraint {feature_id} has unsupported severity {feature.severity!r}"
             )
         key = (feature.layer_type, feature_id)
         if key in seen_keys:
@@ -487,9 +484,11 @@ def _intersect_corridor(
         float(geometry.length) if isinstance(feature.geometry, _LINEAR_TYPES) else 0.0
     )
     touches_only = corridor.row_geometry.touches(feature.geometry)
-    if area < config.minimum_overlap_area_m2 and max(
-        route_overlap_length, constraint_length
-    ) < config.minimum_overlap_length_m:
+    if (
+        area < config.minimum_overlap_area_m2
+        and max(route_overlap_length, constraint_length)
+        < config.minimum_overlap_length_m
+    ):
         return None
 
     return RowIntersection(

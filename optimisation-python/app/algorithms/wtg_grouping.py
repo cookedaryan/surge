@@ -1,6 +1,7 @@
 import math
 from dataclasses import dataclass
 from decimal import Decimal
+from enum import StrEnum
 
 import numpy as np
 from scipy.optimize import Bounds, LinearConstraint, milp
@@ -8,6 +9,24 @@ from shapely.geometry import Point
 from sklearn.cluster import KMeans
 
 from app.models.spatial import ProjectSpatialData
+
+
+class GroupingObjective(StrEnum):
+    """Controls the feeder-assignment objective used during WTG grouping.
+
+    MINIMIZE_DISTANCE
+        Default. Minimise sum of squared turbine-to-centroid distances.
+        Produces spatially compact feeders.
+
+    BALANCE_WTG_COUNT
+        Replace the distance-squared MILP objective with an objective that
+        minimises the maximum deviation from the ideal equal-split WTG count
+        per feeder.  The centroids supplied by KMeans are still used to seed
+        the initial cluster count, but the objective function is changed.
+    """
+
+    MINIMIZE_DISTANCE = "minimize_distance"
+    BALANCE_WTG_COUNT = "balance_wtg_count"
 
 
 @dataclass(frozen=True)
@@ -27,12 +46,32 @@ class FeederGroupingResult:
 def group_wtgs(
     project: ProjectSpatialData,
     feeder_capacity_mw: float,
+    *,
+    random_state: int = 42,
+    objective: GroupingObjective = GroupingObjective.MINIMIZE_DISTANCE,
 ) -> FeederGroupingResult:
     """
     Deterministically groups wind turbines into feeders such that no feeder
     exceeds `feeder_capacity_mw`. Uses spatial clustering (K-Means) mapped to a
     strictly mathematically bounded Mixed-Integer Linear Program (MILP) to find the
     absolute minimum number of feeders required without exceeding capacities.
+
+    Parameters
+    ----------
+    project:
+        Spatial data containing turbine locations and capacities.
+    feeder_capacity_mw:
+        Maximum electrical capacity per feeder (MW).
+    random_state:
+        Seed for the KMeans initialisation.  Default 42 preserves the
+        historic baseline behaviour.  Changing this seed produces different
+        MILP centroid seeds and therefore a different (but still valid)
+        feeder grouping.  Must be a non-negative integer.
+    objective:
+        Controls what the MILP optimises.  ``MINIMIZE_DISTANCE`` (default)
+        minimises squared turbine-to-centroid distance, producing spatially
+        compact feeders.  ``BALANCE_WTG_COUNT`` minimises the maximum
+        deviation from the ideal equal-split WTG count per feeder.
     """
     if not math.isfinite(feeder_capacity_mw) or feeder_capacity_mw <= 0:
         raise ValueError("feeder_capacity_mw must be positive and finite")
@@ -125,13 +164,18 @@ def group_wtgs(
             seeds = coords[:k]  # just pick first k
         else:
             # Generate K-Means spatial seeds for MILP objective
-            kmeans = KMeans(n_clusters=k, random_state=42, n_init="auto")
+            kmeans = KMeans(n_clusters=k, random_state=random_state, n_init="auto")
             kmeans.fit(coords)
             seeds = kmeans.cluster_centers_.tolist()
 
-        assignments = _solve_milp_assignment(
-            coords, capacities_kw, seeds, k, feeder_capacity_kw
-        )
+        if objective == GroupingObjective.BALANCE_WTG_COUNT:
+            assignments = _solve_milp_balance(
+                coords, capacities_kw, k, feeder_capacity_kw
+            )
+        else:
+            assignments = _solve_milp_assignment(
+                coords, capacities_kw, seeds, k, feeder_capacity_kw
+            )
         if assignments is not None:
             # Defensive invariant check
             if any(a == -1 for a in assignments):
@@ -258,6 +302,117 @@ def _solve_milp_assignment(
     if res.success:
         assignments = [-1] * n
         x_sol = np.round(res.x).astype(int)
+        for i in range(n):
+            for j in range(k):
+                if x_sol[i * k + j] == 1:
+                    assignments[i] = j
+                    break
+        return assignments
+
+    return None
+
+
+def _solve_milp_balance(
+    coords: list[tuple[float, float]],
+    capacities_kw: list[int],
+    k: int,
+    feeder_capacity_kw: int,
+) -> list[int] | None:
+    """Solve the capacitated assignment problem with an explicit balance objective.
+
+    The objective minimises the maximum absolute deviation of feeder WTG count
+    from the ideal equal split (n / k), subject to:
+
+    - Each turbine assigned to exactly one feeder.
+    - No feeder exceeds ``feeder_capacity_kw``.
+
+    Variables
+    ---------
+    x_ij (binary)
+        1 if turbine i belongs to feeder j.  Index: ``i * k + j``.
+    t (continuous, >= 0)
+        Upper-bound auxiliary variable representing the maximum feeder WTG-count
+        deviation from the ideal.  Minimising t drives all feeders toward equal
+        WTG counts.
+
+    Total variables: n * k + 1.
+    """
+    n = len(coords)
+    if n == 0 or k == 0:
+        return None
+
+    ideal = n / k  # ideal WTGs per feeder (may be fractional)
+    num_x = n * k
+    num_vars = num_x + 1  # last variable = t
+
+    # --- Objective: minimise t -------------------------------------------
+    c = np.zeros(num_vars)
+    c[-1] = 1.0  # t
+
+    # --- Constraint A: each turbine assigned to exactly one feeder ---------
+    # sum_j x_ij == 1  for i in range(n)
+    a_eq = np.zeros((n, num_vars))
+    b_eq = np.ones(n)
+    for i in range(n):
+        for j in range(k):
+            a_eq[i, i * k + j] = 1.0
+
+    # --- Constraint B: feeder capacity <= feeder_capacity_kw --------------
+    # sum_i P_i * x_ij <= C  for j in range(k)
+    a_cap = np.zeros((k, num_vars))
+    b_cap = np.full(k, float(feeder_capacity_kw))
+    for j in range(k):
+        for i in range(n):
+            a_cap[j, i * k + j] = capacities_kw[i]
+
+    # --- Constraint C: balance upper bound --------------------------------
+    # sum_i x_ij - ideal <= t   ↔   sum_i x_ij - t <= ideal
+    # For j in range(k)
+    a_ub_pos = np.zeros((k, num_vars))
+    b_ub_pos = np.full(k, ideal)
+    for j in range(k):
+        for i in range(n):
+            a_ub_pos[j, i * k + j] = 1.0
+        a_ub_pos[j, -1] = -1.0  # -t
+
+    # --- Constraint D: balance lower bound --------------------------------
+    # ideal - sum_i x_ij <= t   ↔   -sum_i x_ij - t <= -ideal
+    a_ub_neg = np.zeros((k, num_vars))
+    b_ub_neg = np.full(k, -ideal)
+    for j in range(k):
+        for i in range(n):
+            a_ub_neg[j, i * k + j] = -1.0
+        a_ub_neg[j, -1] = -1.0  # -t
+
+    # --- Combine into a single LinearConstraint ---------------------------
+    # Equality: lb == ub == 1 for rows 0..n-1
+    # Inequality (<=): lb == -inf for capacity and balance rows
+    a_matrix = np.vstack((a_eq, a_cap, a_ub_pos, a_ub_neg))
+    lb = np.concatenate(
+        (b_eq, np.full(k, -np.inf), np.full(k, -np.inf), np.full(k, -np.inf))
+    )
+    ub = np.concatenate((b_eq, b_cap, b_ub_pos, b_ub_neg))
+
+    constraints = LinearConstraint(a_matrix, lb, ub)
+
+    # x_ij are binary; t is continuous non-negative
+    bounds = Bounds(
+        lb=np.zeros(num_vars),
+        ub=np.concatenate((np.ones(num_x), [float(n)])),
+    )
+    integrality = np.concatenate((np.ones(num_x), [0.0]))  # t is continuous
+
+    res = milp(
+        c=c,
+        constraints=constraints,
+        integrality=integrality,
+        bounds=bounds,
+        options={"disp": False},
+    )
+
+    if res.success:
+        assignments = [-1] * n
+        x_sol = np.round(res.x[:num_x]).astype(int)
         for i in range(n):
             for j in range(k):
                 if x_sol[i * k + j] == 1:

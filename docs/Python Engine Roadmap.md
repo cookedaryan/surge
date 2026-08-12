@@ -1,4 +1,14 @@
-Your first technical milestone should be:
+# Python Engine Roadmap
+
+This document preserves the original delivery plan and tracks the Python engine's implementation status. The initial milestone is complete; the remaining work is now integration and expansion rather than Milestone 1 delivery.
+
+> **Canonical MVP sequence:** The historical day-by-day plan below is superseded
+> for SURGE-PY-014 onward by [Surge MVP Ticket Plan](Surge%20MVP%20Ticket%20Plan.md).
+> The numbering is frozen through SURGE-PY-020. SURGE-PY-017 through PY-019
+> are implemented; compatible API integration and golden-fixture validation
+> and PY-020 are complete. ML ranking remains post-MVP.
+
+## Original delivery target
 
 > **By the end of Day 5, SURGE must accept WTG, substation and GIS inputs and return at least one constraint-aware feeder route as GeoJSON.**
 
@@ -11,7 +21,7 @@ A suitable expansion for the name is:
 
 The Java developer will handle the enterprise application layer, while you will own the intelligence and optimisation engine responsible for WTG grouping, feeder planning, routing, pole placement, ROW analysis, electrical validation and explainable ranking. These directly map to the required collector-network, multi-objective routing and pole-selection capabilities.
 
-# Your role in SURGE
+# Python engine ownership
 
 ## Primary ownership
 
@@ -110,7 +120,9 @@ surge/
         └── test_optimise.py
 ```
 
-# Your two-week Python timeline
+# Original two-week delivery plan
+
+The schedule below is retained as historical planning context. The ticket status section is the current progress record.
 
 ## Week 1: Core GIS and routing pipeline
 
@@ -250,7 +262,7 @@ The original problem statement specifically requires corridor-area calculation, 
 
 **Deliverable:** Parcel-impact and compensation report.
 
-### Day 9 — Electrical validation and scoring
+### Historical Day 9 — Electrical validation and scoring
 
 - Construct the preliminary pandapower network.
     
@@ -267,7 +279,11 @@ The original problem statement specifically requires corridor-area calculation, 
 
 **Deliverable:** Electrically validated alternatives.
 
-### Day 10 — ML ranking and integration
+### Historical Day 10 — ML ranking and integration
+
+> This section records the original plan. It is not part of the frozen
+> SURGE-PY-014-SURGE-PY-020 MVP sequence. The MVP uses deterministic,
+> explainable scoring; ML ranking is explicitly post-MVP.
 
 - Build route-feature extraction.
     
@@ -284,7 +300,7 @@ The original problem statement specifically requires corridor-area calculation, 
 
 **Deliverable:** Ranked and explainable route alternatives.
 
-# Your initial FastAPI contract
+# Initial FastAPI contract
 
 ## Optimisation request
 
@@ -343,7 +359,7 @@ Validate GIS data
 → rank alternatives
 ```
 
-# Your PyCharm workflow
+# PyCharm workflow
 
 For each feature:
 
@@ -378,7 +394,7 @@ SURGE Electrical Validation
 SURGE Full Quality Check
 ```
 
-# First tasks you should create
+# Ticket status
 
 - [x] SURGE-PY-001: Initialise FastAPI optimisation service
 - [x] SURGE-PY-002: Spatial core models (GeoJSON parsing, CRS projection).
@@ -389,11 +405,18 @@ SURGE Full Quality Check
 - [x] SURGE-PY-007: Implement uniform GIS cost-surface abstraction and coordinate helpers
 - [x] SURGE-PY-008: Implement A* routing over the cost surface
 - [x] SURGE-PY-009: Simplify A* route geometry with obstacle-safe visibility refinement
-- [ ] SURGE-PY-010: Implement pole placement
-- [ ] SURGE-PY-011: Implement variable-span optimisation
-- [ ] SURGE-PY-012: Generate ROW corridor
+- [x] SURGE-PY-010: Implement pole placement
+- [x] SURGE-PY-011: Implement ROW corridor and constraint analysis
+- [x] SURGE-PY-012: Implement deterministic multi-criteria route scoring
 - [x] SURGE-PY-013: Implement standalone deterministic electrical screening
-- [ ] SURGE-PY-014: Calculate parcel impact and compensation (formerly PY-013)
-- [ ] SURGE-PY-015: Implement route scoring and ML ranking
-- [ ] SURGE-PY-016: Integrate Python service with Java backend
+- [x] SURGE-PY-014: Automatic PNC Network Assembly
+- [x] SURGE-PY-015: Pandapower Electrical Network + AC Load-Flow Validation
+- [x] SURGE-PY-016: Map-Ready PNC Result Packaging + GeoJSON Export
+- [x] SURGE-PY-017: Candidate PNC Scenario Generation
+- [x] SURGE-PY-018: Multi-Objective Scoring + Recommendation
+- [x] SURGE-PY-019: End-to-End Optimisation Orchestrator
+- [x] SURGE-PY-020: MVP Demo API + End-to-End Validation (**complete; MVP freeze**)
+
+The exact boundaries, compatibility rules, remaining schedule, and explicit
+post-MVP cuts are defined in [Surge MVP Ticket Plan](Surge%20MVP%20Ticket%20Plan.md).
 

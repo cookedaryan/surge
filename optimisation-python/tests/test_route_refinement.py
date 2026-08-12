@@ -56,9 +56,7 @@ def make_route(
     )
 
 
-def cell_center(
-    row: int, col: int, surface: CostSurface
-) -> tuple[float, float]:
+def cell_center(row: int, col: int, surface: CostSurface) -> tuple[float, float]:
     return grid_to_world(row, col, surface)
 
 
@@ -92,9 +90,7 @@ def test_exact_endpoints_preserved(surface: CostSurface) -> None:
 
 
 def test_straight_route_collapses_to_two_points(surface: CostSurface) -> None:
-    route = make_route(
-        tuple(cell_center(0, col, surface) for col in range(5))
-    )
+    route = make_route(tuple(cell_center(0, col, surface) for col in range(5)))
 
     refined = refine_physical_route(route, surface)
 
@@ -155,9 +151,7 @@ def test_route_around_obstacle_remains_valid(surface: CostSurface) -> None:
 
 
 def test_refined_route_is_valid_linestring(surface: CostSurface) -> None:
-    route = make_route(
-        (cell_center(0, 0, surface), cell_center(0, 1, surface))
-    )
+    route = make_route((cell_center(0, 0, surface), cell_center(0, 1, surface)))
 
     refined = refine_physical_route(route, surface)
 
