@@ -16,6 +16,7 @@ export interface MapCanvasProps {
   restrictedOpacity: number;
   routeEditMode: boolean;
   onRouteVertexMoved: (lengthMeters: number, poles: number, cost: number) => void;
+  routeColorOverride: string | null;
 }
 
 export interface MapCanvasHandle {
@@ -42,7 +43,9 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
   useEffect(() => { engineRef.current?.renderSubstations(props.substations); }, [props.substations]);
   useEffect(() => { engineRef.current?.renderTowers(props.towers); }, [props.towers]);
   useEffect(() => { engineRef.current?.renderReferenceLines(props.referenceLines); }, [props.referenceLines]);
-  useEffect(() => { engineRef.current?.renderRoutes(props.routes); }, [props.routes]);
+  useEffect(() => {
+    engineRef.current?.renderRoutes(props.routes, props.routeColorOverride);
+  }, [props.routes, props.routeColorOverride]);
   useEffect(() => {
     engineRef.current?.renderParcels(props.parcels, props.parcelOpacity);
   }, [props.parcels, props.parcelOpacity]);

@@ -15,6 +15,8 @@ import { LayersPane } from './features/layers/LayersPane';
 import { BomPane } from './features/bom/BomPane';
 import { ExportPdfButton } from './features/bom/ExportPdfButton';
 import { AuditPane } from './features/audit/AuditPane';
+import { CompareScenariosButton } from './features/scenarios/CompareScenariosButton';
+import { ScenarioComparisonModal } from './features/scenarios/ScenarioComparisonModal';
 
 export default function App() {
   const mapRef = useRef<MapCanvasHandle>(null);
@@ -23,9 +25,10 @@ export default function App() {
     <div className="h-full flex flex-col font-ui text-text">
       <AuthGateway />
       <Toast />
+      <ScenarioComparisonModal />
       <TopBar
         projectSlot={<ProjectSelector />}
-        actionsSlot={<><ExportPdfButton /><AuthTopBarActions /></>}
+        actionsSlot={<><CompareScenariosButton /><ExportPdfButton /><AuthTopBarActions /></>}
       />
       <div className="flex-1 flex min-h-0">
         <RailNav />

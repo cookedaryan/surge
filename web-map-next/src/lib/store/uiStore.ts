@@ -46,6 +46,9 @@ interface UiState {
 
   liveBomOverride: { lengthKm: string; poles: number; cost: number } | null;
   setLiveBomOverride: (v: { lengthKm: string; poles: number; cost: number } | null) => void;
+
+  routeColorOverride: string | null;
+  setRouteColorOverride: (v: string | null) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -91,5 +94,8 @@ export const useUiStore = create<UiState>((set) => ({
   clearToast: () => set({ toast: null }),
 
   liveBomOverride: null,
-  setLiveBomOverride: (v) => set({ liveBomOverride: v })
+  setLiveBomOverride: (v) => set({ liveBomOverride: v }),
+
+  routeColorOverride: null,
+  setRouteColorOverride: (v) => set({ routeColorOverride: v })
 }));

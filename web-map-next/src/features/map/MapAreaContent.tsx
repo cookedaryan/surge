@@ -18,6 +18,7 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
   const restrictedOpacity = useUiStore((s) => s.restrictedOpacity);
   const routeEditMode = useUiStore((s) => s.routeEditMode);
   const setLiveBomOverride = useUiStore((s) => s.setLiveBomOverride);
+  const routeColorOverride = useUiStore((s) => s.routeColorOverride);
 
   const data = useProjectData(currentProjectId, currentJobId);
 
@@ -44,6 +45,7 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
         onRouteVertexMoved={(lengthMeters, poles, cost) =>
           setLiveBomOverride({ lengthKm: (lengthMeters / 1000).toFixed(2), poles, cost })
         }
+        routeColorOverride={routeColorOverride}
       />
       <Legend />
       <BomStrip />
