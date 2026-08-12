@@ -2,6 +2,8 @@ package com.power.surge.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -34,14 +36,64 @@ public class WtgLocation extends AuditableEntity {
     @Column(nullable = false, columnDefinition = "geometry(Point, 4326)")
     private Point location;
 
+    /**
+     * Micro-siting lifecycle status. Only statuses where {@link WtgStatus#isOptimisable()} is true
+     * are sent to the optimisation engine, so cancelled and low-AEP locations no longer distort
+     * feeder grouping.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 32)
+    private WtgStatus status = WtgStatus.UNKNOWN;
+
+    /** KML folder path this asset was imported from. Retained for audit and re-classification. */
+    @Size(max = 255)
+    @Column(name = "source_folder", length = 255)
+    private String sourceFolder;
+
     protected WtgLocation() {
     }
 
+    /**
+     * Creates a turbine entered directly through the API. Such turbines are {@link WtgStatus#APPROVED}
+     * by definition — an operator adding a location by hand intends it to be part of the network.
+     */
     public WtgLocation(Project project, String externalId, BigDecimal capacityMw, Point location) {
+        this(project, externalId, capacityMw, location, WtgStatus.APPROVED, null);
+    }
+
+    public WtgLocation(
+            Project project,
+            String externalId,
+            BigDecimal capacityMw,
+            Point location,
+            WtgStatus status,
+            String sourceFolder
+    ) {
         this.project = Objects.requireNonNull(project, "Project is required.");
         this.externalId = requireExternalId(externalId);
         this.capacityMw = requirePositiveCapacity(capacityMw);
         this.location = requireWgs84Location(location);
+        this.status = status == null ? WtgStatus.UNKNOWN : status;
+        this.sourceFolder = trimToNull(sourceFolder);
+    }
+
+    public WtgStatus getStatus() {
+        return status;
+    }
+
+    public String getSourceFolder() {
+        return sourceFolder;
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return trimmed.length() > 255 ? trimmed.substring(0, 255) : trimmed;
     }
 
     public Project getProject() {

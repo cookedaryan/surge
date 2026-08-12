@@ -22,8 +22,25 @@ Flyway applies migrations in version order.
 
 - `cadastral_parcels`: parcel Polygon, owner, and non-negative acquisition rate.
 - `restricted_areas`: exclusion Polygon, type, and non-negative buffer distance.
-- `optimization_jobs`: lifecycle status, algorithm/scenario parameters, error text, and JSON result summary.
+- `optimization_jobs`: lifecycle status, algorithm/scenario parameters, error text, and JSON result summary (defaulting to 33kV PCN voltage).
 - `generated_routes`: feeder LineString, optional pole MultiPoint, length, cost, losses, and pole count.
+
+### V3: Users and audit logging
+- `users`: system user accounts and roles (`ROLE_ENGINEER`, `ROLE_ADMIN`).
+- `audit_logs`: audit trial table for system events.
+
+### V4: Evacuation towers and asset metadata
+- `evacuation_towers`: Point location, tower type (`GANTRY`, `ANGLE_POINT`, `SUSPENSION`), line section, and KML source folder.
+- `wtg_locations` & `substations`: added `source_folder` and `status` fields.
+
+### V5: Reclassify legacy WTG imports
+- Migrates existing towers and substations out of `wtg_locations` into `evacuation_towers` and `substations`, stripping duplicate suffixes.
+
+### V6: Reference lines
+- `reference_lines`: LineString geometry, line type (`HT_LINE`, `ROAD`, `WATERCOURSE`, `EVACUATION_ROUTE`), voltage class, crossing constraint boolean, and KML source folder.
+
+### V7: Advanced asset reclassification
+- Automatically reclassifies legacy imported towers (`TWR-*`, `POLE-*`, `STR-*`, `T-*`, `AP-*`, `GANTRY`) and substations (`SUB-*`, `SS-*`, `PSS`, `SUBSTATION`) from `wtg_locations` into `evacuation_towers` and `substations` tables.
 
 Foreign keys connect all project-owned data to `projects`; routes belong to optimization jobs. Unique constraints prevent duplicate external IDs within a project. Check constraints reject negative capacities and metrics.
 

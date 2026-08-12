@@ -43,6 +43,9 @@ class ProjectControllerTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @MockBean
+    private com.power.surge.service.AuthService authService;
+
+    @MockBean
     private ProjectService projectService;
 
     @MockBean

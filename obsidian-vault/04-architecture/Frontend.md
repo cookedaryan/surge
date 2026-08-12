@@ -44,17 +44,26 @@ The displayed optimization progress is simulated with fixed percentages and `set
 - Popup HTML interpolates feature properties directly; untrusted uploaded values should be escaped before production use.
 - The frontend has no test suite in the current repository.
 
-## Planned Improvements
+## Planned Improvements & Web Map UI Task Backlog
 
-- Environment-based or same-origin API configuration
-- Explicit offline/demo mode
-- Real polling, SSE, or WebSocket progress
-- Scenario comparison and route editing
-- Accessible non-alert error feedback
-- Automated tests and sanitized popup rendering
+- **SURGE-FE-001: Interactive Multi-Layer Web GIS Map**
+  - Add layer control toggles: Feeder routes (color-coded by feeder ID), Pole locations with distinct SVG icons (Terminal, Angle, Intermediate), Cadastral parcel boundary overlays with parcel ID tooltips, Restricted area polygons, DEM slope surface heatmap toggle.
+- **SURGE-FE-002: Route Scenario Comparison Dashboard**
+  - Implement side-by-side comparison modal/view comparing candidate routes across Capex, ROW compensation, Power losses, line length, and pole count.
+  - Interactive scenario selector switching active map routes cleanly.
+- **SURGE-FE-003: Real-Time Optimization Status & Progress UI**
+  - Add an interactive progress overlay displaying step-by-step optimization status (e.g. *Preprocessing GIS data -> Clustering WTGs -> Computing A* Cost Surface -> Placing Poles -> Running pandapower Load Flow*).
+- **SURGE-FE-004: Interactive Pole/Route Nudging & Re-validation**
+  - Enable dragging pole markers on the map to manually adjust route points and trigger incremental re-validation requests.
+- **SURGE-FE-005: Visual Excellence & Micro-Animations**
+  - Refine glassmorphism aesthetic, sleek dark mode color palettes, custom Leaflet SVG markers, active state animations, dynamic stats widgets, and responsive layout scaling.
+- **SURGE-QA-003: Automated Web Map Testing & Verification**
+  - Component & UI behavior testing with `Vitest` / `Playwright`.
+  - End-to-end user workflow testing (GeoJSON upload -> scenario execution -> map render -> BOM download).
 
 ## Related Notes
 
 - [[System Overview]]
 - [[Backend]]
 - [[FastAPI Endpoints|FastAPI Microservice Specification]]
+
