@@ -53,9 +53,8 @@ Welcome to the **SURGE Knowledge Vault**.
 ## Next Steps & Roadmap
 
 1. ⚙️ **Python Optimization Algorithms**:
-   - Finish SURGE-PY-018 electrical-aware deterministic scoring and recommendation
-   - Connect the pipeline through the SURGE-PY-019 orchestrator
-   - Extend `/api/v1/optimise` compatibly and validate the PY-020 golden fixture
+   - Use the completed PY-018 recommendation and PY-019 orchestrator boundaries
+   - Extend `/api/v1/optimise` compatibly and validate the PY-020 golden fixture (**In progress**)
    - Keep raw terrain/restriction rasterization and ML ranking post-MVP
 2. 🔄 **Backend Enhancements**:
    - Async job execution with WebSocket / SSE progress updates

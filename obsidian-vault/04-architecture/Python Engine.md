@@ -17,7 +17,7 @@
 9. Refined routes are transformed back to WGS84 and returned as individual LineString Features.
 10. The response reports feeder count and the sum of refined physical-route lengths.
 
-[[GIS Cost Surface]] is implemented as a uniform base raster foundation, and the API-integrated pipeline uses A* to route MST edges over it. [[Pole Placement]], [[ROW Corridor Analysis]], and [[Electrical Feeder Screening]] remain standalone. SURGE-PY-014 PNC assembly, SURGE-PY-015 pandapower AC load flow, SURGE-PY-016 presentation packaging, and SURGE-PY-017 deterministic candidate PNC generation are implemented as standalone modules. SURGE-PY-018 scoring is in progress. See [[Surge MVP Ticket Plan]] for the frozen sequence through PY-020.
+[[GIS Cost Surface]] is implemented as a uniform base raster foundation, and the API-integrated pipeline uses A* to route MST edges over it. [[Pole Placement]], [[ROW Corridor Analysis]], and [[Electrical Feeder Screening]] remain standalone. SURGE-PY-014 through PY-019 now provide PNC assembly, pandapower AC load flow, presentation packaging, deterministic candidate generation, scoring, recommendation, and an internal end-to-end orchestrator. Compatible public API integration remains PY-020. See [[Surge MVP Ticket Plan]] for the frozen sequence.
 
 ## Package Responsibilities
 
@@ -40,7 +40,7 @@
 | `app/pnc` | Complete PNC assembly and base GeoJSON conversion |
 | `app/electrical/load_flow` | Pandapower construction and AC load-flow validation |
 | `app/presentation` | Strict summaries and electrically enriched WGS84 GeoJSON |
-| `app/optimisation` | SURGE-PY-017 candidate PNC scenario generation (implemented standalone) |
+| `app/optimisation` | Candidate generation, electrical-aware scoring, recommendation, and the internal end-to-end orchestrator |
 | `cost_function.py` | Placeholder; not implemented |
 
 ## Why the Stages Are Separate
@@ -59,7 +59,7 @@ This separation keeps each algorithm testable, but intermediate results must eve
 - Geometry-based pole placement exists, but it is not service-integrated and does not yet use terrain, sag, clearance, crossings, or structural pole selection.
 - ROW analysis exists as a projected standalone module, but no constraint layers reach Python through the request contract and no ROW result is returned or persisted.
 - Pandapower load flow exists standalone, but it is not API-integrated and does not perform electrical repair, cable resizing, transformer design, protection analysis, or N-1 analysis.
-- Candidate generation is in progress; electrical-aware recommendation, end-to-end orchestration, and the richer compatible API response remain PY-018 through PY-020.
+- Candidate generation, recommendation, and internal orchestration are implemented; the richer compatible API response remains PY-020.
 - Raw constraint transport/rasterization, Dijkstra, and ML ranking are post-MVP.
 
 ## Related Notes

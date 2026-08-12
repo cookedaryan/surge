@@ -124,11 +124,12 @@ The boundary returns strict Pydantic summaries and enriched GeoJSON. The existin
 
 ## Frozen MVP sequence
 
-SURGE-PY-017 is implemented and owns deterministic candidate PNC generation
-only. SURGE-PY-018 is in progress and adds electrical-aware deterministic scoring and
-recommendation, SURGE-PY-019 connects the existing modules behind one internal
-orchestrator, and SURGE-PY-020 extends the existing API additively and validates
-the golden demo fixture. The numbering freezes at SURGE-PY-020 for the MVP.
+SURGE-PY-017 owns deterministic candidate PNC generation, SURGE-PY-018 adds
+electrical-aware deterministic scoring and recommendation, and SURGE-PY-019
+connects the existing modules behind one internal orchestrator. These stages
+are implemented. SURGE-PY-020 is in progress and extends the existing API
+additively while validating the golden demo fixture. The numbering freezes at
+SURGE-PY-020 for the MVP.
 
 Raw boundary/restriction transport and rasterization are not part of this MVP.
 Internal routing and scenario generation continue to respect blocked or

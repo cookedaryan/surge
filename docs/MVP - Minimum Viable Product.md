@@ -1,6 +1,6 @@
 # Two-Week MVP and AI-Assisted Development Workflow
 
-> **Document status (2026-08-12):** This is a target design, not a statement that every listed capability is API-integrated. The service-integrated baseline reaches refined physical routes. SURGE-PY-014 PNC assembly, SURGE-PY-015 pandapower AC load-flow validation, SURGE-PY-016 presentation/GeoJSON packaging, and SURGE-PY-017 candidate PNC scenario generation are implemented as standalone modules. SURGE-PY-018 deterministic scoring is in progress; orchestration (PY-019) and compatible API/E2E validation (PY-020) follow. Raw GIS constraint transport/rasterization and ML ranking are post-MVP. See `Surge MVP Ticket Plan.md` for authoritative scope.
+> **Document status (2026-08-12):** This is a target design, not a statement that every listed capability is API-integrated. The service-integrated baseline reaches refined physical routes. SURGE-PY-014 PNC assembly, SURGE-PY-015 pandapower AC load-flow validation, SURGE-PY-016 presentation/GeoJSON packaging, SURGE-PY-017 candidate PNC scenario generation, SURGE-PY-018 scoring, and SURGE-PY-019 orchestration are implemented as standalone modules. SURGE-PY-020 compatible API/E2E validation follows. Raw GIS constraint transport/rasterization and ML ranking are post-MVP. See `Surge MVP Ticket Plan.md` for authoritative scope.
 
 The supplied problem statement defines an **enterprise, production-grade platform** for renewable-energy collector and evacuation systems, not merely a shortest-path application.
 

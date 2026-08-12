@@ -2,7 +2,7 @@
 
 **Canonical as of:** 2026-08-12  
 **MVP freeze:** SURGE-PY-020  
-**Current ticket:** SURGE-PY-018 (in progress)
+**Current ticket:** SURGE-PY-020 (in progress)
 
 This note is the Obsidian mirror of
 [`docs/Surge MVP Ticket Plan.md`](../../docs/Surge%20MVP%20Ticket%20Plan.md) and
@@ -18,8 +18,8 @@ onward. Earlier day-based plans are historical context only.
 | SURGE-PY-016 | Map-Ready PNC Result Packaging + GeoJSON Export | Complete | Package one PNC and its electrical result for presentation. |
 | SURGE-PY-017 | Candidate PNC Scenario Generation | Complete | Generate 1-5 deterministic, distinct, structurally valid PNC candidates. |
 | SURGE-PY-018 | Multi-Objective Scoring + Recommendation | Complete | Score electrically evaluated candidates and return an explainable deterministic recommendation. |
-| SURGE-PY-019 | End-to-End Optimisation Orchestrator | In progress | Connect preprocessing, candidate generation, load flow, scoring, recommendation, and presentation behind one internal call. |
-| SURGE-PY-020 | MVP Demo API + End-to-End Validation | Planned | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
+| SURGE-PY-019 | End-to-End Optimisation Orchestrator | Complete | Connect preprocessing, candidate generation, load flow, scoring, recommendation, and presentation behind one internal call. |
+| SURGE-PY-020 | MVP Demo API + End-to-End Validation | In progress | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
 
 No feature may be inserted between these tickets unless it blocks the vertical
 workflow. If work expands beyond these boundaries, reduce MVP scope rather than
@@ -62,6 +62,13 @@ validated project data
 
 The internal entry point is conceptually `optimise_project(project_input)` and
 owns orchestration rather than duplicating earlier algorithms.
+
+The workflow validates project, raster, electrical, and operating-point inputs
+before generation. Candidate-local electrical or presentation failures remain
+traceable without erasing completed upstream results. Every evaluated
+candidate contains its score and either map-ready presentation output or an
+explicit packaging failure; frozen result models enforce valid status and
+artifact combinations.
 
 ### SURGE-PY-020
 

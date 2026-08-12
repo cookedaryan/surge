@@ -4,9 +4,9 @@ This document preserves the original delivery plan and tracks the Python engine'
 
 > **Canonical MVP sequence:** The historical day-by-day plan below is superseded
 > for SURGE-PY-014 onward by [Surge MVP Ticket Plan](Surge%20MVP%20Ticket%20Plan.md).
-> The numbering is frozen through SURGE-PY-020. SURGE-PY-017 is implemented and
-> SURGE-PY-018 is in progress; ML ranking and Java integration refinements are
-> post-MVP.
+> The numbering is frozen through SURGE-PY-020. SURGE-PY-017 through PY-019
+> are implemented; compatible API integration and golden-fixture validation
+> are in progress under PY-020. ML ranking remains post-MVP.
 
 ## Original delivery target
 
@@ -413,9 +413,9 @@ SURGE Full Quality Check
 - [x] SURGE-PY-015: Pandapower Electrical Network + AC Load-Flow Validation
 - [x] SURGE-PY-016: Map-Ready PNC Result Packaging + GeoJSON Export
 - [x] SURGE-PY-017: Candidate PNC Scenario Generation
-- [ ] SURGE-PY-018: Multi-Objective Scoring + Recommendation (**in progress**)
-- [ ] SURGE-PY-019: End-to-End Optimisation Orchestrator
-- [ ] SURGE-PY-020: MVP Demo API + End-to-End Validation (**MVP freeze**)
+- [x] SURGE-PY-018: Multi-Objective Scoring + Recommendation
+- [x] SURGE-PY-019: End-to-End Optimisation Orchestrator
+- [ ] SURGE-PY-020: MVP Demo API + End-to-End Validation (**in progress; MVP freeze**)
 
 The exact boundaries, compatibility rules, remaining schedule, and explicit
 post-MVP cuts are defined in [Surge MVP Ticket Plan](Surge%20MVP%20Ticket%20Plan.md).

@@ -7,6 +7,7 @@ import pyproj
 import pytest
 from shapely.geometry import LineString, Point
 
+from app.electrical.errors import CandidateElectricalEvaluationError
 from app.electrical.load_flow.analysis import run_load_flow
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowViolationCode, WTGOperatingPoint
@@ -186,3 +187,12 @@ def test_non_convergence_graceful(mock_runpp, simple_pnc, base_config):
 
     assert len(res.violations) == 1
     assert res.violations[0].code == LoadFlowViolationCode.LOAD_FLOW_NOT_CONVERGED
+
+
+@patch("pandapower.runpp")
+def test_solver_execution_error_is_candidate_local(mock_runpp, simple_pnc, base_config):
+    mock_runpp.side_effect = RuntimeError("solver crashed")
+    net, ops = simple_pnc
+
+    with pytest.raises(CandidateElectricalEvaluationError, match="solver crashed"):
+        run_load_flow(net, ops, base_config)

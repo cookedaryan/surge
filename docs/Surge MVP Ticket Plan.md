@@ -2,7 +2,7 @@
 
 **Canonical as of:** 2026-08-12  
 **MVP freeze:** SURGE-PY-020  
-**Current ticket:** SURGE-PY-018 (in progress)
+**Current ticket:** SURGE-PY-020 (in progress)
 
 This document is authoritative for Python ticket numbering and MVP scope from
 SURGE-PY-014 onward. Earlier day-based plans are historical context only.
@@ -15,9 +15,9 @@ SURGE-PY-014 onward. Earlier day-based plans are historical context only.
 | SURGE-PY-015 | Pandapower Electrical Network + AC Load-Flow Validation | Complete | Evaluate one PNC without repairing or resizing it. |
 | SURGE-PY-016 | Map-Ready PNC Result Packaging + GeoJSON Export | Complete | Package one PNC and its electrical result for presentation. |
 | SURGE-PY-017 | Candidate PNC Scenario Generation | Complete | Generate 1-5 deterministic, distinct, structurally valid PNC candidates. |
-| SURGE-PY-018 | Multi-Objective Scoring + Recommendation | In progress | Score electrically evaluated candidates and return an explainable deterministic recommendation. |
-| SURGE-PY-019 | End-to-End Optimisation Orchestrator | Planned | Connect preprocessing, candidate generation, load flow, scoring, recommendation, and presentation behind one internal call. |
-| SURGE-PY-020 | MVP Demo API + End-to-End Validation | Planned | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
+| SURGE-PY-018 | Multi-Objective Scoring + Recommendation | Complete | Score electrically evaluated candidates and return an explainable deterministic recommendation. |
+| SURGE-PY-019 | End-to-End Optimisation Orchestrator | Complete | Connect preprocessing, candidate generation, load flow, scoring, recommendation, and presentation behind one internal call. |
+| SURGE-PY-020 | MVP Demo API + End-to-End Validation | In progress | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
 
 No feature may be inserted between these tickets unless it blocks the vertical
 workflow. If work expands beyond these boundaries, reduce MVP scope rather than
@@ -84,6 +84,14 @@ validated project data
 The public internal entry point should be conceptually equivalent to
 `optimise_project(project_input)`. It must not duplicate algorithms already
 owned by earlier tickets.
+
+The implemented workflow validates shared project, raster, electrical, and
+operating-point inputs before candidate generation. Candidate-local solver and
+presentation failures remain attached to the affected candidate, while shared
+or unexpected stage failures return a structured `FAILED` result. Every
+electrically evaluated candidate retains its scoring result and either a
+presentation result or an explicit packaging failure. Frozen workflow models
+enforce these state combinations.
 
 ### SURGE-PY-020 - MVP Demo API + End-to-End Validation
 

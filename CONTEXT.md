@@ -67,7 +67,7 @@ This file serves as the single source of truth regarding the implementation stat
 - The API-integrated baseline validates and projects WTG/substation Points, groups WTGs, builds per-feeder MSTs, routes over a prepared cost surface, refines routes, and returns WGS84 LineStrings.
 - SURGE-PY-014 automatic PNC assembly, SURGE-PY-015 pandapower AC load-flow validation, and SURGE-PY-016 map-ready result packaging are implemented as standalone modules.
 - SURGE-PY-017 deterministic candidate PNC scenario generation is implemented.
-- **In progress:** SURGE-PY-018 scoring and recommendation. PY-019 orchestration and PY-020 compatible API/E2E validation follow. See `docs/Surge MVP Ticket Plan.md`.
+- **In progress:** SURGE-PY-020 compatible API/E2E validation follows. SURGE-PY-019 orchestration is complete. See `docs/Surge MVP Ticket Plan.md`.
 - Raw terrain/restriction rasterization, ML ranking, electrical repair, and production hardening remain post-MVP.
 
 ## System Architecture Overview
