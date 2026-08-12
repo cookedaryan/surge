@@ -27,27 +27,56 @@ Detailed documentation is available in the `/docs` directory.
 - For architectural details and MVP scope, see `docs/MVP - Minimum Viable Product.md`.
 - For the latest project context and cross-component updates, please refer to `optimisation-python/CONTEXT.md`.
 
+## Prerequisites
+
+- Docker Desktop with Docker Compose v2 for the full stack.
+- JDK 21 for the Java backend.
+- Python 3.11 for local optimiser development.
+- Node.js 20 for the web map.
+
 ## Quick Start
 
+### Full stack (recommended)
+
+Copy `.env.example` to `.env`, update values for your local environment, then run:
+
+```powershell
+docker compose up --build
+```
+
+Wait until all services are healthy, then open `http://localhost:3000`. Service health endpoints are:
+
+- Java API: `http://localhost:8080/actuator/health`
+- Python optimiser: `http://localhost:8000/api/v1/health`
+
 ### Web Map Frontend
-```bash
+```powershell
 cd web-map-next
-npm install
+npm ci
+npm run build
 npm run dev
 ```
 
 ### Java Backend
-```bash
+```powershell
 cd backend-java
-./mvnw spring-boot:run
+.\mvnw.cmd test
+.\mvnw.cmd spring-boot:run
 ```
 
 ### Python Optimization Engine
-```bash
+```powershell
 cd optimisation-python
-python -m venv .venv
-# On Windows PowerShell:
+py -3.11 -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
+python -m pip install --upgrade pip
+python -m pip install -r requirements.lock.txt
+python -m ruff check app tests
+python -m mypy app
+python -m pytest -q
 uvicorn app.main:app --reload --port 8000
 ```
+
+## Verification
+
+The GitHub Actions workflow at `.github/workflows/ci.yml` verifies Java tests, Python lint/type/test checks, the frontend build, and Docker image builds on each push and pull request.

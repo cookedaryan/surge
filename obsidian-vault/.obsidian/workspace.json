@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "00-dashboard/Dashboard.md",
+                "file": "15-research/Paper - Multi Objective Routing.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Dashboard"
+              "title": "Paper - Multi Objective Routing"
             }
           }
         ],
@@ -214,8 +214,10 @@
   },
   "active": "89226eb629610e5e",
   "lastOpenFiles": [
-    "08-python-engine/Electrical Feeder Screening.md",
+    "15-research/Paper - GIS Optimization.md",
     "04-architecture/Python Engine.md",
+    "00-dashboard/Dashboard.md",
+    "08-python-engine/Electrical Feeder Screening.md",
     "08-python-engine/Route Scoring Architecture.md",
     "08-python-engine/Overview & Layout.md",
     "14-decisions/ADR-006 Spatial Models and Unified UTM.md",
@@ -238,8 +240,6 @@
     "02-requirements/Constraints.md",
     "01-vision/Vision.md",
     "01-vision/Roadmap.md",
-    "01-vision/Goals.md",
-    "01-vision/Scope.md",
     "00-dashboard/Dashboard.md~",
     "journal",
     "walkthrough",

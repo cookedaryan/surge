@@ -4,6 +4,17 @@
 
 Tests provide evidence at different boundaries. A unit test verifies an isolated function or class; an integration test verifies components working together; an end-to-end test follows a user workflow across the browser, backend, database, and optimizer.
 
+## Phase 0 build baseline
+
+The repository standardizes on JDK 21, Python 3.11, Node.js 20, and Docker Compose v2. The root `README.md` contains the supported local commands.
+
+- Java: `cd backend-java; .\mvnw.cmd test`
+- Python: `cd optimisation-python; .\.venv\Scripts\python.exe -m ruff check app tests; .\.venv\Scripts\python.exe -m mypy app; .\.venv\Scripts\python.exe -m pytest -q`
+- Frontend: `cd web-map; npm ci; npm test; npm run build`
+- Full stack: `docker compose up --build`, then inspect the Java actuator and Python health endpoints.
+
+The root GitHub Actions workflow runs these component checks and verifies the Docker image builds on every push and pull request. Full browser-to-PostGIS-to-Python acceptance coverage remains a later MVP task.
+
 ## Python Service
 
 The Python suite uses pytest and FastAPI's test client.
