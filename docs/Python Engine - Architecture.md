@@ -42,7 +42,7 @@ ProjectSpatialData -> uniform CostSurface + Affine transform
 | `pole_placement.py` | SURGE-PY-010 geometry-based terminal, angle, and intermediate pole placement | Implemented standalone; not service-integrated |
 | `app/gis/row_analysis.py` | SURGE-PY-011 projected ROW buffers, indexed constraint intersections, and impact aggregates | Implemented standalone; no constraint API input yet |
 | `cost_function.py` | Lifecycle-cost evaluation | Placeholder |
-| `electrical_analysis.py` | Load flow, voltage drop, and losses | Placeholder |
+| `app/electrical` | SURGE-PY-013 deterministic electrical screening proxy (ampacity & voltage drop) | Implemented standalone; not service-integrated |
 
 ## SURGE-PY-006: Per-Feeder MST
 
@@ -98,6 +98,20 @@ Every `RowIntersection` retains feeder and route-edge identity. It distinguishes
 
 This is currently a standalone spatial algorithm. `OptimisationRequest` does not carry parcel, road, forest, water, environmental, or restricted-zone layers; `OptimisationService` does not invoke ROW analysis; and the API does not serialize or persist its result. An integration ticket must define constraint transport, projected conversion, response GeoJSON, and Java persistence before callers can use these outputs end to end.
 
+## SURGE-PY-013: Electrical Feasibility Validation
+
+`validate_collector_network` consumes a complete collector topology, its refined physical routes, projected project nodes, and an `ElectricalDesignConfig`. It acts as a fast, deterministic screening proxy for a full nonlinear load flow. It is deliberately standalone: `OptimisationService` does not invoke it and the API does not expose its results.
+
+Before calculation, the module verifies that the project uses a projected metre-based CRS; every project WTG appears exactly once across the feeder trees; graph nodes, declared MST edges, route identities, route lengths, route endpoints, and aggregate refined length agree; and all capacities and electrical parameters are positive finite values where required. Structural inconsistencies raise `ValueError` because they make the electrical result undefined.
+
+Downstream active power is calculated by post-order traversal of each substation-rooted tree. Installed WTG capacities are multiplied by `operating_factor`; the resulting operating power is used consistently for feeder/turbine reporting, substation-capacity screening, current, ampacity loading, and voltage change. Current assumes balanced three-phase power at nominal line voltage and a fixed feeder-wide power factor.
+
+For each route segment, impedance is proportional to its refined metric length. Voltage change uses the linear approximation $\Delta V \approx \sqrt{3} I(R\cos\phi \pm X\sin\phi)$, with `+` for lagging and `−` for leading power factor, and is accumulated from the nominal-voltage substation to every WTG. Positive values represent drop and negative values represent rise; voltage compliance uses the absolute cumulative deviation.
+
+Well-formed networks that exceed limits return deterministic `AMPACITY_EXCEEDED`, `VOLTAGE_LIMIT_EXCEEDED`, or `SUBSTATION_CAPACITY_EXCEEDED` records rather than exceptions. The result exposes per-segment loading and voltage change, per-turbine cumulative voltage deviation, feeder maxima, network maxima, and validity flags.
+
+This is not pandapower validation. It ignores conductor losses when calculating downstream power, shunt admittance, transformers, tap changers, phase imbalance, voltage-dependent loads, reactive-power variation, fault levels, protection coordination, thermal/environmental derating, and iterative voltage/current coupling. These results are preliminary screening values and must not be presented as final electrical design approval.
+
 ## Input Assumptions
 
 The topology function is designed for outputs from `build_project_graph` and `group_wtgs`. It now rejects zero/multiple substations, feeder-count mismatch, duplicate assignments, missing assigned nodes, count-based incomplete coverage, and disconnected results. Coverage compares counts rather than exact node sets; the normal graph builder keeps those equivalent, but direct callers should still supply correctly typed nodes and finite `weight`/`distance_m` attributes.
@@ -106,4 +120,4 @@ The topology function is designed for outputs from `build_project_graph` and `gr
 
 Focused topology tests cover membership, substation inclusion, connectivity, acyclicity, edge count, minimum-weight selection, length aggregation, multiple feeders, single-WTG feeders, and unknown turbine rejection.
 
-Route-refinement tests cover duplicate and collinear removal, exact endpoints, cost-preserving shortcuts, obstacle and finite-penalty detours, corner and outer-boundary supercover behavior, metadata, determinism, cost recomputation, and batch totals. Pole-placement tests cover terminal, angle, and intermediate structures; span allocation; feeder-wide IDs; chord lengths; input validation; and aggregate counts. ROW-analysis tests cover metric CRS enforcement, explicit buffer behavior, repaired and empty constraints, indexed intersections, route-edge traceability, line and polygon roads, hard violations, overlap thresholds, deterministic ordering, and summed versus unique ROW area. API coverage includes refined response properties and coincident-endpoint rejection. Pole/ROW API integration, cross-service persistence, and zero-padding cost-surface construction remain outside this test boundary.
+Route-refinement tests cover duplicate and collinear removal, exact endpoints, cost-preserving shortcuts, obstacle and finite-penalty detours, corner and outer-boundary supercover behavior, metadata, determinism, cost recomputation, and batch totals. Pole-placement tests cover terminal, angle, and intermediate structures; span allocation; feeder-wide IDs; chord lengths; input validation; and aggregate counts. ROW-analysis tests cover metric CRS enforcement, explicit buffer behavior, repaired and empty constraints, indexed intersections, route-edge traceability, line and polygon roads, hard violations, overlap thresholds, deterministic ordering, and summed versus unique ROW area. Electrical tests cover primitive formulas and invalid numeric inputs, radial downstream aggregation, complete topology/route/project reconciliation, endpoint continuity, operating-factor consistency, ampacity, voltage, and substation-capacity violations. API coverage includes refined response properties and coincident-endpoint rejection. Pole/ROW/electrical API integration, cross-service persistence, nonlinear load flow, and zero-padding cost-surface construction remain outside this test boundary.

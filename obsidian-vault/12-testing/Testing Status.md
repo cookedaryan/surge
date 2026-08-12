@@ -12,6 +12,7 @@ The Python suite uses pytest and FastAPI's test client.
 - Graph tests cover node identifiers, graph metadata, complete edge construction, and metric distances.
 - Grouping tests cover capacity constraints, determinism, invalid values, and multi-feeder behavior.
 - Endpoint tests cover health, scenario validation, parameters, and invalid GeoJSON.
+- Electrical tests cover finite input/configuration validation, three-phase current and impedance primitives, lagging/leading linear voltage change, radial downstream aggregation, project/topology/route reconciliation, route endpoint continuity, operating-factor consistency, and ampacity/voltage/substation limits.
 
 Run from `optimisation-python`:
 
@@ -19,11 +20,11 @@ Run from `optimisation-python`:
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-### Verification snapshot: 2026-08-08
+### Verification snapshot: 2026-08-12
 
-The suite produced 56 passes and one failure. `test_optimise_stub` expects a request without WTG `capacity_mw` to succeed, but the implemented grouping stage requires a positive WTG capacity and returns HTTP 422. This is test/contract drift; the maintained API documentation now records capacity as required by the current pipeline.
+The Python suite produced 256 passes. Strict mypy reported no issues in 40 application source files, and Ruff reported no lint errors across `app` and `tests`. Two non-failing environment/dependency warnings remain: Starlette's current test client compatibility warning and joblib's physical-core detection fallback.
 
-The documented one-WTG API example was executed separately and returned HTTP 200 with feeder count 1 and the expected UTM projection message.
+The electrical stage is tested as a standalone domain module. There is no endpoint or cross-service test for it because `OptimisationService` and the public response contract do not yet carry electrical results.
 
 ## Java Backend
 

@@ -17,7 +17,7 @@
 9. Refined routes are transformed back to WGS84 and returned as individual LineString Features.
 10. The response reports feeder count and the sum of refined physical-route lengths.
 
-[[GIS Cost Surface]] is implemented as a uniform base raster foundation, and the pipeline uses A* to route MST edges over it. [[Pole Placement]] and [[ROW Corridor Analysis]] are implemented as standalone algorithms over refined routes, but neither is invoked by this service pipeline or exposed by the API. True terrain routing, electrical simulation, lifecycle cost, and ML ranking have not yet run.
+[[GIS Cost Surface]] is implemented as a uniform base raster foundation, and the pipeline uses A* to route MST edges over it. [[Pole Placement]], [[ROW Corridor Analysis]], and [[Electrical Feeder Screening]] are implemented as standalone algorithms, but none is invoked by this service pipeline or exposed by the API. True terrain routing, nonlinear load flow, lifecycle cost, and ML ranking have not yet run.
 
 ## Package Responsibilities
 
@@ -36,8 +36,8 @@
 | `app/algorithms/route_refinement.py` | Obstacle-safe simplification and refined route measurements |
 | `app/algorithms/pole_placement.py` | Standalone terminal, angle, and intermediate pole placement over refined routes |
 | `app/gis/row_analysis.py` | Standalone metric ROW buffers, indexed constraint intersections, and land-impact aggregates |
+| `app/electrical` | Standalone radial-feeder current, ampacity, and linear voltage-deviation screening |
 | `cost_function.py` | Placeholder; not implemented |
-| `electrical_analysis.py` | Placeholder; not implemented |
 
 ## Why the Stages Are Separate
 
@@ -54,7 +54,8 @@ This separation keeps each algorithm testable, but intermediate results must eve
 - The cost surface supports blocked cells, but production DEM, restriction, land, and accessibility layers are not yet rasterized.
 - Geometry-based pole placement exists, but it is not service-integrated and does not yet use terrain, sag, clearance, crossings, or structural pole selection.
 - ROW analysis exists as a projected standalone module, but no constraint layers reach Python through the request contract and no ROW result is returned or persisted.
-- Dijkstra, pandapower, and ML ranking are not implemented.
+- Deterministic electrical screening exists, but pandapower/nonlinear load flow, losses, transformer models, protection analysis, and API integration are not implemented.
+- Dijkstra and ML ranking are not implemented.
 
 ## Related Notes
 
@@ -66,5 +67,6 @@ This separation keeps each algorithm testable, but intermediate results must eve
 - [[WTG Grouping]]
 - [[Per-Feeder MST Topology]]
 - [[Routing]]
+- [[Electrical Feeder Screening]]
 - [[ADR-005 Python Service Architecture and Schemas]]
 - [[ADR-006 Spatial Models and Unified UTM]]

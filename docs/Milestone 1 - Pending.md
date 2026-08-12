@@ -392,8 +392,8 @@ SURGE Full Quality Check
 - [ ] SURGE-PY-010: Implement pole placement
 - [ ] SURGE-PY-011: Implement variable-span optimisation
 - [ ] SURGE-PY-012: Generate ROW corridor
-- [ ] SURGE-PY-013: Calculate parcel impact and compensation
-- [ ] SURGE-PY-014: Implement electrical load-flow validation
+- [x] SURGE-PY-013: Implement standalone deterministic electrical screening
+- [ ] SURGE-PY-014: Calculate parcel impact and compensation (formerly PY-013)
 - [ ] SURGE-PY-015: Implement route scoring and ML ranking
 - [ ] SURGE-PY-016: Integrate Python service with Java backend
 

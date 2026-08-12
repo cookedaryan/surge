@@ -25,6 +25,11 @@ optimisation-python/
 |    |    +--- route_scoring.py
 |    |    +--- topology.py
 |    |    \--- wtg_grouping.py
+|    +--- electrical
+|    |    +--- __init__.py
+|    |    +--- feeder_validation.py
+|    |    +--- models.py
+|    |    \--- voltage_drop.py
 |    +--- gis
 |    |    +--- __init__.py
 |    |    +--- crs.py
@@ -69,6 +74,7 @@ optimisation-python/
      +--- test_a_star.py
      +--- test_crs.py
      +--- test_cost_surface.py
+     +--- test_feeder_validation.py
      +--- test_geojson.py
      +--- test_geometry.py
      +--- test_health.py
@@ -81,6 +87,7 @@ optimisation-python/
      +--- test_route_scoring.py
      +--- test_row_analysis.py
      +--- test_topology.py
+     +--- test_voltage_drop.py
      \--- test_wtg_grouping.py
 ```
 
@@ -124,6 +131,8 @@ The module first makes route endpoints and qualifying deflection vertices mandat
 SURGE-PY-011 adds standalone `app/gis/row_analysis.py`. It buffers projected refined route segments into flat-ended metric corridors, validates and repairs projected constraint geometries, uses one STRtree for candidate filtering, and returns deterministic route/constraint intersection events. Results distinguish summed segment area from the dissolved unique ROW footprint and retain route-edge identity, overlap area, centreline exposure length, road crossings, restricted events, and hard violations. CRS provenance is supplied explicitly with `pyproj.CRS`; route and constraint CRS values must be equivalent projected systems measured in metres. The service does not yet receive constraint layers or expose ROW results. See [[ROW Corridor Analysis]].
 
 SURGE-PY-012 (formerly PY-015) adds standalone `app/algorithms/route_scoring.py`. It is a preliminary multi-criteria spatial and constructability scoring engine designed to evaluate complete network alternatives. It computes deterministic min-max normalization exclusively on feasible candidates, preserves raw metrics and exact normalization ranges for explainability, and handles hard constraint violations by marking candidates infeasible. Financial and electrical criteria are currently omitted. `OptimisationService` does not yet invoke it as the pipeline currently produces only a single network alternative. See [[Route Scoring Architecture]].
+
+SURGE-PY-013 adds standalone `app/electrical/models.py`, `app/electrical/voltage_drop.py`, and `app/electrical/feeder_validation.py`. It reconciles a complete projected project, radial topology, and refined-route set before calculating a deterministic balanced three-phase screening result. Post-order traversal aggregates operating WTG power on each edge; nominal-voltage current is checked against conductor ampacity; and linear segment voltage changes are accumulated to every turbine. Malformed or incomplete inputs raise `ValueError`, while valid networks that exceed ampacity, cumulative voltage-deviation, or substation-capacity limits return explicit `ElectricalViolation` records. This is a standalone linear proxy—not pandapower or final design validation—and `OptimisationService` does not invoke it. See [[Electrical Feeder Screening]].
 
 ## Related Notes
 
