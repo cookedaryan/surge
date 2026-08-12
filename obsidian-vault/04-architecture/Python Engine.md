@@ -17,7 +17,7 @@
 9. Refined routes are transformed back to WGS84 and returned as individual LineString Features.
 10. The response reports feeder count and the sum of refined physical-route lengths.
 
-[[GIS Cost Surface]] is implemented as a uniform base raster foundation, and the API-integrated pipeline uses A* to route MST edges over it. [[Pole Placement]], [[ROW Corridor Analysis]], and [[Electrical Feeder Screening]] remain standalone. SURGE-PY-014 PNC assembly, SURGE-PY-015 pandapower AC load flow, and SURGE-PY-016 presentation packaging are also implemented as standalone modules. SURGE-PY-017 deterministic candidate PNC generation is in progress. See [[Surge MVP Ticket Plan]] for the frozen sequence through PY-020.
+[[GIS Cost Surface]] is implemented as a uniform base raster foundation, and the API-integrated pipeline uses A* to route MST edges over it. [[Pole Placement]], [[ROW Corridor Analysis]], and [[Electrical Feeder Screening]] remain standalone. SURGE-PY-014 PNC assembly, SURGE-PY-015 pandapower AC load flow, SURGE-PY-016 presentation packaging, and SURGE-PY-017 deterministic candidate PNC generation are implemented as standalone modules. SURGE-PY-018 scoring is in progress. See [[Surge MVP Ticket Plan]] for the frozen sequence through PY-020.
 
 ## Package Responsibilities
 
@@ -40,7 +40,7 @@
 | `app/pnc` | Complete PNC assembly and base GeoJSON conversion |
 | `app/electrical/load_flow` | Pandapower construction and AC load-flow validation |
 | `app/presentation` | Strict summaries and electrically enriched WGS84 GeoJSON |
-| `app/optimisation` | SURGE-PY-017 candidate PNC scenario generation (in progress) |
+| `app/optimisation` | SURGE-PY-017 candidate PNC scenario generation (implemented standalone) |
 | `cost_function.py` | Placeholder; not implemented |
 
 ## Why the Stages Are Separate

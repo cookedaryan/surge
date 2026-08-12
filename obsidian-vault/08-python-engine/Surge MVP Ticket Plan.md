@@ -17,8 +17,8 @@ onward. Earlier day-based plans are historical context only.
 | SURGE-PY-015 | Pandapower Electrical Network + AC Load-Flow Validation | Complete | Evaluate one PNC without repairing or resizing it. |
 | SURGE-PY-016 | Map-Ready PNC Result Packaging + GeoJSON Export | Complete | Package one PNC and its electrical result for presentation. |
 | SURGE-PY-017 | Candidate PNC Scenario Generation | Complete | Generate 1-5 deterministic, distinct, structurally valid PNC candidates. |
-| SURGE-PY-018 | Multi-Objective Scoring + Recommendation | In progress | Score electrically evaluated candidates and return an explainable deterministic recommendation. |
-| SURGE-PY-019 | End-to-End Optimisation Orchestrator | Planned | Connect preprocessing, candidate generation, load flow, scoring, recommendation, and presentation behind one internal call. |
+| SURGE-PY-018 | Multi-Objective Scoring + Recommendation | Complete | Score electrically evaluated candidates and return an explainable deterministic recommendation. |
+| SURGE-PY-019 | End-to-End Optimisation Orchestrator | In progress | Connect preprocessing, candidate generation, load flow, scoring, recommendation, and presentation behind one internal call. |
 | SURGE-PY-020 | MVP Demo API + End-to-End Validation | Planned | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
 
 No feature may be inserted between these tickets unless it blocks the vertical

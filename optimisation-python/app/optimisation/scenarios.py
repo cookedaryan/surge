@@ -99,9 +99,7 @@ def _canonical_feeder_record(
     Edges are represented as sorted endpoint pairs to eliminate direction;
     the list of edge-pairs is then sorted for stable ordering.
     """
-    canonical_edges = sorted(
-        [sorted([u, v]) for u, v in mst_edges]
-    )
+    canonical_edges = sorted([sorted([u, v]) for u, v in mst_edges])
     return {
         "wtgs": sorted(wtg_node_ids),
         "edges": [f"{u}:{v}" for u, v in canonical_edges],
@@ -515,8 +513,7 @@ def generate_pnc_scenarios(
             f"Attempted {len(attempts)} parameter set(s). "
             f"See attempts for details: "
             + "; ".join(
-                f"{a.parameter_set_id}={a.outcome}({a.detail})"
-                for a in attempts
+                f"{a.parameter_set_id}={a.outcome}({a.detail})" for a in attempts
             )
         )
 

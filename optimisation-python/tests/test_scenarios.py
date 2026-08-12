@@ -105,6 +105,7 @@ _SMALL_SURFACE = CostSurface(
 # Project factories
 # ---------------------------------------------------------------------------
 
+
 def _make_project(
     *turbines: tuple[str, float, float],
     cap_mw: float = 5.0,
@@ -129,13 +130,19 @@ def _make_diverse_project() -> ProjectSpatialData:
     """
     turbines = [
         # Cluster A (top-left)
-        ("T01", 50.0, 700.0), ("T02", 100.0, 720.0), ("T03", 80.0, 660.0),
+        ("T01", 50.0, 700.0),
+        ("T02", 100.0, 720.0),
+        ("T03", 80.0, 660.0),
         ("T04", 150.0, 710.0),
         # Cluster B (top-right)
-        ("T05", 500.0, 700.0), ("T06", 550.0, 720.0), ("T07", 520.0, 660.0),
+        ("T05", 500.0, 700.0),
+        ("T06", 550.0, 720.0),
+        ("T07", 520.0, 660.0),
         ("T08", 580.0, 710.0),
         # Cluster C (centre-bottom)
-        ("T09", 270.0, 300.0), ("T10", 320.0, 280.0), ("T11", 290.0, 340.0),
+        ("T09", 270.0, 300.0),
+        ("T10", 320.0, 280.0),
+        ("T11", 290.0, 340.0),
         ("T12", 350.0, 310.0),
     ]
     wtgs = tuple(
@@ -271,8 +278,12 @@ class TestDeterminism:
     def test_determinism_under_shuffled_turbine_input(self) -> None:
         """Shuffling turbine input order must not affect the output."""
         turbines_a = [
-            ("T01", 50.0, 700.0), ("T02", 100.0, 720.0), ("T03", 80.0, 660.0),
-            ("T04", 150.0, 710.0), ("T05", 500.0, 700.0), ("T06", 550.0, 720.0),
+            ("T01", 50.0, 700.0),
+            ("T02", 100.0, 720.0),
+            ("T03", 80.0, 660.0),
+            ("T04", 150.0, 710.0),
+            ("T05", 500.0, 700.0),
+            ("T06", 550.0, 720.0),
         ]
         turbines_b = list(reversed(turbines_a))
 
@@ -329,8 +340,11 @@ class TestDuplicateSuppression:
         # 3 WTGs, 15 MW capacity → minimum 1 feeder.
         # All strategies produce the same single-feeder topology.
         project = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 200.0), ("T3", 155.0, 200.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 200.0),
+            ("T3", 155.0, 200.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         config = ScenarioGenerationConfig(candidate_count=3)
         result = generate_pnc_scenarios(project, 20.0, _SMALL_SURFACE, config)
@@ -346,8 +360,11 @@ class TestDuplicateSuppression:
 
     def test_only_unique_candidates_in_result(self) -> None:
         project = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 200.0), ("T3", 155.0, 200.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 200.0),
+            ("T3", 155.0, 200.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         result = generate_pnc_scenarios(project, 20.0, _SMALL_SURFACE)
         fps = [scn.topology_fingerprint for scn in result.candidates]
@@ -403,8 +420,11 @@ class TestConstrainedProject:
     def project(self) -> ProjectSpatialData:
         # 3 WTGs on a line, single feeder possible.
         return _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 200.0), ("T3", 155.0, 200.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 200.0),
+            ("T3", 155.0, 200.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
 
     def test_returns_one_scenario(self, project: ProjectSpatialData) -> None:
@@ -453,8 +473,10 @@ class TestZeroViableScenarios:
 
         # WTGs positioned in the interior so they hit blocked cells
         project = _make_project(
-            ("T1", 150.0, 200.0), ("T2", 200.0, 200.0),
-            sub_x=155.0, sub_y=205.0,
+            ("T1", 150.0, 200.0),
+            ("T2", 200.0, 200.0),
+            sub_x=155.0,
+            sub_y=205.0,
         )
 
         config = ScenarioGenerationConfig(candidate_count=1)
@@ -520,9 +542,7 @@ class TestStructuralIntegrity:
 
     def test_no_orphan_wtgs(self, result: ScenarioGenerationResult) -> None:
         project = _make_diverse_project()
-        all_project_wtg_ids = {
-            turbine_node_id(t.turbine_id) for t in project.turbines
-        }
+        all_project_wtg_ids = {turbine_node_id(t.turbine_id) for t in project.turbines}
         for scn in result.candidates:
             network = scn.network
             assigned = {wtg for f in network.feeders for wtg in f.wtg_ids}
@@ -552,8 +572,11 @@ class TestVariationReachesAlgorithms:
 
     def test_baseline_uses_seed_42_and_minimize_distance(self) -> None:
         project = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 200.0), ("T3", 155.0, 200.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 200.0),
+            ("T3", 155.0, 200.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         config = ScenarioGenerationConfig(candidate_count=1)
 
@@ -586,9 +609,7 @@ class TestVariationReachesAlgorithms:
             recorded_calls.append(
                 {"random_state": random_state, "objective": objective}
             )
-            return group_wtgs(
-                proj, cap, random_state=random_state, objective=objective
-            )
+            return group_wtgs(proj, cap, random_state=random_state, objective=objective)
 
         with patch(
             "app.optimisation.scenarios.group_wtgs",
@@ -614,9 +635,7 @@ class TestVariationReachesAlgorithms:
             objective: GroupingObjective = GroupingObjective.MINIMIZE_DISTANCE,
         ):
             recorded_seeds.append(random_state)
-            return group_wtgs(
-                proj, cap, random_state=random_state, objective=objective
-            )
+            return group_wtgs(proj, cap, random_state=random_state, objective=objective)
 
         with patch(
             "app.optimisation.scenarios.group_wtgs",
@@ -643,8 +662,11 @@ class TestLongEdgePenaltyIsNonUniform:
         _apply_long_edge_penalty must NOT do that.
         """
         project = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 300.0), ("T3", 155.0, 150.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 300.0),
+            ("T3", 155.0, 150.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         graph = build_project_graph(project)
 
@@ -661,9 +683,7 @@ class TestLongEdgePenaltyIsNonUniform:
         for edge, orig_w in original_weights.items():
             rev = (edge[1], edge[0])
             pen_w = penalised_weights.get(edge, penalised_weights.get(rev))
-            assert pen_w >= orig_w, (
-                f"Penalised weight {pen_w} < original {orig_w}"
-            )
+            assert pen_w >= orig_w, f"Penalised weight {pen_w} < original {orig_w}"
 
         # Non-uniform: ratios must not all be equal
         ratios = []
@@ -682,8 +702,10 @@ class TestLongEdgePenaltyIsNonUniform:
 
     def test_alpha_zero_leaves_graph_unchanged(self) -> None:
         project = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 300.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 300.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         graph = build_project_graph(project)
         result = _apply_long_edge_penalty(graph, alpha=0.0)
@@ -693,8 +715,11 @@ class TestLongEdgePenaltyIsNonUniform:
 
     def test_base_graph_not_mutated(self) -> None:
         project = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 300.0), ("T3", 155.0, 150.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 300.0),
+            ("T3", 155.0, 150.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         graph = build_project_graph(project)
         original_weights = {
@@ -724,6 +749,7 @@ class TestParameterScheduleStability:
 
     def test_schedule_starts_with_baseline(self) -> None:
         from app.optimisation.scenario_models import ScenarioStrategy
+
         assert PARAMETER_SCHEDULE[0][1] == ScenarioStrategy.BASELINE
 
     def test_build_scenario_parameters_is_deterministic(self) -> None:
@@ -747,8 +773,7 @@ class TestBaseGraphNotMutated:
         project = _make_diverse_project()
         graph = build_project_graph(project)
         original_weights = {
-            (u, v): data["weight"]
-            for u, v, data in graph.edges(data=True)
+            (u, v): data["weight"] for u, v, data in graph.edges(data=True)
         }
 
         config = ScenarioGenerationConfig(candidate_count=5)
@@ -770,8 +795,11 @@ class TestBaseGraphNotMutated:
 class TestBaselineMatchesBuildPncNetwork:
     def test_fingerprints_match(self) -> None:
         project = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 200.0), ("T3", 155.0, 200.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 200.0),
+            ("T3", 155.0, 200.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         config = ScenarioGenerationConfig(candidate_count=1)
         result = generate_pnc_scenarios(project, 20.0, _SMALL_SURFACE, config)
@@ -784,16 +812,18 @@ class TestBaselineMatchesBuildPncNetwork:
 
     def test_feeder_memberships_match(self) -> None:
         project = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 200.0), ("T3", 155.0, 200.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 200.0),
+            ("T3", 155.0, 200.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         config = ScenarioGenerationConfig(candidate_count=1)
         result = generate_pnc_scenarios(project, 20.0, _SMALL_SURFACE, config)
 
         baseline_network = build_pnc_network("PROJECT", project, 20.0, _SMALL_SURFACE)
         baseline_wtgs = {
-            f.feeder_id: frozenset(f.wtg_ids)
-            for f in baseline_network.feeders
+            f.feeder_id: frozenset(f.wtg_ids) for f in baseline_network.feeders
         }
         scenario_wtgs = {
             f.feeder_id: frozenset(f.wtg_ids)
@@ -876,12 +906,16 @@ class TestFingerprintContent:
         """Two networks with different WTG memberships
         must have different fingerprints."""
         project_a = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 200.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 200.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         project_b = _make_project(
-            ("T1", 45.0, 200.0), ("T3", 200.0, 300.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T3", 200.0, 300.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
 
         net_a = build_pnc_network("P", project_a, 20.0, _SMALL_SURFACE)
@@ -901,8 +935,11 @@ class TestEarlyDuplicateSuppression:
         only once, not for every duplicate parameter set.
         """
         project = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 200.0), ("T3", 155.0, 200.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 200.0),
+            ("T3", 155.0, 200.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         config = ScenarioGenerationConfig(candidate_count=3)
 
@@ -954,8 +991,7 @@ class TestBalanceStrategyImproves:
 
         baseline = result.candidates[0]
         balanced_candidates = [
-            scn for scn in result.candidates
-            if scn.strategy == "balanced_feeders"
+            scn for scn in result.candidates if scn.strategy == "balanced_feeders"
         ]
 
         if not balanced_candidates:
@@ -1058,8 +1094,11 @@ class TestScenarioIdsStableOnRejection:
         E.g. if PS-002 is a duplicate, SCN-002 is assigned to the next accepted.
         """
         project = _make_project(
-            ("T1", 45.0, 200.0), ("T2", 100.0, 200.0), ("T3", 155.0, 200.0),
-            sub_x=5.0, sub_y=395.0,
+            ("T1", 45.0, 200.0),
+            ("T2", 100.0, 200.0),
+            ("T3", 155.0, 200.0),
+            sub_x=5.0,
+            sub_y=395.0,
         )
         config = ScenarioGenerationConfig(candidate_count=2)
         result = generate_pnc_scenarios(project, 20.0, _SMALL_SURFACE, config)
@@ -1120,7 +1159,8 @@ class TestSingleWTGProject:
     def test_single_wtg_produces_scenario(self) -> None:
         project = _make_project(
             ("T1", 45.0, 200.0),
-            sub_x=5.0, sub_y=395.0,
+            sub_x=5.0,
+            sub_y=395.0,
         )
         config = ScenarioGenerationConfig(candidate_count=1)
         result = generate_pnc_scenarios(project, 20.0, _SMALL_SURFACE, config)

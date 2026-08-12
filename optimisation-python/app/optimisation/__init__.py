@@ -1,37 +1,29 @@
-"""Scenario generation package for SURGE-PY-017.
+"""End-to-End Optimisation package for Surge.
 
 Public API
 ----------
-generate_pnc_scenarios
-    Generate a configurable set of deterministic PNC network candidates.
+optimise_project
+    Run the complete pipeline from project input to final recommended PNC result.
 
-ScenarioGenerationConfig
-    Controls candidate count and base seed.
+ProjectInput
+    Top-level model for orchestration inputs.
 
-PNCScenario
-    One candidate network with its generation parameters and structural metrics.
+OptimisationConfig
+    Top-level configuration for scenario generation, load flow, and scoring.
 
-ScenarioParameters
-    Full description of algorithm inputs for one candidate.
+OptimisationWorkflowResult
+    Return type encapsulating statuses, candidates, and recommended network packaging.
 
-ScenarioGenerationResult
-    Return type including candidates and per-attempt diagnostics.
-
-Errors
-------
-ScenarioGenerationError
-    Base class for all scenario generation failures.
-NoValidScenarioError
-    Zero candidates could be generated.
-InvalidScenarioConfigError
-    Configuration failed validation.
+OptimisationStatus
+    Enum for workflow status representation.
 """
 
 from app.algorithms.wtg_grouping import GroupingObjective
+from app.optimisation.orchestrator import optimise_project
 from app.optimisation.scenario_models import (
     AttemptOutcome,
-    NoValidScenarioError,
     InvalidScenarioConfigError,
+    NoValidScenarioError,
     PNCScenario,
     ScenarioAttempt,
     ScenarioGenerationConfig,
@@ -42,6 +34,30 @@ from app.optimisation.scenario_models import (
     TopologyWeightProfile,
 )
 from app.optimisation.scenarios import generate_pnc_scenarios, scenario_fingerprint
+from app.optimisation.scoring import evaluate_cohort
+from app.optimisation.scoring_models import (
+    CandidateAssessment,
+    CandidateEvaluation,
+    CandidateMetrics,
+    CandidateScoringConfig,
+    ElectricallyEvaluatedScenario,
+    MetricComparison,
+    MetricScore,
+    OptimizationRecommendation,
+    OptimizationRecommendationStatus,
+    RecommendationReason,
+)
+from app.optimisation.workflow_models import (
+    CandidateFailure,
+    CandidateWorkflowResult,
+    OptimisationConfig,
+    OptimisationInputError,
+    OptimisationStatus,
+    OptimisationWorkflowResult,
+    ProjectInput,
+    WorkflowFailureCode,
+    WorkflowStage,
+)
 
 __all__ = [
     "AttemptOutcome",
@@ -58,4 +74,27 @@ __all__ = [
     "TopologyWeightProfile",
     "generate_pnc_scenarios",
     "scenario_fingerprint",
+    # PY-018 Scoring
+    "CandidateScoringConfig",
+    "ElectricallyEvaluatedScenario",
+    "OptimizationRecommendation",
+    "OptimizationRecommendationStatus",
+    "CandidateEvaluation",
+    "CandidateAssessment",
+    "CandidateMetrics",
+    "MetricScore",
+    "MetricComparison",
+    "RecommendationReason",
+    "evaluate_cohort",
+    # PY-019 Orchestrator
+    "CandidateFailure",
+    "CandidateWorkflowResult",
+    "OptimisationConfig",
+    "OptimisationInputError",
+    "OptimisationStatus",
+    "OptimisationWorkflowResult",
+    "ProjectInput",
+    "WorkflowFailureCode",
+    "WorkflowStage",
+    "optimise_project",
 ]

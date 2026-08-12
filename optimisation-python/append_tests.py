@@ -1,5 +1,5 @@
 with open("tests/test_physical_routing.py", "a") as f:
-    f.write('''
+    f.write("""
 def test_route_same_cell_distinct_points(mock_surface: CostSurface) -> None:
     g = nx.Graph(crs=mock_surface.crs)
     g.add_node("sub", geometry=Point(5.0, 195.0))
@@ -38,4 +38,4 @@ def test_route_coincident_points(mock_surface: CostSurface) -> None:
     assert coords[1] == (5.0, 195.0)
     assert res.routes[0].length_m == 0.0
     assert res.routes[0].traversal_cost == 0.0
-''')
+""")

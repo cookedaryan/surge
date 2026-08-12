@@ -44,7 +44,7 @@ PY-017 owns:
 PY-017 does not own electrical simulation, candidate scoring, recommendation,
 API integration, or raw GIS-constraint ingestion.
 
-### SURGE-PY-018 - Multi-Objective Scoring + Recommendation
+### SURGE-PY-018 - Multi-Objective Candidate Scoring + Explainable Recommendation [COMPLETE]
 
 PY-018 consumes candidates after PY-015 has evaluated each network. The MVP
 score is deterministic and transparent; ML ranking and an advanced Pareto

@@ -155,7 +155,7 @@ SURGE-PY-015 adds standalone `app/electrical/load_flow`. It builds a determinist
 
 SURGE-PY-016 adds standalone `app/presentation`. It reconciles the canonical projected `ProjectPNCNetwork` with its pandapower `LoadFlowNetworkResult`, rejects missing, duplicate, mismatched, or non-finite electrical references, and returns strict summary models plus WGS-84 GeoJSON. Features receive stable IDs, nullable electrical telemetry, exact voltage/overload flags, and a collection bounding box. A non-converged solver result still produces a topology-only map with an explicit violation. This result is not yet returned by `/api/v1/optimise` or imported by Java. See [[presentation-boundary|Python Presentation Boundary]].
 
-SURGE-PY-017 candidate PNC scenario generation is in progress under `app/optimisation`. Its boundary is deterministic generation of 1-5 distinct, structurally valid `ProjectPNCNetwork` candidates from prepared project data and a prepared cost surface. Electrical evaluation, scoring, recommendation, orchestration, and API integration remain PY-018 through PY-020. See [[Candidate PNC Scenario Generation]] and [[Surge MVP Ticket Plan]].
+SURGE-PY-017 candidate PNC scenario generation is implemented under `app/optimisation`. Its boundary is deterministic generation of 1-5 distinct, structurally valid `ProjectPNCNetwork` candidates from prepared project data and a prepared cost surface. Electrical-aware scoring is in progress under PY-018; recommendation integration, orchestration, and API integration continue through PY-020. See [[Candidate PNC Scenario Generation]] and [[Surge MVP Ticket Plan]].
 
 ## Related Notes
 

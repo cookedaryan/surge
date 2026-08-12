@@ -191,9 +191,7 @@ class ScenarioGenerationConfig:
     def __post_init__(self) -> None:
         # Reject bool subclass — isinstance(True, int) is True in Python.
         if isinstance(self.candidate_count, bool):
-            raise InvalidScenarioConfigError(
-                "candidate_count must be an int, not bool"
-            )
+            raise InvalidScenarioConfigError("candidate_count must be an int, not bool")
         if not isinstance(self.candidate_count, int):
             raise InvalidScenarioConfigError(
                 "candidate_count must be an int, got "
