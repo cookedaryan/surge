@@ -5,6 +5,7 @@ import { useProjectData } from './useProjectData';
 import { MapCanvas, type MapCanvasHandle } from './MapCanvas';
 import { Legend } from './Legend';
 import { BomStrip } from '../bom/BomStrip';
+import { ElevationDrawer } from './ElevationDrawer';
 
 interface MapAreaContentProps {
   mapRef: RefObject<MapCanvasHandle>;
@@ -49,6 +50,7 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
       />
       <Legend />
       <BomStrip />
+      <ElevationDrawer routes={data.routes} />
     </>
   );
 }
