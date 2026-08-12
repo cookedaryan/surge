@@ -212,9 +212,7 @@ def test_poles_follow_linestring_not_chord() -> None:
 
     # The chord from first to last pole is strictly shorter than the arc length
     # (proving interpolation followed the bent geometry, not the straight chord)
-    chord_start_end = (
-        result.poles[0].geometry.distance(result.poles[-1].geometry)
-    )
+    chord_start_end = result.poles[0].geometry.distance(result.poles[-1].geometry)
     assert chord_start_end < route.geometry.length
 
 
@@ -239,9 +237,9 @@ def test_significant_bend_gets_mandatory_pole() -> None:
     # The vertex is at arc-length distance 100 m from the start
     bend_distance = 100.0
     distances = [p.distance_along_route_m for p in result.poles]
-    assert any(
-        math.isclose(d, bend_distance, abs_tol=1e-6) for d in distances
-    ), f"No pole found at bend distance {bend_distance}. Distances: {distances}"
+    assert any(math.isclose(d, bend_distance, abs_tol=1e-6) for d in distances), (
+        f"No pole found at bend distance {bend_distance}. Distances: {distances}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -331,14 +329,9 @@ def test_span_lengths_match_pole_distances() -> None:
     result = place_poles_on_route(route, config)
 
     for i, span in enumerate(result.spans):
-        expected_chord = (
-            result.poles[i].geometry.distance(result.poles[i + 1].geometry)
-        )
-        assert math.isclose(
-            span.span_length_m, expected_chord, rel_tol=1e-9
-        ), (
-            f"Span {i}: length {span.span_length_m} "
-            f"!= chord {expected_chord}"
+        expected_chord = result.poles[i].geometry.distance(result.poles[i + 1].geometry)
+        assert math.isclose(span.span_length_m, expected_chord, rel_tol=1e-9), (
+            f"Span {i}: length {span.span_length_m} != chord {expected_chord}"
         )
 
 
@@ -434,9 +427,7 @@ def test_pole_ids_are_deterministic() -> None:
     ids_b = [p.pole_id for p in result_b.poles]
     assert ids_a == ids_b
     for pole_id in ids_a:
-        assert pole_id.startswith("F1-P"), (
-            f"Unexpected pole_id format: {pole_id}"
-        )
+        assert pole_id.startswith("F1-P"), f"Unexpected pole_id format: {pole_id}"
 
 
 # ---------------------------------------------------------------------------
@@ -626,9 +617,7 @@ def test_same_feeder_sequences_are_continuous() -> None:
     config = default_config()
     result = place_poles_on_routes((route_a, route_b), config)
 
-    all_seqs = sorted(
-        p.sequence for r in result.routes for p in r.poles
-    )
+    all_seqs = sorted(p.sequence for r in result.routes for p in r.poles)
     assert all_seqs == list(range(1, len(all_seqs) + 1)), (
         f"Sequences are not continuous: {all_seqs}"
     )
@@ -788,9 +777,7 @@ def test_span_length_is_chord_not_arc() -> None:
             result.poles[i + 1].distance_along_route_m
             - result.poles[i].distance_along_route_m
         )
-        chord = result.poles[i].geometry.distance(
-            result.poles[i + 1].geometry
-        )
+        chord = result.poles[i].geometry.distance(result.poles[i + 1].geometry)
         # Every span_length_m must equal the chord
         assert math.isclose(span.span_length_m, chord, rel_tol=1e-9), (
             f"Span {i} length {span.span_length_m} != chord {chord}"
@@ -800,8 +787,11 @@ def test_span_length_is_chord_not_arc() -> None:
 
     # At least one span must have chord < arc (proves the span crosses the bend)
     span_info = [
-        (s.span_length_m, result.poles[i + 1].distance_along_route_m
-         - result.poles[i].distance_along_route_m)
+        (
+            s.span_length_m,
+            result.poles[i + 1].distance_along_route_m
+            - result.poles[i].distance_along_route_m,
+        )
         for i, s in enumerate(result.spans)
     ]
     assert found_chord_lt_arc, (

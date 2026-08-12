@@ -1,0 +1,96 @@
+{
+  "request_id": "REQ-MVP-001",
+  "project_id": "MVP-DEMO",
+  "wtg_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.000, 52.000]},
+        "properties": {"turbine_id": "T01", "capacity_mw": 5.0}
+      },
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.001, 52.001]},
+        "properties": {"turbine_id": "T02", "capacity_mw": 5.0}
+      },
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.002, 52.000]},
+        "properties": {"turbine_id": "T03", "capacity_mw": 5.0}
+      },
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.003, 52.001]},
+        "properties": {"turbine_id": "T04", "capacity_mw": 5.0}
+      },
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.004, 52.000]},
+        "properties": {"turbine_id": "T05", "capacity_mw": 5.0}
+      },
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.005, 52.001]},
+        "properties": {"turbine_id": "T06", "capacity_mw": 5.0}
+      },
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.006, 52.000]},
+        "properties": {"turbine_id": "T07", "capacity_mw": 5.0}
+      },
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.007, 52.001]},
+        "properties": {"turbine_id": "T08", "capacity_mw": 5.0}
+      }
+    ]
+  },
+  "substation_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.000, 52.010]},
+        "properties": {"substation_id": "SUB1"}
+      }
+    ]
+  },
+  "routing_config": {
+    "resolution_m": 20.0,
+    "padding_m": 200.0
+  },
+  "operating_point_config": {
+    "operating_factor": 1.0,
+    "power_factor": 0.95,
+    "power_factor_mode": "lagging"
+  },
+  "cable_config": {
+    "nominal_voltage_kv": 33.0,
+    "slack_voltage_pu": 1.0,
+    "min_voltage_pu": 0.95,
+    "max_voltage_pu": 1.05,
+    "system_base_mva": 100.0,
+    "cable_types": [
+      {
+        "cable_type_id": "66kV_800mm2",
+        "resistance_ohm_per_km": 0.03,
+        "reactance_ohm_per_km": 0.1,
+        "capacitance_nf_per_km": 200.0,
+        "max_current_a": 368.0,
+        "parallel_count": 1,
+        "derating_factor": 1.0
+      }
+    ],
+    "default_cable_type_id": "66kV_800mm2"
+  },
+  "scenario_config": {
+    "candidate_count": 3
+  },
+  "scoring_weights": {
+    "route_length_weight": 0.4,
+    "electrical_loss_weight": 0.25,
+    "cable_loading_weight": 0.2,
+    "voltage_margin_weight": 0.15
+  }
+}

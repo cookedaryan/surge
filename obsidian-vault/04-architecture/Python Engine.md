@@ -17,13 +17,14 @@
 9. Refined routes are transformed back to WGS84 and returned as individual LineString Features.
 10. The response reports feeder count and the sum of refined physical-route lengths.
 
-[[GIS Cost Surface]] is implemented as a uniform base raster foundation, and the pipeline uses A* to route MST edges over it. [[Pole Placement]], [[ROW Corridor Analysis]], and [[Electrical Feeder Screening]] are implemented as standalone algorithms, but none is invoked by this service pipeline or exposed by the API. True terrain routing, nonlinear load flow, lifecycle cost, and ML ranking have not yet run.
+[[GIS Cost Surface]] is implemented as a uniform base raster foundation, and the API-integrated pipeline uses A* to route MST edges over it. [[Pole Placement]], [[ROW Corridor Analysis]], and [[Electrical Feeder Screening]] remain standalone. SURGE-PY-014 through PY-019 provide PNC assembly, pandapower AC load flow, presentation packaging, deterministic candidate generation, scoring, recommendation, and the end-to-end orchestrator. PY-020 exposes that workflow through compatible V1 and explicit V2 endpoints. See [[Surge MVP Ticket Plan]] for the frozen sequence.
 
 ## Package Responsibilities
 
 | Package | Responsibility |
 | --- | --- |
-| `app/api/v1` | FastAPI endpoints and error translation |
+| `app/api/v1` | Java-compatible additive workflow endpoint and error translation |
+| `app/api/v2` | Explicit engineering workflow endpoint and error translation |
 | `app/schemas` | Pydantic request, response, and metric contracts |
 | `app/services` | Ordered pipeline orchestration |
 | `app/gis` | GeoJSON parsing, validation, CRS selection, and transforms |
@@ -37,6 +38,10 @@
 | `app/algorithms/pole_placement.py` | Standalone terminal, angle, and intermediate pole placement over refined routes |
 | `app/gis/row_analysis.py` | Standalone metric ROW buffers, indexed constraint intersections, and land-impact aggregates |
 | `app/electrical` | Standalone radial-feeder current, ampacity, and linear voltage-deviation screening |
+| `app/pnc` | Complete PNC assembly and base GeoJSON conversion |
+| `app/electrical/load_flow` | Pandapower construction and AC load-flow validation |
+| `app/presentation` | Strict summaries and electrically enriched WGS84 GeoJSON |
+| `app/optimisation` | Candidate generation, electrical-aware scoring, recommendation, and the internal end-to-end orchestrator |
 | `cost_function.py` | Placeholder; not implemented |
 
 ## Why the Stages Are Separate
@@ -54,8 +59,9 @@ This separation keeps each algorithm testable, but intermediate results must eve
 - The cost surface supports blocked cells, but production DEM, restriction, land, and accessibility layers are not yet rasterized.
 - Geometry-based pole placement exists, but it is not service-integrated and does not yet use terrain, sag, clearance, crossings, or structural pole selection.
 - ROW analysis exists as a projected standalone module, but no constraint layers reach Python through the request contract and no ROW result is returned or persisted.
-- Deterministic electrical screening exists, but pandapower/nonlinear load flow, losses, transformer models, protection analysis, and API integration are not implemented.
-- Dijkstra and ML ranking are not implemented.
+- Pandapower load flow is API-integrated for candidate validation, but it does not perform electrical repair, cable resizing, transformer design, protection analysis, or N-1 analysis.
+- Candidate generation, recommendation, orchestration, and the richer compatible API response are implemented through PY-020.
+- Raw constraint transport/rasterization, Dijkstra, and ML ranking are post-MVP.
 
 ## Related Notes
 
@@ -68,5 +74,6 @@ This separation keeps each algorithm testable, but intermediate results must eve
 - [[Per-Feeder MST Topology]]
 - [[Routing]]
 - [[Electrical Feeder Screening]]
+- [[Surge MVP Ticket Plan]]
 - [[ADR-005 Python Service Architecture and Schemas]]
 - [[ADR-006 Spatial Models and Unified UTM]]

@@ -2,7 +2,7 @@
 
 This file serves as the single source of truth regarding the implementation status and recent updates across the SURGE platform.
 
-## Latest Updates (as of August 8, 2026)
+## Latest Updates (as of August 12, 2026)
 
 **1. Java Backend (`backend-java`)**
 - Completed Flyway Database Migration V2 (`V2__create_optimization_and_gis_tables.sql`).
@@ -64,9 +64,11 @@ This file serves as the single source of truth regarding the implementation stat
 - Features include custom Leaflet markers, Drag & Drop GeoJSON upload, optimization control panel, live BOM dashboard, CSV report export, and a responsive dark mode glassmorphism UI.
 
 **3. Python Optimization Engine (`optimisation-python`)**
-- Set up FastAPI project structure, endpoints, and validation models for GIS data and coordinates.
-- Successfully implemented basic routing pipeline schemas.
-- **Pending/In-Progress:** A* and Dijkstra routing over generated cost surfaces, terrain/slope analysis, WTG capacity-constrained clustering, and electrical load-flow validation using pandapower.
+- The API-integrated baseline validates and projects WTG/substation Points, groups WTGs, builds per-feeder MSTs, routes over a prepared cost surface, refines routes, and returns WGS84 LineStrings.
+- SURGE-PY-014 automatic PNC assembly, SURGE-PY-015 pandapower AC load-flow validation, and SURGE-PY-016 map-ready result packaging are implemented as standalone modules.
+- SURGE-PY-017 deterministic candidate PNC scenario generation is implemented.
+- **In progress:** SURGE-PY-020 compatible API/E2E validation follows. SURGE-PY-019 orchestration is complete. See `docs/Surge MVP Ticket Plan.md`.
+- Raw terrain/restriction rasterization, ML ranking, electrical repair, and production hardening remain post-MVP.
 
 ## System Architecture Overview
 
@@ -78,5 +80,6 @@ SURGE (Smart Utility Routing and Grid Evacuation) is comprised of three core com
 ## Documentation References
 For more details, please refer to the project docs located in `/docs` and the Obsidian vault in `/obsidian-vault`.
 - `docs/MVP - Minimum Viable Product.md`
-- `docs/Milestone 1 - Pending.md`
+- `docs/Python Engine Roadmap.md`
 - `docs/Python Engine - Architecture.md`
+- `docs/Surge MVP Ticket Plan.md`

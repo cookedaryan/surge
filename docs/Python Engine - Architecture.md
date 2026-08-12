@@ -29,7 +29,8 @@ ProjectSpatialData -> uniform CostSurface + Affine transform
 
 | Package or module | Responsibility | Status |
 | --- | --- | --- |
-| `app/api/v1` | FastAPI routes and expected-error translation | Implemented |
+| `app/api/v1` | Java-compatible additive workflow API and expected-error translation | Implemented through PY-020 |
+| `app/api/v2` | Explicit cable/configuration workflow API | Implemented through PY-020 |
 | `app/schemas` | Pydantic request/response contract | Implemented |
 | `app/gis` | GeoJSON parsing, validation, UTM selection, transforms | Implemented for WTG/substation Points |
 | `app/gis/cost_surface.py` | Uniform raster, affine transform, and coordinate helpers | Implemented and service-integrated |
@@ -43,6 +44,10 @@ ProjectSpatialData -> uniform CostSurface + Affine transform
 | `app/gis/row_analysis.py` | SURGE-PY-011 projected ROW buffers, indexed constraint intersections, and impact aggregates | Implemented standalone; no constraint API input yet |
 | `cost_function.py` | Lifecycle-cost evaluation | Placeholder |
 | `app/electrical` | SURGE-PY-013 deterministic electrical screening proxy (ampacity & voltage drop) | Implemented standalone; not service-integrated |
+| `app/pnc` | Canonical projected physical network assembly and base GeoJSON conversion | Implemented standalone; not service-integrated |
+| `app/electrical/load_flow` | Pandapower network construction and AC load-flow analysis | Implemented standalone; not service-integrated |
+| `app/presentation` | Reconciles PNC and load-flow results into strict summaries and enriched WGS-84 GeoJSON | Implemented and exposed for the recommendation |
+| `app/optimisation` | SURGE-PY-017 deterministic candidate PNC scenario generation | Implemented standalone; not service-integrated |
 
 ## SURGE-PY-006: Per-Feeder MST
 
@@ -111,6 +116,27 @@ For each route segment, impedance is proportional to its refined metric length. 
 Well-formed networks that exceed limits return deterministic `AMPACITY_EXCEEDED`, `VOLTAGE_LIMIT_EXCEEDED`, or `SUBSTATION_CAPACITY_EXCEEDED` records rather than exceptions. The result exposes per-segment loading and voltage change, per-turbine cumulative voltage deviation, feeder maxima, network maxima, and validity flags.
 
 This is not pandapower validation. It ignores conductor losses when calculating downstream power, shunt admittance, transformers, tap changers, phase imbalance, voltage-dependent loads, reactive-power variation, fault levels, protection coordination, thermal/environmental derating, and iterative voltage/current coupling. These results are preliminary screening values and must not be presented as final electrical design approval.
+
+## SURGE-PY-016: Presentation Boundary
+
+`build_project_result` reconciles an assembled `ProjectPNCNetwork` with the `LoadFlowNetworkResult` calculated for that network. Converged results require exact bus, segment, and feeder coverage plus consistent ownership and finite electrical metrics. Non-converged results retain the physical map but require empty electrical detail collections and an explicit `LOAD_FLOW_NOT_CONVERGED` violation.
+
+The boundary returns strict Pydantic summaries and enriched GeoJSON. The existing PNC converter performs projected-CRS to WGS-84 transformation; presentation enrichment adds stable feature IDs, nullable electrical telemetry, exact violation flags, and a collection bounding box. It also records the source projected CRS and groups WTG/segment violations under their owning feeder. The recommended presentation is exposed by both optimisation API versions; V1 additionally derives a segment-only `feeder_routes_geojson` collection for the existing Java importer. See [Python Presentation Boundary](presentation-boundary.md).
+
+## Frozen MVP sequence
+
+SURGE-PY-017 owns deterministic candidate PNC generation, SURGE-PY-018 adds
+electrical-aware deterministic scoring and recommendation, and SURGE-PY-019
+connects the existing modules behind one internal orchestrator. These stages
+and PY-020 connects them to compatible V1 and explicit V2 API boundaries. The
+golden demo validates three distinct candidates and deterministic repeated
+output. The numbering freezes at SURGE-PY-020 for the MVP.
+
+Raw boundary/restriction transport and rasterization are not part of this MVP.
+Internal routing and scenario generation continue to respect blocked or
+penalized cells already present in a prepared `CostSurface`. See
+[Surge MVP Ticket Plan](Surge%20MVP%20Ticket%20Plan.md) for the authoritative
+boundaries and compatibility rules.
 
 ## Input Assumptions
 

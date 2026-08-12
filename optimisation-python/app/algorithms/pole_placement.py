@@ -114,13 +114,9 @@ class PolePlacementConfig:
                 f"target_span_m must be positive, got {self.target_span_m}"
             )
         if self.min_span_m <= 0:
-            raise ValueError(
-                f"min_span_m must be positive, got {self.min_span_m}"
-            )
+            raise ValueError(f"min_span_m must be positive, got {self.min_span_m}")
         if self.max_span_m <= 0:
-            raise ValueError(
-                f"max_span_m must be positive, got {self.max_span_m}"
-            )
+            raise ValueError(f"max_span_m must be positive, got {self.max_span_m}")
         if self.min_span_m > self.max_span_m:
             raise ValueError(
                 f"min_span_m ({self.min_span_m}) must not exceed "
@@ -306,9 +302,7 @@ def calculate_span_count(
         Number of spans (always ≥ 1).
     """
     if route_length_m <= 0:
-        raise ValueError(
-            f"route_length_m must be positive, got {route_length_m}"
-        )
+        raise ValueError(f"route_length_m must be positive, got {route_length_m}")
 
     # Round to nearest integer rather than always ceiling, so the preferred
     # span is honoured when the section length is close to an integer multiple
@@ -379,30 +373,20 @@ def place_poles_on_route(
     geometry = route.geometry
     if not isinstance(geometry, LineString):
         raise ValueError(
-            f"route.geometry must be a LineString, "
-            f"got {type(geometry).__name__}"
+            f"route.geometry must be a LineString, got {type(geometry).__name__}"
         )
     if not geometry.is_valid:
         raise ValueError(
-            "route.geometry is not a valid LineString "
-            "(Shapely validity check failed)"
+            "route.geometry is not a valid LineString (Shapely validity check failed)"
         )
     coords = list(geometry.coords)
     if len(coords) < 2:
-        raise ValueError(
-            "route.geometry must contain at least two distinct points"
-        )
-    if any(
-        not all(math.isfinite(v) for v in pt) for pt in coords
-    ):
-        raise ValueError(
-            "route.geometry contains non-finite coordinates"
-        )
+        raise ValueError("route.geometry must contain at least two distinct points")
+    if any(not all(math.isfinite(v) for v in pt) for pt in coords):
+        raise ValueError("route.geometry contains non-finite coordinates")
     total_length = geometry.length
     if total_length <= 0:
-        raise ValueError(
-            f"route.geometry has zero or negative length: {total_length}"
-        )
+        raise ValueError(f"route.geometry has zero or negative length: {total_length}")
 
     # ------------------------------------------------------------------
     # Step 1: identify mandatory pole distances
@@ -421,9 +405,7 @@ def place_poles_on_route(
             seg_len = math.hypot(dx_prev, dy_prev)
             cumulative += seg_len
 
-            deflection = _deflection_angle_deg(
-                dx_prev, dy_prev, dx_next, dy_next
-            )
+            deflection = _deflection_angle_deg(dx_prev, dy_prev, dx_next, dy_next)
             if deflection >= config.angle_pole_threshold_deg:
                 d = min(cumulative, total_length)
                 mandatory_distances.add(d)
@@ -464,9 +446,7 @@ def place_poles_on_route(
     for local_seq, dist in enumerate(all_distances_sorted, start=1):
         seq = local_seq + sequence_offset
         point: Point = geometry.interpolate(dist)
-        pole_type = _classify_pole(
-            dist, total_length, mandatory_angle_distances
-        )
+        pole_type = _classify_pole(dist, total_length, mandatory_angle_distances)
         pole_id = f"{route.feeder_id}-P{seq:03d}"
         poles.append(
             Pole(
@@ -493,9 +473,7 @@ def place_poles_on_route(
             )
         )
 
-    route_id = (
-        f"{route.feeder_id}_{route.start_node_id}_{route.end_node_id}"
-    )
+    route_id = f"{route.feeder_id}_{route.start_node_id}_{route.end_node_id}"
     result = PoleRouteResult(
         route_id=route_id,
         feeder_id=route.feeder_id,
@@ -562,9 +540,7 @@ def place_poles_on_routes(
 def _require_finite(field: str, value: float) -> None:
     """Raise ValueError if *value* is NaN or infinite."""
     if not math.isfinite(value):
-        raise ValueError(
-            f"{field} must be a finite number, got {value!r}"
-        )
+        raise ValueError(f"{field} must be a finite number, got {value!r}")
 
 
 def _deflection_angle_deg(
@@ -611,9 +587,8 @@ def _classify_pole(
     angle_distances: set[float],
 ) -> str:
     """Return ``"terminal"``, ``"angle"``, or ``"intermediate"``."""
-    if (
-        math.isclose(distance, 0.0, abs_tol=_DISTANCE_EPSILON)
-        or math.isclose(distance, total_length, abs_tol=_DISTANCE_EPSILON)
+    if math.isclose(distance, 0.0, abs_tol=_DISTANCE_EPSILON) or math.isclose(
+        distance, total_length, abs_tol=_DISTANCE_EPSILON
     ):
         return "terminal"
     for angle_d in angle_distances:
@@ -654,8 +629,7 @@ def _validate_pole_route_result(
     spans = result.spans
 
     assert len(poles) >= 2, (
-        f"Route {result.route_id}: expected at least 2 poles, "
-        f"got {len(poles)}"
+        f"Route {result.route_id}: expected at least 2 poles, got {len(poles)}"
     )
 
     # First pole at route start
@@ -678,15 +652,11 @@ def _validate_pole_route_result(
     for i in range(1, len(poles)):
         assert poles[i].distance_along_route_m > (
             poles[i - 1].distance_along_route_m + _DISTANCE_EPSILON
-        ), (
-            f"Route {result.route_id}: poles not strictly ordered at "
-            f"index {i}"
-        )
+        ), f"Route {result.route_id}: poles not strictly ordered at index {i}"
 
     # Span count matches pole pairs
     assert len(spans) == len(poles) - 1, (
-        f"Route {result.route_id}: expected {len(poles) - 1} spans, "
-        f"got {len(spans)}"
+        f"Route {result.route_id}: expected {len(poles) - 1} spans, got {len(spans)}"
     )
 
     # Span connectivity, chord length, and max_span_m enforcement

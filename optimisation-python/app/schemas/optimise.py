@@ -2,6 +2,19 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.presentation.models import ProjectOptimizationResult
+from app.schemas.v2.optimise import (
+    CableConfigRequest,
+    CandidateSummary,
+    FailuresSummary,
+    GenerationSummary,
+    OperatingPointConfig,
+    RecommendationSummary,
+    RoutingConfigRequest,
+    ScenarioConfigRequest,
+    ScoringWeightsRequest,
+)
+
 GeoJSON = dict[str, Any]
 
 OptimisationScenario = Literal[
@@ -27,6 +40,22 @@ class OptimisationRequest(BaseModel):
     substation_geojson: GeoJSON
 
     electrical_params: ElectricalParams = Field(default_factory=ElectricalParams)
+    routing_config: RoutingConfigRequest = Field(
+        default_factory=lambda: RoutingConfigRequest(
+            resolution_m=10.0,
+            padding_m=100.0,
+        )
+    )
+    operating_point_config: OperatingPointConfig = Field(
+        default_factory=OperatingPointConfig
+    )
+    cable_config: CableConfigRequest | None = None
+    scenario_config: ScenarioConfigRequest = Field(
+        default_factory=ScenarioConfigRequest
+    )
+    scoring_weights: ScoringWeightsRequest = Field(
+        default_factory=ScoringWeightsRequest
+    )
 
 
 class OptimisationMetrics(BaseModel):
@@ -42,3 +71,12 @@ class OptimisationResponse(BaseModel):
     scenario: OptimisationScenario
     feeder_routes_geojson: GeoJSON | None = None
     metrics: OptimisationMetrics = Field(default_factory=OptimisationMetrics)
+    schema_version: str = "2.0"
+    workflow_status: Literal[
+        "SUCCESS", "PARTIAL_SUCCESS", "NO_FEASIBLE_CANDIDATE", "FAILED"
+    ] = "SUCCESS"
+    generation: GenerationSummary | None = None
+    candidates: list[CandidateSummary] = Field(default_factory=list)
+    recommendation: RecommendationSummary | None = None
+    recommended_result: ProjectOptimizationResult | None = None
+    failures: list[FailuresSummary] = Field(default_factory=list)

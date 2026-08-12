@@ -120,6 +120,24 @@ def test_invalid_resolution_rejected(mock_project: ProjectSpatialData) -> None:
         build_project_cost_surface(mock_project, resolution_m=-10.0)
 
 
+def test_max_cells_is_checked_before_allocation(
+    mock_project: ProjectSpatialData,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_allocation(*args: object, **kwargs: object) -> None:
+        raise AssertionError("NumPy allocation must not be attempted")
+
+    monkeypatch.setattr(np, "ones", fail_allocation)
+
+    with pytest.raises(ValueError, match="maximum allowed cells"):
+        build_project_cost_surface(
+            mock_project,
+            resolution_m=10.0,
+            padding_m=0.0,
+            max_cells=99,
+        )
+
+
 def test_surface_dimensions_are_deterministic(mock_project: ProjectSpatialData) -> None:
     s1 = build_project_cost_surface(mock_project)
     s2 = build_project_cost_surface(mock_project)

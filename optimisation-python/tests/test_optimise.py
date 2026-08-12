@@ -3,6 +3,8 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.schemas.legacy_mapping import legacy_to_workflow_invocation
+from app.schemas.optimise import OptimisationRequest
 
 client = TestClient(app)
 
@@ -59,6 +61,14 @@ def test_optimise_stub() -> None:
     assert properties["traversal_cost"] == properties["refined_traversal_cost"]
     assert properties["refined_length_m"] <= properties["original_length_m"]
     assert body["metrics"]["message"].startswith("Pipeline completed.")
+    assert body["workflow_status"] in {"SUCCESS", "PARTIAL_SUCCESS"}
+    assert body["generation"]["requested_candidate_count"] == 3
+    assert body["candidates"]
+    assert body["recommendation"]["recommended_scenario_id"]
+    assert body["recommended_result"]["network_summary"]["wtg_count"] == 1
+    assert body["recommended_result"]["feature_collection"]["type"] == (
+        "FeatureCollection"
+    )
 
 
 def test_coincident_route_endpoints_return_422() -> None:
@@ -72,6 +82,29 @@ def test_coincident_route_endpoints_return_422() -> None:
 
     assert response.status_code == 422
     assert "coincident endpoints" in response.json()["detail"]
+
+
+def test_v1_feeder_capacity_remains_authoritative_with_explicit_cable() -> None:
+    payload = create_payload()
+    payload["cable_config"] = {
+        "nominal_voltage_kv": 66.0,
+        "cable_types": [
+            {
+                "cable_type_id": "HIGH_CAPACITY",
+                "resistance_ohm_per_km": 0.03,
+                "reactance_ohm_per_km": 0.1,
+                "capacitance_nf_per_km": 200.0,
+                "max_current_a": 900.0,
+            }
+        ],
+        "default_cable_type_id": "HIGH_CAPACITY",
+    }
+
+    invocation = legacy_to_workflow_invocation(
+        OptimisationRequest.model_validate(payload)
+    )
+
+    assert invocation.project_input.feeder_capacity_mw == 20.0
 
 
 def test_invalid_scenario() -> None:
