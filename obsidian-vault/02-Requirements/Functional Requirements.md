@@ -10,7 +10,7 @@
 - **FR-05**: System shall calculate ROW corridor area and compensation cost per parcel.
 
 ## 3. Electrical Simulation & Verification
-- **FR-06**: System shall run pandapower load flow analysis on generated feeder paths.
+- **FR-06**: System shall run pandapower load-flow analysis on generated feeder paths. SURGE-PY-013 currently provides only a standalone deterministic current/voltage screening proxy; it does not yet satisfy the full pandapower requirement.
 - **FR-07**: System shall flag any voltage drop exceeding 5% or conductor thermal overload.
 
 ## 4. Pole Placement & Selection
