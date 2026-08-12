@@ -11,6 +11,7 @@ import { MapAreaContent } from './features/map/MapAreaContent';
 import type { MapCanvasHandle } from './features/map/MapCanvas';
 import { Toast } from './components/Toast';
 import { OptimizationPane } from './features/optimization/OptimizationPane';
+import { LayersPane } from './features/layers/LayersPane';
 
 export default function App() {
   const mapRef = useRef<MapCanvasHandle>(null);
@@ -25,7 +26,7 @@ export default function App() {
         <SidePanel>
           <Pane tab="assets"><AssetsPane mapRef={mapRef} /></Pane>
           <Pane tab="optimize"><OptimizationPane /></Pane>
-          <Pane tab="layers"><div className="text-textFaint text-xs">Layers pane — Task 16</div></Pane>
+          <Pane tab="layers"><LayersPane /></Pane>
           <Pane tab="bom"><div className="text-textFaint text-xs">BOM pane — Task 17</div></Pane>
           <Pane tab="audit"><div className="text-textFaint text-xs">Audit pane — Task 18</div></Pane>
         </SidePanel>
