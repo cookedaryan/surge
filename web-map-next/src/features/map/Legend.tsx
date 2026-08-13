@@ -3,7 +3,8 @@ export function Legend() {
     { color: 'var(--accent)', label: 'Wind turbine' },
     { color: 'var(--warning)', label: 'Substation' },
     { color: 'var(--danger)', label: 'Restricted zone' },
-    { color: 'var(--accent)', label: 'Feeder route', shape: 'dash' }
+    { color: 'var(--accent)', label: 'Feeder route', shape: 'dash' },
+    { color: '#94A3B8', label: 'Pole' }
   ];
   return (
     <div className="absolute right-3.5 top-3.5 w-[172px] bg-surface border border-border rounded-lg p-2.5 font-ui pointer-events-none">

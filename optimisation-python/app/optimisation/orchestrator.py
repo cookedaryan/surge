@@ -423,7 +423,6 @@ def optimise_project(
             presentation = build_project_result(
                 pnc_network=winner_candidate.scenario.network,
                 load_flow_result=load_flow_result,
-                pole_config=config.pole,
                 pole_network=pole_network,
                 constraint_layers=project_input.constraint_layers,
             )

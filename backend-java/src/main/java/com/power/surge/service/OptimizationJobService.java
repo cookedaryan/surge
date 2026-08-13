@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,7 @@ public class OptimizationJobService {
     private final WtgLocationRepository wtgLocationRepository;
     private final SubstationRepository substationRepository;
     private final RouteService routeService;
+    private final PoleService poleService;
     private final PythonOptimizationClient pythonClient;
     private final ObjectMapper objectMapper;
     private final SseProgressService sseProgressService;
@@ -50,6 +52,7 @@ public class OptimizationJobService {
             WtgLocationRepository wtgLocationRepository,
             SubstationRepository substationRepository,
             RouteService routeService,
+            PoleService poleService,
             PythonOptimizationClient pythonClient,
             ObjectMapper objectMapper,
             SseProgressService sseProgressService
@@ -60,6 +63,7 @@ public class OptimizationJobService {
         this.wtgLocationRepository = wtgLocationRepository;
         this.substationRepository = substationRepository;
         this.routeService = routeService;
+        this.poleService = poleService;
         this.pythonClient = pythonClient;
         this.objectMapper = objectMapper;
         this.sseProgressService = sseProgressService;
@@ -110,7 +114,7 @@ public class OptimizationJobService {
         try {
             sseProgressService.emitProgress(job.getId(), 35, "Serializing GeoJSON & dispatching request to Python FastAPI Engine", com.power.surge.domain.JobStatus.RUNNING);
             Map<String, Object> wtgGeoJson = buildWtgGeoJson(wtgs);
-            Map<String, Object> subGeoJson = buildSubstationGeoJson(substations);
+            Map<String, Object> subGeoJson = buildSubstationGeoJson(substations, wtgs);
 
             String scenario = req.scenario() != null ? req.scenario() : "Balanced";
 
@@ -137,6 +141,9 @@ public class OptimizationJobService {
                 if (pythonResp.feederRoutesGeojson() != null && !pythonResp.feederRoutesGeojson().isEmpty()) {
                     sseProgressService.emitProgress(job.getId(), 85, "Saving route geometries and pole locations to PostGIS", com.power.surge.domain.JobStatus.RUNNING);
                     routeService.saveRoutesFromGeoJson(job.getId(), pythonResp.feederRoutesGeojson());
+                }
+                if (pythonResp.polesGeojson() != null && !pythonResp.polesGeojson().isEmpty()) {
+                    poleService.savePolesFromGeoJson(job.getId(), pythonResp.polesGeojson());
                 }
                 job.markCompleted(summaryJson);
                 sseProgressService.completeProgress(job.getId(), "Optimization job completed successfully!", true);
@@ -207,9 +214,12 @@ public class OptimizationJobService {
         return featureCollection;
     }
 
-    private Map<String, Object> buildSubstationGeoJson(List<Substation> substations) {
+    private Map<String, Object> buildSubstationGeoJson(List<Substation> substations, List<WtgLocation> wtgs) {
         List<Map<String, Object>> features = new ArrayList<>();
-        for (Substation sub : substations) {
+        Substation primary = selectPrimarySubstation(substations, wtgs);
+        List<Substation> targetList = primary != null ? List.of(primary) : List.of();
+
+        for (Substation sub : targetList) {
             Map<String, Object> feature = new LinkedHashMap<>();
             feature.put("type", "Feature");
             feature.put("id", sub.getExternalId());
@@ -233,5 +243,53 @@ public class OptimizationJobService {
         featureCollection.put("type", "FeatureCollection");
         featureCollection.put("features", features);
         return featureCollection;
+    }
+
+    /**
+     * Picks the substation the feeders should connect to when a project has more than one.
+     *
+     * <p>Prefers the highest-capacity substation when at least one reports a positive capacity.
+     * Survey KMZ files typically carry no capacity metadata at all, in which case every substation
+     * ties at zero; falling back to list order in that case previously picked an arbitrary (often
+     * distant) substation, producing an infeasible or absurdly long route. Instead, when capacity
+     * gives no signal, pick whichever substation sits closest to the WTG cluster.
+     */
+    private static Substation selectPrimarySubstation(List<Substation> substations, List<WtgLocation> wtgs) {
+        if (substations.isEmpty()) {
+            return null;
+        }
+        if (substations.size() == 1) {
+            return substations.get(0);
+        }
+
+        boolean anyCapacityKnown = substations.stream()
+                .anyMatch(s -> s.getCapacityMw() != null && s.getCapacityMw().signum() > 0);
+        if (anyCapacityKnown) {
+            return substations.stream()
+                    .max(Comparator.comparing(s -> s.getCapacityMw() != null ? s.getCapacityMw() : BigDecimal.ZERO))
+                    .orElse(substations.get(0));
+        }
+
+        if (wtgs.isEmpty()) {
+            return substations.get(0);
+        }
+        double centroidLon = wtgs.stream().mapToDouble(w -> w.getLocation().getX()).average().orElse(0);
+        double centroidLat = wtgs.stream().mapToDouble(w -> w.getLocation().getY()).average().orElse(0);
+
+        return substations.stream()
+                .min(Comparator.comparingDouble(s -> haversineMeters(
+                        centroidLon, centroidLat, s.getLocation().getX(), s.getLocation().getY())))
+                .orElse(substations.get(0));
+    }
+
+    private static double haversineMeters(double lon1, double lat1, double lon2, double lat2) {
+        double earthRadiusM = 6_371_000.0;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return earthRadiusM * c;
     }
 }

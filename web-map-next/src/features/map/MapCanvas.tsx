@@ -9,6 +9,7 @@ export interface MapCanvasProps {
   towers: FeatureCollection;
   referenceLines: FeatureCollection;
   routes: FeatureCollection;
+  poles: FeatureCollection;
   parcels: FeatureCollection;
   restrictedAreas: FeatureCollection;
   layerVisibility: Record<LayerName, boolean>;
@@ -46,6 +47,7 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
   useEffect(() => {
     engineRef.current?.renderRoutes(props.routes, props.routeColorOverride);
   }, [props.routes, props.routeColorOverride]);
+  useEffect(() => { engineRef.current?.renderPoles(props.poles); }, [props.poles]);
   useEffect(() => {
     engineRef.current?.renderParcels(props.parcels, props.parcelOpacity);
   }, [props.parcels, props.parcelOpacity]);

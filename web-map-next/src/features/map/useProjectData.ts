@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { Feature, FeatureCollection } from 'geojson';
-import { useBomReport, useParcels, useProjectAssets, useRestrictedAreas, useRoutes } from '../../lib/query';
+import { useBomReport, useParcels, usePoles, useProjectAssets, useRestrictedAreas, useRoutes } from '../../lib/query';
 import type { BomReport } from '../../lib/api';
 
 export interface ProjectMapData {
@@ -11,6 +11,7 @@ export interface ProjectMapData {
   parcels: FeatureCollection;
   restrictedAreas: FeatureCollection;
   routes: FeatureCollection;
+  poles: FeatureCollection;
   counts: {
     wtgsTotal: number;
     wtgsOptimisable: number;
@@ -39,6 +40,7 @@ export function useProjectData(projectId: string | null, jobId: string | null): 
   const parcelsQuery = useParcels(projectId);
   const restrictedQuery = useRestrictedAreas(projectId);
   const routesQuery = useRoutes(projectId, jobId);
+  const polesQuery = usePoles(projectId, jobId);
   const bomQuery = useBomReport(projectId);
 
   const grouped = useMemo(() => {
@@ -70,6 +72,7 @@ export function useProjectData(projectId: string | null, jobId: string | null): 
     parcels: parcelsQuery.data ?? EMPTY_FC,
     restrictedAreas: restrictedQuery.data ?? EMPTY_FC,
     routes: routesQuery.data ?? EMPTY_FC,
+    poles: polesQuery.data ?? EMPTY_FC,
     bom: bomQuery.data,
     isLoading: assetsQuery.isLoading || parcelsQuery.isLoading || restrictedQuery.isLoading || routesQuery.isLoading
   };

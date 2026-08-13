@@ -1,0 +1,127 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Sample 33kV Wind Farm Site</name>
+    <description>Mock KML dataset for Surge PCN Optimization testing</description>
+    
+    <Folder>
+      <name>Substations</name>
+      <Placemark>
+        <name>SUB-01</name>
+        <description>Main 33/220kV Grid Substation</description>
+        <ExtendedData>
+          <Data name="assetType"><value>SUBSTATION</value></Data>
+          <Data name="capacityMw"><value>100</value></Data>
+        </ExtendedData>
+        <Point>
+          <coordinates>69.8210,23.2350,0</coordinates>
+        </Point>
+      </Placemark>
+    </Folder>
+
+    <Folder>
+      <name>Approved WTGs</name>
+      <Placemark>
+        <name>WTG-01</name>
+        <description>3.0 MW Wind Turbine Generator 01</description>
+        <ExtendedData>
+          <Data name="assetType"><value>WTG</value></Data>
+          <Data name="capacityMw"><value>3.0</value></Data>
+          <Data name="status"><value>APPROVED</value></Data>
+        </ExtendedData>
+        <Point>
+          <coordinates>69.8250,23.2380,0</coordinates>
+        </Point>
+      </Placemark>
+
+      <Placemark>
+        <name>WTG-02</name>
+        <description>3.0 MW Wind Turbine Generator 02</description>
+        <ExtendedData>
+          <Data name="assetType"><value>WTG</value></Data>
+          <Data name="capacityMw"><value>3.0</value></Data>
+          <Data name="status"><value>APPROVED</value></Data>
+        </ExtendedData>
+        <Point>
+          <coordinates>69.8290,23.2410,0</coordinates>
+        </Point>
+      </Placemark>
+
+      <Placemark>
+        <name>WTG-03</name>
+        <description>3.0 MW Wind Turbine Generator 03</description>
+        <ExtendedData>
+          <Data name="assetType"><value>WTG</value></Data>
+          <Data name="capacityMw"><value>3.0</value></Data>
+          <Data name="status"><value>APPROVED</value></Data>
+        </ExtendedData>
+        <Point>
+          <coordinates>69.8330,23.2440,0</coordinates>
+        </Point>
+      </Placemark>
+
+      <Placemark>
+        <name>WTG-04</name>
+        <description>3.0 MW Wind Turbine Generator 04</description>
+        <ExtendedData>
+          <Data name="assetType"><value>WTG</value></Data>
+          <Data name="capacityMw"><value>3.0</value></Data>
+          <Data name="status"><value>APPROVED</value></Data>
+        </ExtendedData>
+        <Point>
+          <coordinates>69.8370,23.2470,0</coordinates>
+        </Point>
+      </Placemark>
+
+      <Placemark>
+        <name>WTG-05</name>
+        <description>3.0 MW Wind Turbine Generator 05</description>
+        <ExtendedData>
+          <Data name="assetType"><value>WTG</value></Data>
+          <Data name="capacityMw"><value>3.0</value></Data>
+          <Data name="status"><value>APPROVED</value></Data>
+        </ExtendedData>
+        <Point>
+          <coordinates>69.8410,23.2500,0</coordinates>
+        </Point>
+      </Placemark>
+
+      <Placemark>
+        <name>WTG-06</name>
+        <description>3.0 MW Wind Turbine Generator 06</description>
+        <ExtendedData>
+          <Data name="assetType"><value>WTG</value></Data>
+          <Data name="capacityMw"><value>3.0</value></Data>
+          <Data name="status"><value>APPROVED</value></Data>
+        </ExtendedData>
+        <Point>
+          <coordinates>69.8450,23.2530,0</coordinates>
+        </Point>
+      </Placemark>
+    </Folder>
+
+    <Folder>
+      <name>Restricted Areas</name>
+      <Placemark>
+        <name>ZONE-01</name>
+        <description>Environmental Protection Exclusion Zone</description>
+        <ExtendedData>
+          <Data name="assetType"><value>RESTRICTED_AREA</value></Data>
+        </ExtendedData>
+        <Polygon>
+          <outerBoundaryIs>
+            <LinearRing>
+              <coordinates>
+                69.8300,23.2350,0
+                69.8350,23.2350,0
+                69.8350,23.2400,0
+                69.8300,23.2400,0
+                69.8300,23.2350,0
+              </coordinates>
+            </LinearRing>
+          </outerBoundaryIs>
+        </Polygon>
+      </Placemark>
+    </Folder>
+  </Document>
+</kml>

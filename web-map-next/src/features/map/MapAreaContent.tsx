@@ -40,6 +40,7 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
         towers={data.towers}
         referenceLines={data.referenceLines}
         routes={data.routes}
+        poles={data.poles}
         parcels={data.parcels}
         restrictedAreas={data.restrictedAreas}
         layerVisibility={layerVisibility}

@@ -26,12 +26,11 @@ export function OptimizationPane() {
   const [voltageKv, setVoltageKv] = useState(33.0);
 
   const runOptimization = useRunOptimization(currentProjectId);
-  const progress = useJobProgress(currentProjectId, currentJobId, () => {
-    showToast('Optimization completed cleanly!');
-    queryClient.invalidateQueries({ queryKey: ['routes', currentProjectId, currentJobId] });
-    queryClient.invalidateQueries({ queryKey: ['bom', currentProjectId] });
-    setLiveBomOverride(null);
-  });
+  // The backend runs the pipeline synchronously within the POST /jobs request, so by the
+  // time it resolves below the job (and its progress stream) is already finished — the SSE
+  // subscription this opens almost never observes a live "completed" event. It's kept for the
+  // rare case progress messages do arrive, but nothing here is depended on for correctness.
+  const progress = useJobProgress(currentProjectId, currentJobId, () => {});
 
   async function handleRun() {
     if (!currentProjectId) {
@@ -41,12 +40,21 @@ export function OptimizationPane() {
     try {
       const job = await runOptimization.mutateAsync({ scenario, feederCapacityMw, maxSpanMeters, voltageKv });
       setCurrentJobId(job.id);
+      queryClient.invalidateQueries({ queryKey: ['routes', currentProjectId] });
+      queryClient.invalidateQueries({ queryKey: ['poles', currentProjectId] });
+      queryClient.invalidateQueries({ queryKey: ['bom', currentProjectId] });
+      setLiveBomOverride(null);
+      if (job.status === 'FAILED') {
+        showToast('Optimization failed: ' + (job.errorMessage || 'unknown error'));
+      } else {
+        showToast('Optimization completed cleanly!');
+      }
     } catch (err) {
       showToast('Optimization failed: ' + (err as Error).message);
     }
   }
 
-  const isRunning = progress != null && progress.status !== 'COMPLETED' && progress.status !== 'FAILED';
+  const isRunning = runOptimization.isPending;
 
   return (
     <Card>
@@ -77,7 +85,7 @@ export function OptimizationPane() {
         <Button variant="primary" className="justify-center" disabled={isRunning || runOptimization.isPending} onClick={handleRun}>
           {isRunning ? 'Running…' : 'Run optimization pipeline'}
         </Button>
-        {progress && (
+        {progress && isRunning && (
           <div className="mt-1">
             <div className="h-1.5 rounded-full bg-surface2 overflow-hidden">
               <div

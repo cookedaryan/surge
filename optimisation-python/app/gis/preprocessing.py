@@ -55,6 +55,62 @@ def _validate_capacity(capacity: Any, prefix: str) -> float | None:
     return val
 
 
+def _haversine_m(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
+    earth_radius_m = 6_371_000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2
+    return 2 * earth_radius_m * math.asin(math.sqrt(a))
+
+
+def _select_primary_substation(
+    sub_features: list[dict[str, Any]], wtg_features: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Picks the substation feeders should connect to when more than one is supplied.
+
+    Prefers the highest-capacity substation when at least one reports a positive capacity.
+    Survey KMZ files typically carry no capacity metadata at all, in which case every
+    substation ties at zero; falling back to feature order in that case can silently pick a
+    connection point many kilometres from the actual site. When capacity gives no signal,
+    pick whichever substation sits closest to the WTG cluster instead.
+    """
+    if len(sub_features) == 1:
+        return sub_features[0]
+
+    def capacity_of(f: dict[str, Any]) -> float:
+        val = (f.get("properties", {}) or {}).get("capacity_mw")
+        try:
+            return float(val) if val is not None else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    if any(capacity_of(f) > 0 for f in sub_features):
+        return max(sub_features, key=capacity_of)
+
+    wtg_coords = [
+        f["geometry"]["coordinates"]
+        for f in wtg_features
+        if isinstance(f.get("geometry"), dict)
+        and f["geometry"].get("type") == "Point"
+        and isinstance(f["geometry"].get("coordinates"), (list, tuple))
+        and len(f["geometry"]["coordinates"]) >= 2
+    ]
+    if not wtg_coords:
+        return sub_features[0]
+
+    centroid_lon = sum(c[0] for c in wtg_coords) / len(wtg_coords)
+    centroid_lat = sum(c[1] for c in wtg_coords) / len(wtg_coords)
+
+    def distance_to_centroid(f: dict[str, Any]) -> float:
+        coords = (f.get("geometry", {}) or {}).get("coordinates")
+        if not coords or len(coords) < 2:
+            return math.inf
+        return _haversine_m(centroid_lon, centroid_lat, coords[0], coords[1])
+
+    return min(sub_features, key=distance_to_centroid)
+
+
 def process_project_data(
     wtg_geojson: dict[str, Any], substation_geojson: dict[str, Any]
 ) -> ProjectSpatialData:
@@ -70,10 +126,8 @@ def process_project_data(
     sub_features = _extract_features(substation_geojson)
     if not sub_features:
         raise ValueError("Substation GeoJSON is empty or missing")
-    if len(sub_features) > 1:
-        raise ValueError("Expected exactly one Substation feature")
-
-    sub_feature = sub_features[0]
+    
+    sub_feature = _select_primary_substation(sub_features, wtg_features)
 
     # 2. Parse and Validate geometries (must be Points)
     raw_wtgs = []

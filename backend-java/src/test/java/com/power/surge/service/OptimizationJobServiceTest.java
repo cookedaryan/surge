@@ -62,6 +62,9 @@ class OptimizationJobServiceTest {
     private RouteService routeService;
 
     @Mock
+    private PoleService poleService;
+
+    @Mock
     private PythonOptimizationClient pythonClient;
 
     @Mock
@@ -79,6 +82,7 @@ class OptimizationJobServiceTest {
                 wtgLocationRepository,
                 substationRepository,
                 routeService,
+                poleService,
                 pythonClient,
                 new ObjectMapper(),
                 sseProgressService
@@ -103,7 +107,7 @@ class OptimizationJobServiceTest {
         when(jobRepository.save(any(OptimizationJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PythonOptimisationResponse pythonResponse = new PythonOptimisationResponse(
-                "job-123", "success", "Balanced", Map.of(), Map.of("feeder_count", 1, "total_length_m", 1500.0)
+                "job-123", "success", "Balanced", Map.of(), Map.of(), Map.of("feeder_count", 1, "total_length_m", 1500.0)
         );
         when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(pythonResponse);
 
@@ -145,7 +149,7 @@ class OptimizationJobServiceTest {
         when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
         when(jobRepository.save(any(OptimizationJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
-                new PythonOptimisationResponse("job-1", "success", "Balanced", Map.of(),
+                new PythonOptimisationResponse("job-1", "success", "Balanced", Map.of(), Map.of(),
                         Map.of("feeder_count", 1, "total_length_m", 1500.0)));
 
         jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
