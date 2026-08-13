@@ -7,6 +7,7 @@ import com.power.surge.domain.OptimizationJob;
 import com.power.surge.domain.Project;
 import com.power.surge.dto.report.EngineeringBomReportResponse;
 import com.power.surge.repository.CadastralParcelRepository;
+import com.power.surge.repository.GeneratedPoleRepository;
 import com.power.surge.repository.GeneratedRouteRepository;
 import com.power.surge.repository.OptimizationJobRepository;
 import com.power.surge.repository.ProjectRepository;
@@ -43,6 +44,9 @@ class ReportServiceTest {
     private GeneratedRouteRepository routeRepository;
 
     @Mock
+    private GeneratedPoleRepository poleRepository;
+
+    @Mock
     private CadastralParcelRepository parcelRepository;
 
     private ReportService reportService;
@@ -50,7 +54,7 @@ class ReportServiceTest {
 
     @BeforeEach
     void setUp() {
-        reportService = new ReportService(projectRepository, jobRepository, routeRepository, parcelRepository);
+        reportService = new ReportService(projectRepository, jobRepository, routeRepository, poleRepository, parcelRepository);
     }
 
     @Test
@@ -83,6 +87,7 @@ class ReportServiceTest {
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
         when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of(route));
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
         when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of(parcel));
 
         EngineeringBomReportResponse report = reportService.generateBomReport(projectId, jobId);
@@ -116,6 +121,7 @@ class ReportServiceTest {
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
         when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of(route));
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
         when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
 
         String csv = reportService.generateBomCsv(projectId, jobId);

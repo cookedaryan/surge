@@ -9,6 +9,7 @@ import com.power.surge.dto.report.EngineeringBomReportResponse;
 import com.power.surge.dto.report.FeederBomSummary;
 import com.power.surge.dto.report.ParcelImpactSummary;
 import com.power.surge.repository.CadastralParcelRepository;
+import com.power.surge.repository.GeneratedPoleRepository;
 import com.power.surge.repository.GeneratedRouteRepository;
 import com.power.surge.repository.OptimizationJobRepository;
 import com.power.surge.repository.ProjectRepository;
@@ -29,17 +30,20 @@ public class ReportService {
     private final ProjectRepository projectRepository;
     private final OptimizationJobRepository jobRepository;
     private final GeneratedRouteRepository routeRepository;
+    private final GeneratedPoleRepository poleRepository;
     private final CadastralParcelRepository parcelRepository;
 
     public ReportService(
             ProjectRepository projectRepository,
             OptimizationJobRepository jobRepository,
             GeneratedRouteRepository routeRepository,
+            GeneratedPoleRepository poleRepository,
             CadastralParcelRepository parcelRepository
     ) {
         this.projectRepository = projectRepository;
         this.jobRepository = jobRepository;
         this.routeRepository = routeRepository;
+        this.poleRepository = poleRepository;
         this.parcelRepository = parcelRepository;
     }
 
@@ -77,6 +81,14 @@ public class ReportService {
             if (r.getPoleCount() != null) {
                 totalPoles += r.getPoleCount();
             }
+        }
+
+        // GeneratedRoute.poleCount is only ever a /150m fallback estimate (routes are persisted
+        // before real pole placement runs, and can predate it entirely for older jobs). Prefer the
+        // actual placed pole count so this figure — and its response to "Max pole span" — is real.
+        int actualPoleCount = poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(job.getId()).size();
+        if (actualPoleCount > 0) {
+            totalPoles = actualPoleCount;
         }
 
         List<ParcelImpactSummary> parcelSummaries = new ArrayList<>();

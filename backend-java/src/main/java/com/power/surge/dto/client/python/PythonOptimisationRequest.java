@@ -10,6 +10,7 @@ public record PythonOptimisationRequest(
         @JsonProperty("scenario") String scenario,
         @JsonProperty("wtg_geojson") Map<String, Object> wtgGeojson,
         @JsonProperty("substation_geojson") Map<String, Object> substationGeojson,
-        @JsonProperty("electrical_params") Map<String, Object> electricalParams
+        @JsonProperty("electrical_params") Map<String, Object> electricalParams,
+        @JsonProperty("pole_config") Map<String, Object> poleConfig
 ) {
 }

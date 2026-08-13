@@ -123,13 +123,24 @@ public class OptimizationJobService {
             electricalParams.put("max_voltage_drop_pct", req.maxVoltageDropPct() != null ? req.maxVoltageDropPct().doubleValue() : 5.0);
             electricalParams.put("row_width_m", req.rowWidthM() != null ? req.rowWidthM().doubleValue() : 18.0);
 
+            // Scaled from the user's chosen max span using the same target/min ratios as the
+            // Python engine's own defaults (target_span_m=100/max_span_m=120, min_span_m=30/
+            // max_span_m=120), so the pole-placement engine actually honours the "Max pole span"
+            // control instead of silently falling back to those hardcoded defaults.
+            double maxSpanM = req.maxSpanMeters() != null ? req.maxSpanMeters().doubleValue() : 150.0;
+            Map<String, Object> poleConfig = new LinkedHashMap<>();
+            poleConfig.put("max_span_m", maxSpanM);
+            poleConfig.put("target_span_m", maxSpanM * (100.0 / 120.0));
+            poleConfig.put("min_span_m", maxSpanM * (30.0 / 120.0));
+
             PythonOptimisationRequest pythonReq = new PythonOptimisationRequest(
                     "job-" + job.getId(),
                     projectId.toString(),
                     scenario,
                     wtgGeoJson,
                     subGeoJson,
-                    electricalParams
+                    electricalParams,
+                    poleConfig
             );
 
             PythonOptimisationResponse pythonResp = pythonClient.runOptimization(pythonReq);
