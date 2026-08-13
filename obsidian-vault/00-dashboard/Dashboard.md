@@ -77,4 +77,4 @@ Welcome to the **SURGE Knowledge Vault**.
 - [[Scope]]
 - [[Overview & Layout]]
 - [[Surge MVP Ticket Plan]]
-- [Python Engine Roadmap](../../docs/Python%20Engine%20Roadmap.md)
+- [Sunday KMZ to 33 kV Network Plan](../08-python-engine/Sunday%20KMZ%20to%2033kV%20Network%20Plan.md)

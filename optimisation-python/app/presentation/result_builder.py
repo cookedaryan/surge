@@ -3,9 +3,26 @@
 import math
 from typing import Literal
 
+import pyproj
+
+from app.algorithms.pole_placement import PolePlacementConfig, place_poles_on_routes
+from app.algorithms.route_refinement import RefinedPhysicalRoute
 from app.electrical.load_flow.models import (
     LoadFlowNetworkResult,
     LoadFlowViolationCode,
+)
+from app.gis.constraints import (
+    ConstraintLayer,
+    ConstraintMode,
+    ConstraintType,
+    effective_constraint_geometry,
+)
+from app.gis.row_analysis import (
+    ConstraintFeature,
+    ConstraintLayerType,
+    ProjectConstraintLayers,
+    RowConfig,
+    analyse_row_corridors,
 )
 from app.pnc.models import ProjectPNCNetwork
 from app.presentation.exceptions import PresentationDataMismatchError
@@ -14,7 +31,9 @@ from app.presentation.models import (
     ElectricalSummary,
     FeederResult,
     NetworkSummary,
+    PoleSummary,
     ProjectOptimizationResult,
+    SpatialConstraintSummary,
     ViolationPresentation,
 )
 
@@ -22,6 +41,8 @@ from app.presentation.models import (
 def build_project_result(
     pnc_network: ProjectPNCNetwork,
     load_flow_result: LoadFlowNetworkResult,
+    pole_config: PolePlacementConfig | None = None,
+    constraint_layers: tuple[ConstraintLayer, ...] = (),
 ) -> ProjectOptimizationResult:
     """Merge PNC physical network and AC load flow results into a
     single presentation model.
@@ -162,15 +183,175 @@ def build_project_result(
     # 5. GeoJSON
     feature_collection = build_enriched_geojson(pnc_network, load_flow_result)
 
+    refined_routes = _network_routes(pnc_network)
+    pole_summary = None
+    if pole_config is not None:
+        pole_result = place_poles_on_routes(
+            refined_routes,
+            pole_config,
+        )
+        type_counts = {"terminal": 0, "angle": 0, "intermediate": 0}
+        transformer = pyproj.Transformer.from_crs(
+            pnc_network.crs, pyproj.CRS("EPSG:4326"), always_xy=True
+        )
+        for route in pole_result.routes:
+            for pole in route.poles:
+                type_counts[pole.pole_type] += 1
+                longitude, latitude = transformer.transform(
+                    pole.geometry.x, pole.geometry.y
+                )
+                structural_type = {
+                    "terminal": "33kV terminal/dead-end pole",
+                    "angle": "33kV angle/tension pole",
+                    "intermediate": "33kV tangent/suspension pole",
+                }[pole.pole_type]
+                feature_collection["features"].append(
+                    {
+                        "type": "Feature",
+                        "id": f"pole-{pole.pole_id}",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [longitude, latitude],
+                        },
+                        "properties": {
+                            "feature_type": "pnc_pole",
+                            "pole_id": pole.pole_id,
+                            "feeder_id": pole.feeder_id,
+                            "route_id": route.route_id,
+                            "sequence": pole.sequence,
+                            "pole_type": pole.pole_type,
+                            "recommended_pole_type": structural_type,
+                            "distance_along_route_m": round(
+                                pole.distance_along_route_m, 3
+                            ),
+                        },
+                    }
+                )
+        pole_summary = PoleSummary(
+            total_poles=pole_result.total_poles,
+            terminal_poles=type_counts["terminal"],
+            angle_poles=type_counts["angle"],
+            intermediate_poles=type_counts["intermediate"],
+        )
+
+    spatial_constraint_summary = _build_spatial_constraint_summary(
+        refined_routes,
+        pnc_network.crs,
+        constraint_layers,
+    )
+
     return ProjectOptimizationResult(
         project_id=pnc_network.project_id,
         network_summary=network_summary,
+        pole_summary=pole_summary,
+        spatial_constraint_summary=spatial_constraint_summary,
         electrical_summary=electrical_summary,
         feeders=feeder_results,
         violations=violations,
         feature_collection=feature_collection,
         source_crs=pnc_network.crs.to_string(),
     )
+
+
+def _network_routes(
+    pnc_network: ProjectPNCNetwork,
+) -> tuple[RefinedPhysicalRoute, ...]:
+    return tuple(
+        RefinedPhysicalRoute(
+            feeder_id=segment.feeder_id,
+            start_node_id=segment.from_node_id,
+            end_node_id=segment.to_node_id,
+            geometry=segment.route_geometry,
+            original_length_m=segment.route_length_m,
+            refined_length_m=segment.route_length_m,
+            original_traversal_cost=segment.route_length_m,
+            refined_traversal_cost=segment.route_length_m,
+        )
+        for feeder in pnc_network.feeders
+        for segment in feeder.segments
+    )
+
+
+def _build_spatial_constraint_summary(
+    routes: tuple[RefinedPhysicalRoute, ...],
+    route_crs: pyproj.CRS,
+    constraint_layers: tuple[ConstraintLayer, ...],
+) -> SpatialConstraintSummary | None:
+    if not constraint_layers:
+        return None
+
+    row_constraints = ProjectConstraintLayers(
+        features=tuple(
+            ConstraintFeature(
+                feature_id=layer.layer_id,
+                layer_type=_row_layer_type(layer.layer_type),
+                geometry=effective_constraint_geometry(layer),
+                severity=(
+                    "hard" if layer.mode == ConstraintMode.HARD_EXCLUSION else "soft"
+                ),
+            )
+            for layer in constraint_layers
+        ),
+        crs=route_crs,
+    )
+    analysis = analyse_row_corridors(
+        routes,
+        route_crs,
+        row_constraints,
+        RowConfig(corridor_width_m=0.01),
+    )
+    hard_ids = {
+        layer.layer_id
+        for layer in constraint_layers
+        if layer.mode == ConstraintMode.HARD_EXCLUSION
+        and any(
+            route.geometry.intersects(effective_constraint_geometry(layer))
+            for route in routes
+        )
+    }
+    if hard_ids:
+        raise PresentationDataMismatchError(
+            "Recommended route intersects hard exclusion(s): "
+            + ", ".join(sorted(hard_ids))
+        )
+
+    soft_intersections = tuple(
+        intersection
+        for intersection in analysis.intersections
+        if intersection.severity == "soft"
+        and not intersection.touches_only
+        and intersection.route_overlap_length_m > 0
+    )
+    affected_parcels = {
+        intersection.feature_id
+        for intersection in soft_intersections
+        if intersection.layer_type == "parcel"
+    }
+    return SpatialConstraintSummary(
+        hard_exclusion_violation_count=0,
+        soft_constraint_intersection_count=len(soft_intersections),
+        soft_constraint_overlap_length_m=math.fsum(
+            intersection.route_overlap_length_m for intersection in soft_intersections
+        ),
+        road_crossing_count=analysis.road_crossing_count,
+        affected_parcel_count=len(affected_parcels),
+        affected_parcel_overlap_length_m=math.fsum(
+            intersection.route_overlap_length_m
+            for intersection in soft_intersections
+            if intersection.layer_type == "parcel"
+        ),
+    )
+
+
+def _row_layer_type(layer_type: ConstraintType) -> ConstraintLayerType:
+    mapping: dict[ConstraintType, ConstraintLayerType] = {
+        ConstraintType.ROAD: "road",
+        ConstraintType.HT_LINE: "environmental",
+        ConstraintType.WATERCOURSE: "water",
+        ConstraintType.PARCEL: "parcel",
+        ConstraintType.RESTRICTED_AREA: "restricted",
+    }
+    return mapping[layer_type]
 
 
 def _validate_cross_references(

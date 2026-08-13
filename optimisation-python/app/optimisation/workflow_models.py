@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.algorithms.pole_placement import PolePlacementConfig
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult, WTGOperatingPoint
+from app.gis.constraints import ConstraintLayer
 from app.gis.cost_surface import CostSurface
 from app.models.spatial import ProjectSpatialData
 from app.optimisation.scenario_models import (
@@ -38,6 +40,7 @@ class ProjectInput:
     cost_surface: CostSurface
     feeder_capacity_mw: float
     operating_points: tuple[WTGOperatingPoint, ...]
+    constraint_layers: tuple[ConstraintLayer, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -45,6 +48,7 @@ class OptimisationConfig:
     scenario: ScenarioGenerationConfig
     electrical: LoadFlowConfig
     scoring: CandidateScoringConfig
+    pole: PolePlacementConfig | None = None
 
 
 class WorkflowStage(StrEnum):

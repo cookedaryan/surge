@@ -80,6 +80,6 @@ SURGE (Smart Utility Routing and Grid Evacuation) is comprised of three core com
 ## Documentation References
 For more details, please refer to the project docs located in `/docs` and the Obsidian vault in `/obsidian-vault`.
 - `docs/MVP - Minimum Viable Product.md`
-- `docs/Python Engine Roadmap.md`
 - `docs/Python Engine - Architecture.md`
 - `docs/Surge MVP Ticket Plan.md`
+- `docs/whats-next.md`

@@ -19,6 +19,23 @@ class ApiModel(BaseModel):
 class RoutingConfigRequest(ApiModel):
     resolution_m: float = Field(default=20.0, ge=5.0, le=100.0)
     padding_m: float = Field(default=1000.0, ge=0.0, le=5000.0)
+    avoidance_buffer_m: float = Field(default=10.0, ge=0.0, le=500.0)
+    avoidance_cost_weight: float = Field(default=20.0, gt=0.0, le=1_000_000.0)
+
+
+class PoleConfigRequest(ApiModel):
+    target_span_m: float = Field(default=100.0, gt=0.0, le=500.0)
+    min_span_m: float = Field(default=30.0, gt=0.0, le=500.0)
+    max_span_m: float = Field(default=120.0, gt=0.0, le=500.0)
+    angle_pole_threshold_deg: float = Field(default=10.0, ge=0.0, le=180.0)
+
+    @model_validator(mode="after")
+    def validate_spans(self) -> Self:
+        if self.min_span_m > self.max_span_m:
+            raise ValueError("min_span_m must not exceed max_span_m")
+        if self.target_span_m > self.max_span_m:
+            raise ValueError("target_span_m must not exceed max_span_m")
+        return self
 
 
 class OperatingPointConfig(ApiModel):
@@ -92,8 +109,10 @@ class OptimiseProjectRequest(ApiModel):
 
     wtg_geojson: GeoJSON
     substation_geojson: GeoJSON
+    avoidance_geojson: GeoJSON | None = None
 
     routing_config: RoutingConfigRequest = Field(default_factory=RoutingConfigRequest)
+    pole_config: PoleConfigRequest = Field(default_factory=PoleConfigRequest)
     operating_point_config: OperatingPointConfig = Field(
         default_factory=OperatingPointConfig
     )

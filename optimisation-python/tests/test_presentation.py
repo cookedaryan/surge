@@ -5,7 +5,7 @@ from dataclasses import replace
 
 import pyproj
 import pytest
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, Polygon
 
 from app.electrical.load_flow.models import (
     LoadFlowBusResult,
@@ -15,6 +15,7 @@ from app.electrical.load_flow.models import (
     LoadFlowViolation,
     LoadFlowViolationCode,
 )
+from app.gis.constraints import ConstraintLayer, ConstraintMode, ConstraintType
 from app.pnc.models import PNCFeeder, PNCSegment, ProjectPNCNetwork
 from app.presentation.exceptions import PresentationDataMismatchError
 from app.presentation.result_builder import build_project_result
@@ -220,6 +221,82 @@ def test_build_project_result_success() -> None:
     assert seg_props["loading_percent"] == 55.0
     assert seg_props["from_voltage_pu"] == 1.0
     assert seg_props["to_voltage_pu"] == 0.98
+
+
+def test_soft_constraint_impacts_are_disclosed() -> None:
+    pnc, load_flow = _valid_inputs()
+    constraints = (
+        ConstraintLayer(
+            layer_id="road-1",
+            layer_type=ConstraintType.ROAD,
+            mode=ConstraintMode.SOFT_PENALTY,
+            geometry=LineString([(500050.0, 999990.0), (500050.0, 1000010.0)]),
+            buffer_m=5.0,
+            cost_weight=20.0,
+            crs=UTM_CRS,
+        ),
+        ConstraintLayer(
+            layer_id="parcel-1",
+            layer_type=ConstraintType.PARCEL,
+            mode=ConstraintMode.SOFT_PENALTY,
+            geometry=Polygon(
+                [
+                    (500070.0, 999990.0),
+                    (500090.0, 999990.0),
+                    (500090.0, 1000010.0),
+                    (500070.0, 1000010.0),
+                ]
+            ),
+            buffer_m=0.0,
+            cost_weight=5.0,
+            crs=UTM_CRS,
+        ),
+    )
+
+    result = build_project_result(
+        pnc,
+        load_flow,
+        constraint_layers=constraints,
+    )
+
+    summary = result.spatial_constraint_summary
+    assert summary is not None
+    assert summary.hard_exclusion_violation_count == 0
+    assert summary.soft_constraint_intersection_count == 2
+    assert summary.soft_constraint_overlap_length_m == pytest.approx(30.0)
+    assert summary.road_crossing_count == 1
+    assert summary.affected_parcel_count == 1
+    assert summary.affected_parcel_overlap_length_m == pytest.approx(20.0)
+
+
+def test_hard_constraint_intersection_fails_packaging() -> None:
+    pnc, load_flow = _valid_inputs()
+    hard_constraint = ConstraintLayer(
+        layer_id="restricted-1",
+        layer_type=ConstraintType.RESTRICTED_AREA,
+        mode=ConstraintMode.HARD_EXCLUSION,
+        geometry=Polygon(
+            [
+                (500040.0, 999990.0),
+                (500060.0, 999990.0),
+                (500060.0, 1000010.0),
+                (500040.0, 1000010.0),
+            ]
+        ),
+        buffer_m=0.0,
+        cost_weight=None,
+        crs=UTM_CRS,
+    )
+
+    with pytest.raises(
+        PresentationDataMismatchError,
+        match="Recommended route intersects hard exclusion",
+    ):
+        build_project_result(
+            pnc,
+            load_flow,
+            constraint_layers=(hard_constraint,),
+        )
 
 
 def test_missing_bus_mismatch() -> None:

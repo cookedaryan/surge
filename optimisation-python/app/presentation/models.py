@@ -27,6 +27,22 @@ class NetworkSummary(PresentationModel):
     total_route_length_m: float
 
 
+class PoleSummary(PresentationModel):
+    total_poles: int
+    terminal_poles: int
+    angle_poles: int
+    intermediate_poles: int
+
+
+class SpatialConstraintSummary(PresentationModel):
+    hard_exclusion_violation_count: int
+    soft_constraint_intersection_count: int
+    soft_constraint_overlap_length_m: float
+    road_crossing_count: int
+    affected_parcel_count: int
+    affected_parcel_overlap_length_m: float
+
+
 class ElectricalSummary(PresentationModel):
     converged: bool
     valid: bool
@@ -70,6 +86,8 @@ class ProjectOptimizationResult(PresentationModel):
     schema_version: str = "1.0.0"
     project_id: str
     network_summary: NetworkSummary
+    pole_summary: PoleSummary | None = None
+    spatial_constraint_summary: SpatialConstraintSummary | None = None
     electrical_summary: ElectricalSummary
     feeders: list[FeederResult]
     violations: list[ViolationPresentation]

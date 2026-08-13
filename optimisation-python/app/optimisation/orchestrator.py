@@ -391,6 +391,8 @@ def optimise_project(
             presentation = build_project_result(
                 pnc_network=winner_candidate.scenario.network,
                 load_flow_result=winner_candidate.load_flow_result,
+                pole_config=config.pole,
+                constraint_layers=project_input.constraint_layers,
             )
             # Create a new instance with the presentation result
             winner_candidate = replace(
