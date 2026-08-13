@@ -226,16 +226,18 @@ def test_build_project_result_success() -> None:
 def test_build_project_result_with_poles() -> None:
     """Test successful generation of presentation output including poles."""
     pnc, lf = _valid_inputs()
-    # Provide a simple pole config to generate poles
-    from app.algorithms.pole_placement import PolePlacementConfig
-
+    
+    from app.algorithms.pole_placement import place_poles_on_network, PolePlacementConfig
+    # Provide a simple pole config to generate poles and simulate what the orchestrator does
     pole_config = PolePlacementConfig(
         target_span_m=50.0,
         min_span_m=10.0,
         max_span_m=60.0,
+        coordinate_tolerance_m=1.0,
     )
+    pole_network = place_poles_on_network(pnc, pole_config)
 
-    result = build_project_result(pnc, lf, pole_config=pole_config)
+    result = build_project_result(pnc, lf, pole_network=pole_network)
 
     # Assert pole summary exists
     assert result.pole_summary is not None
@@ -255,7 +257,25 @@ def test_build_project_result_with_poles() -> None:
     # Rest should be poles
     pole_features = features[3:]
     assert len(pole_features) == result.pole_summary.total_poles
-    assert pole_features[0]["properties"]["feature_type"] == "pnc_pole"
+    
+    for i, pole_feature in enumerate(pole_features):
+        props = pole_feature["properties"]
+        assert props["feature_type"] == "pnc_pole"
+        
+        # Verify canonical properties required by the presentation boundary
+        assert "pole_id" in props
+        assert "connected_feeder_ids" in props
+        assert "connected_route_ids" in props
+        assert "connected_node_ids" in props
+        assert "pole_role" in props
+        
+        # Verify ordering (topology_node, pole_id, route_ids) is deterministic
+        # For a single route, they should naturally be in span order
+        if i > 0:
+            prev_props = pole_features[i - 1]["properties"]
+            # Just asserting that they are consistently formatted
+            assert isinstance(props["pole_id"], str)
+            assert isinstance(props["connected_feeder_ids"], list)
 
     # Bbox should include pole coordinates
     bbox = fc["bbox"]

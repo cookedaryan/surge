@@ -7,8 +7,6 @@ import pyproj
 
 from app.algorithms.pole_placement import (
     CollectorPoleResult,
-    PolePlacementConfig,
-    place_poles_on_network,
 )
 from app.algorithms.route_refinement import RefinedPhysicalRoute
 from app.electrical.load_flow.models import (
@@ -45,7 +43,6 @@ from app.presentation.models import (
 def build_project_result(
     pnc_network: ProjectPNCNetwork,
     load_flow_result: LoadFlowNetworkResult,
-    pole_config: PolePlacementConfig | None = None,
     pole_network: CollectorPoleResult | None = None,
     constraint_layers: tuple[ConstraintLayer, ...] = (),
 ) -> ProjectOptimizationResult:
@@ -187,22 +184,18 @@ def build_project_result(
 
     refined_routes = _network_routes(pnc_network)
     pole_summary = None
-    pole_result = pole_network
-    if pole_result is None and pole_config is not None:
-        pole_result = place_poles_on_network(pnc_network, pole_config)
-
-    if pole_result is not None:
+    if pole_network is not None:
         type_counts = {
             "terminal": 0,
             "angle": 0,
             "intermediate": 0,
             "junction": 0,
         }
-        for pole in pole_result.physical_poles:
+        for pole in pole_network.physical_poles:
             type_counts[pole.pole_type] += 1
 
         pole_summary = PoleSummary(
-            total_poles=pole_result.total_poles,
+            total_poles=pole_network.total_poles,
             terminal_poles=type_counts["terminal"],
             angle_poles=type_counts["angle"],
             intermediate_poles=type_counts["intermediate"],
@@ -213,7 +206,7 @@ def build_project_result(
     feature_collection = build_enriched_geojson(
         pnc_network,
         load_flow_result,
-        pole_result,
+        pole_network,
     )
 
     spatial_constraint_summary = _build_spatial_constraint_summary(
