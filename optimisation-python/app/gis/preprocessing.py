@@ -60,7 +60,10 @@ def _haversine_m(lon1: float, lat1: float, lon2: float, lat2: float) -> float:
     p1, p2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
-    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(p1) * math.cos(p2) * math.sin(dlambda / 2) ** 2
+    )
     return 2 * earth_radius_m * math.asin(math.sqrt(a))
 
 
@@ -69,11 +72,12 @@ def _select_primary_substation(
 ) -> dict[str, Any]:
     """Picks the substation feeders should connect to when more than one is supplied.
 
-    Prefers the highest-capacity substation when at least one reports a positive capacity.
+    Prefers the highest-capacity substation when at least one reports a positive
+    capacity.
     Survey KMZ files typically carry no capacity metadata at all, in which case every
-    substation ties at zero; falling back to feature order in that case can silently pick a
-    connection point many kilometres from the actual site. When capacity gives no signal,
-    pick whichever substation sits closest to the WTG cluster instead.
+    substation ties at zero; falling back to feature order in that case can silently
+    pick a connection point many kilometres from the actual site. When capacity gives
+    no signal, pick whichever substation sits closest to the WTG cluster instead.
     """
     if len(sub_features) == 1:
         return sub_features[0]
