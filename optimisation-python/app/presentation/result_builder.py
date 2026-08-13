@@ -5,7 +5,11 @@ from typing import Literal
 
 import pyproj
 
-from app.algorithms.pole_placement import PolePlacementConfig, place_poles_on_routes
+from app.algorithms.pole_placement import (
+    CollectorPoleResult,
+    PolePlacementConfig,
+    place_poles_on_network,
+)
 from app.algorithms.route_refinement import RefinedPhysicalRoute
 from app.electrical.load_flow.models import (
     LoadFlowNetworkResult,
@@ -42,6 +46,7 @@ def build_project_result(
     pnc_network: ProjectPNCNetwork,
     load_flow_result: LoadFlowNetworkResult,
     pole_config: PolePlacementConfig | None = None,
+    pole_network: CollectorPoleResult | None = None,
     constraint_layers: tuple[ConstraintLayer, ...] = (),
 ) -> ProjectOptimizationResult:
     """Merge PNC physical network and AC load flow results into a
@@ -180,59 +185,36 @@ def build_project_result(
             )
         )
 
-    # 5. GeoJSON
-    feature_collection = build_enriched_geojson(pnc_network, load_flow_result)
-
     refined_routes = _network_routes(pnc_network)
     pole_summary = None
-    if pole_config is not None:
-        pole_result = place_poles_on_routes(
-            refined_routes,
-            pole_config,
-        )
-        type_counts = {"terminal": 0, "angle": 0, "intermediate": 0}
-        transformer = pyproj.Transformer.from_crs(
-            pnc_network.crs, pyproj.CRS("EPSG:4326"), always_xy=True
-        )
-        for route in pole_result.routes:
-            for pole in route.poles:
-                type_counts[pole.pole_type] += 1
-                longitude, latitude = transformer.transform(
-                    pole.geometry.x, pole.geometry.y
-                )
-                structural_type = {
-                    "terminal": "33kV terminal/dead-end pole",
-                    "angle": "33kV angle/tension pole",
-                    "intermediate": "33kV tangent/suspension pole",
-                }[pole.pole_type]
-                feature_collection["features"].append(
-                    {
-                        "type": "Feature",
-                        "id": f"pole-{pole.pole_id}",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [longitude, latitude],
-                        },
-                        "properties": {
-                            "feature_type": "pnc_pole",
-                            "pole_id": pole.pole_id,
-                            "feeder_id": pole.feeder_id,
-                            "route_id": route.route_id,
-                            "sequence": pole.sequence,
-                            "pole_type": pole.pole_type,
-                            "recommended_pole_type": structural_type,
-                            "distance_along_route_m": round(
-                                pole.distance_along_route_m, 3
-                            ),
-                        },
-                    }
-                )
+    pole_result = pole_network
+    if pole_result is None and pole_config is not None:
+        pole_result = place_poles_on_network(pnc_network, pole_config)
+
+    if pole_result is not None:
+        type_counts = {
+            "terminal": 0,
+            "angle": 0,
+            "intermediate": 0,
+            "junction": 0,
+        }
+        for pole in pole_result.physical_poles:
+            type_counts[pole.pole_type] += 1
+
         pole_summary = PoleSummary(
             total_poles=pole_result.total_poles,
             terminal_poles=type_counts["terminal"],
             angle_poles=type_counts["angle"],
             intermediate_poles=type_counts["intermediate"],
+            junction_poles=type_counts["junction"],
         )
+
+    # 5. GeoJSON
+    feature_collection = build_enriched_geojson(
+        pnc_network,
+        load_flow_result,
+        pole_result,
+    )
 
     spatial_constraint_summary = _build_spatial_constraint_summary(
         refined_routes,
@@ -266,6 +248,7 @@ def _network_routes(
             refined_length_m=segment.route_length_m,
             original_traversal_cost=segment.route_length_m,
             refined_traversal_cost=segment.route_length_m,
+            route_id=segment.segment_id,
         )
         for feeder in pnc_network.feeders
         for segment in feeder.segments

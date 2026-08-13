@@ -3,6 +3,9 @@
 import math
 from typing import Any
 
+import pyproj
+
+from app.algorithms.pole_placement import CollectorPoleResult
 from app.electrical.load_flow.models import (
     LoadFlowNetworkResult,
     LoadFlowViolationCode,
@@ -21,6 +24,7 @@ _VOLTAGE_CODES = {
 def build_enriched_geojson(
     pnc_network: ProjectPNCNetwork,
     load_flow_result: LoadFlowNetworkResult,
+    pole_result: CollectorPoleResult | None = None,
 ) -> dict[str, Any]:
     """Return deterministic WGS-84 PNC features with optional LF telemetry.
 
@@ -88,6 +92,46 @@ def build_enriched_geojson(
                 f"Unsupported PNC feature_type: {feature_type!r}"
             )
         _validate_json_value(properties, f"feature {feature['id']} properties")
+
+    if pole_result is not None:
+        transformer = pyproj.Transformer.from_crs(
+            pnc_network.crs, pyproj.CRS("EPSG:4326"), always_xy=True
+        )
+        for pole in pole_result.physical_poles:
+            longitude, latitude = transformer.transform(
+                pole.geometry.x, pole.geometry.y
+            )
+            positions.append((longitude, latitude))
+            structural_type = {
+                "terminal": "33kV terminal/dead-end pole",
+                "angle": "33kV angle/tension pole",
+                "intermediate": "33kV tangent/suspension pole",
+                "junction": "33kV shared junction pole",
+            }.get(pole.pole_type, "33kV pole")
+            properties = {
+                "feature_type": "pnc_pole",
+                "pole_id": pole.pole_id,
+                "connected_feeder_ids": sorted(list(pole.feeder_ids)),
+                "connected_route_ids": sorted(list(pole.route_ids)),
+                "source_pole_ids": sorted(list(pole.source_pole_ids)),
+                "pole_role": pole.pole_type,
+                "recommended_pole_type": structural_type,
+                "connected_node_ids": (
+                    [pole.topology_node_id] if pole.topology_node_id else []
+                ),
+            }
+            features.append(
+                {
+                    "type": "Feature",
+                    "id": f"pole-{pole.pole_id}",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [longitude, latitude],
+                    },
+                    "properties": properties,
+                }
+            )
+            _validate_json_value(properties, f"feature pole-{pole.pole_id} properties")
 
     if not positions:
         raise PresentationDataMismatchError("FeatureCollection contains no positions")

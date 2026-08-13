@@ -32,6 +32,7 @@ class PoleSummary(PresentationModel):
     terminal_poles: int
     angle_poles: int
     intermediate_poles: int
+    junction_poles: int
 
 
 class SpatialConstraintSummary(PresentationModel):
