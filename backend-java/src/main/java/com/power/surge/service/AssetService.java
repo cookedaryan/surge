@@ -577,7 +577,8 @@ public class AssetService {
                 return overridden;
             }
         }
-        return classify(parsed).status();
+        WtgStatus status = classify(parsed).status();
+        return status != WtgStatus.UNKNOWN ? status : WtgStatus.APPROVED;
     }
 
     private String lookupOverride(Map<String, String> overrides, String externalId) {

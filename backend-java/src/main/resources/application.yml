@@ -12,6 +12,10 @@ spring:
       max-file-size: 25MB
       max-request-size: 25MB
 
+surge:
+  python-engine:
+    url: ${PYTHON_ENGINE_URL:http://localhost:8000}
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:surgedb}
     username: ${DB_USER:postgres}

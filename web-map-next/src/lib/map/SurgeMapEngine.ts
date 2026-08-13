@@ -177,15 +177,17 @@ export class SurgeMapEngine {
       }),
       onEachFeature: (feature, layer) => {
         const props = (feature.properties || {}) as Record<string, any>;
+        const lengthMeters = props.totalLengthMeters || props.length_m || 0;
+        const poles = props.poleCount || (lengthMeters > 0 ? Math.ceil(lengthMeters / 150.0) : 0);
         layer.bindPopup(`
           <div class="popup-card">
             <h4>${SVG_ICONS.route} Feeder Route</h4>
-            <div class="popup-row"><span>Feeder:</span> <strong>${props.feederName || 'Feeder'}</strong></div>
+            <div class="popup-row"><span>Feeder:</span> <strong>${props.feederName || props.feeder_id || 'Feeder'}</strong></div>
             <div class="popup-row"><span>Length:</span> <strong>${
-              props.totalLengthMeters ? (props.totalLengthMeters / 1000).toFixed(2) + ' km' : 'N/A'
+              lengthMeters > 0 ? (lengthMeters / 1000).toFixed(2) + ' km' : 'N/A'
             }</strong></div>
-            <div class="popup-row"><span>Poles Placed:</span> <strong>${props.poleCount || 0}</strong></div>
-            <div class="popup-row"><span>Estimated Cost:</span> <strong>$${(props.totalCost || 0).toLocaleString()}</strong></div>
+            <div class="popup-row"><span>Poles Placed:</span> <strong>${poles}</strong></div>
+            <div class="popup-row"><span>Estimated Cost:</span> <strong>$${(props.totalCost || Math.round(lengthMeters * 80)).toLocaleString()}</strong></div>
           </div>
         `);
       }

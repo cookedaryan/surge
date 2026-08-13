@@ -153,8 +153,19 @@ public class RouteService {
             }
 
             BigDecimal totalCost = extractBigDecimal(properties, "totalCost", "total_cost", "cost");
+            if (totalCost == null) {
+                totalCost = BigDecimal.valueOf(Math.round(totalLength.doubleValue() * 80.0));
+            }
+
             BigDecimal lossesKw = extractBigDecimal(properties, "electricalLossesKw", "electrical_losses_kw", "losses_kw");
+            if (lossesKw == null) {
+                lossesKw = BigDecimal.valueOf(Math.round(totalLength.doubleValue() * 0.005 * 100.0) / 100.0);
+            }
+
             Integer poleCount = extractInteger(properties, "poleCount", "pole_count", "poles");
+            if (poleCount == null || poleCount <= 0) {
+                poleCount = Math.max(2, (int) Math.ceil(totalLength.doubleValue() / 150.0) + 1);
+            }
 
             GeneratedRoute route = new GeneratedRoute(
                     job,
@@ -162,7 +173,7 @@ public class RouteService {
                     totalLength,
                     totalCost,
                     lossesKw,
-                    poleCount != null ? poleCount : 0,
+                    poleCount,
                     lineString,
                     null
             );

@@ -12,7 +12,7 @@ public class PythonOptimizationClient {
 
     private final RestClient restClient;
 
-    public PythonOptimizationClient(@Value("${surge.python-engine.url:http://localhost:8000}") String baseUrl) {
+    public PythonOptimizationClient(@Value("${surge.python-engine.url:${PYTHON_ENGINE_URL:http://localhost:8000}}") String baseUrl) {
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
                 .build();
