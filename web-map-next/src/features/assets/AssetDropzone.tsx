@@ -53,18 +53,27 @@ export function AssetDropzone({ mapRef, onKmzPreview }: AssetDropzoneProps) {
         <span className="text-[11px] text-textFaint">or click to browse</span>
         <input ref={fileInputRef} type="file" multiple accept=".geojson,.json,.kmz,.kml" className="hidden" onChange={onFileInputChange} />
       </div>
-      <div className="flex flex-wrap gap-1.5 mt-2.5">
-        {TYPE_OPTIONS.map((opt) => (
-          <button
-            key={opt.value}
-            onClick={() => setSelectedType(opt.value)}
-            className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-              selectedType === opt.value ? 'bg-accent border-accent text-white' : 'bg-surface2 border-borderStrong text-textMuted'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-1.5 mt-2.5 items-center justify-between">
+        <div className="flex flex-wrap gap-1.5">
+          {TYPE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setSelectedType(opt.value)}
+              className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
+                selectedType === opt.value ? 'bg-accent border-accent text-white' : 'bg-surface2 border-borderStrong text-textMuted'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <a
+          href="/sample_wind_farm.kmz"
+          download="sample_wind_farm.kmz"
+          className="text-[11px] font-medium text-accent hover:underline inline-flex items-center gap-1 mt-1"
+        >
+          ⬇️ Download Sample .KMZ
+        </a>
       </div>
     </Card>
   );

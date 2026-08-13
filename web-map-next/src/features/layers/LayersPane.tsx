@@ -7,6 +7,7 @@ const LAYER_TOGGLES: { key: LayerName; label: string }[] = [
   { key: 'towers', label: 'Evacuation towers' },
   { key: 'referenceLines', label: 'Reference lines' },
   { key: 'routes', label: 'Feeder routes' },
+  { key: 'poles', label: 'Poles' },
   { key: 'parcels', label: 'Parcels' },
   { key: 'restricted', label: 'Restricted zones' }
 ];

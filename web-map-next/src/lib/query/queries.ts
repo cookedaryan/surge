@@ -37,6 +37,14 @@ export function useRoutes(projectId: string | null, jobId: string | null) {
   });
 }
 
+export function usePoles(projectId: string | null, jobId: string | null) {
+  return useQuery({
+    queryKey: ['poles', projectId, jobId],
+    queryFn: () => api.getPolesGeoJson(projectId as string, jobId),
+    enabled: !!projectId
+  });
+}
+
 export function useBomReport(projectId: string | null) {
   return useQuery({
     queryKey: ['bom', projectId],

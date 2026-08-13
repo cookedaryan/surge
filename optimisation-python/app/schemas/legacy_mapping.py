@@ -67,6 +67,11 @@ def to_legacy_api_response(
         if presentation
         else None
     )
+    poles = (
+        _legacy_pole_collection(presentation.feature_collection)
+        if presentation
+        else None
+    )
     network_summary = presentation.network_summary if presentation else None
     status: Literal["success", "failed"] = (
         "success"
@@ -79,6 +84,7 @@ def to_legacy_api_response(
         status=status,
         scenario=payload.scenario,
         feeder_routes_geojson=routes,
+        poles_geojson=poles,
         metrics=OptimisationMetrics(
             feeder_count=network_summary.feeder_count if network_summary else 0,
             total_length_m=(
@@ -143,6 +149,34 @@ def _legacy_route_collection(feature_collection: dict[str, Any]) -> dict[str, An
                 "refined_length_m": length_m,
                 "original_traversal_cost": length_m,
                 "refined_traversal_cost": length_m,
+            }
+        )
+        features.append(
+            {
+                "type": "Feature",
+                "id": feature.get("id"),
+                "properties": legacy_properties,
+                "geometry": feature["geometry"],
+            }
+        )
+    return {"type": "FeatureCollection", "features": features}
+
+
+def _legacy_pole_collection(feature_collection: dict[str, Any]) -> dict[str, Any]:
+    features: list[dict[str, Any]] = []
+    for feature in feature_collection.get("features", []):
+        properties = feature.get("properties", {})
+        if properties.get("feature_type") != "pnc_pole":
+            continue
+        feeder_ids = properties.get("connected_feeder_ids") or []
+        legacy_properties = dict(properties)
+        legacy_properties.update(
+            {
+                "poleId": properties.get("pole_id"),
+                "feederName": feeder_ids[0] if feeder_ids else None,
+                "feederIds": feeder_ids,
+                "poleRole": properties.get("pole_role"),
+                "recommendedPoleType": properties.get("recommended_pole_type"),
             }
         )
         features.append(

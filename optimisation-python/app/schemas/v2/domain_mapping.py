@@ -28,8 +28,8 @@ from app.schemas.v2.optimise import (
     RecommendationSummary,
 )
 
-MAX_WTGS = 50
-MAX_RASTER_CELLS = 1_000_000
+MAX_WTGS = 500
+MAX_RASTER_CELLS = 15_000_000
 
 
 @dataclass(frozen=True)

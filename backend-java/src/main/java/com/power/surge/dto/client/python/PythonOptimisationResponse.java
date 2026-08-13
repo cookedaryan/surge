@@ -9,6 +9,7 @@ public record PythonOptimisationResponse(
         @JsonProperty("status") String status,
         @JsonProperty("scenario") String scenario,
         @JsonProperty("feeder_routes_geojson") Map<String, Object> feederRoutesGeojson,
+        @JsonProperty("poles_geojson") Map<String, Object> polesGeojson,
         @JsonProperty("metrics") Map<String, Object> metrics
 ) {
 }

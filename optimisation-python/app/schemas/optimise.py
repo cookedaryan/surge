@@ -73,6 +73,7 @@ class OptimisationResponse(BaseModel):
     status: Literal["success", "failed"]
     scenario: OptimisationScenario
     feeder_routes_geojson: GeoJSON | None = None
+    poles_geojson: GeoJSON | None = None
     metrics: OptimisationMetrics = Field(default_factory=OptimisationMetrics)
     schema_version: str = "2.0"
     workflow_status: Literal[

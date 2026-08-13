@@ -31,6 +31,7 @@ export class SurgeMapEngine {
       towers: L.featureGroup().addTo(this.map),
       referenceLines: L.featureGroup().addTo(this.map),
       routes: L.featureGroup().addTo(this.map),
+      poles: L.featureGroup().addTo(this.map),
       parcels: L.featureGroup().addTo(this.map),
       restricted: L.featureGroup().addTo(this.map),
       imported: L.featureGroup().addTo(this.map)
@@ -192,6 +193,40 @@ export class SurgeMapEngine {
         `);
       }
     }).addTo(this.layers.routes);
+  }
+
+  renderPoles(geoJson: FeatureCollection): void {
+    this.layers.poles.clearLayers();
+    if (!geoJson || !geoJson.features) return;
+    const roleColors: Record<string, string> = {
+      terminal: '#F59E0B',
+      angle: '#EF4444',
+      junction: '#8B5CF6',
+      intermediate: '#94A3B8'
+    };
+    L.geoJSON(geoJson, {
+      pointToLayer: (feature, latlng) => {
+        const props = (feature.properties || {}) as Record<string, any>;
+        const role = String(props.poleRole || 'intermediate').toLowerCase();
+        const color = roleColors[role] || roleColors.intermediate;
+        const marker = L.circleMarker(latlng, {
+          radius: role === 'intermediate' ? 3 : 5,
+          color,
+          weight: 1.5,
+          fillColor: color,
+          fillOpacity: 0.85
+        });
+        marker.bindPopup(`
+          <div class="popup-card">
+            <h4>${SVG_ICONS.genericPoint} Pole</h4>
+            <div class="popup-row"><span>Pole ID:</span> <strong>${props.poleId || feature.id}</strong></div>
+            <div class="popup-row"><span>Type:</span> <strong>${props.recommendedPoleType || role}</strong></div>
+            ${props.feederName ? `<div class="popup-row"><span>Feeder:</span> <strong>${props.feederName}</strong></div>` : ''}
+          </div>
+        `);
+        return marker;
+      }
+    }).addTo(this.layers.poles);
   }
 
   renderParcels(geoJson: FeatureCollection, fillOpacity = 0.25): void {

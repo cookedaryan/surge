@@ -2,15 +2,30 @@ import { API_BASE_URL, emptyGeoJson, fetchJson } from './client';
 import type { FeatureCollection, Job, JobProgress, OptimizationParams } from './types';
 
 export async function getRoutesGeoJson(projectId: string, jobId?: string | null): Promise<FeatureCollection> {
+  // Without a specific jobId (e.g. on page load, or after switching to a project that
+  // already has a completed run from an earlier session) fall back to the project's most
+  // recent completed job instead of rendering an empty map.
+  const url = jobId
+    ? `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/routes/geojson`
+    : `${API_BASE_URL}/projects/${projectId}/routes/latest/geojson`;
   try {
-    if (jobId) {
-      const res = await fetchJson<FeatureCollection>(
-        `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/routes/geojson`
-      );
-      if (res && Array.isArray(res.features)) return res;
-    }
+    const res = await fetchJson<FeatureCollection>(url);
+    if (res && Array.isArray(res.features)) return res;
   } catch (e) {
     console.warn('[Routes API Error]', e);
+  }
+  return emptyGeoJson();
+}
+
+export async function getPolesGeoJson(projectId: string, jobId?: string | null): Promise<FeatureCollection> {
+  const url = jobId
+    ? `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/poles/geojson`
+    : `${API_BASE_URL}/projects/${projectId}/poles/latest/geojson`;
+  try {
+    const res = await fetchJson<FeatureCollection>(url);
+    if (res && Array.isArray(res.features)) return res;
+  } catch (e) {
+    console.warn('[Poles API Error]', e);
   }
   return emptyGeoJson();
 }
