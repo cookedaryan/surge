@@ -22,7 +22,7 @@ export function Select({ value, onValueChange, options, className }: SelectProps
         <RadixSelect.Icon>▾</RadixSelect.Icon>
       </RadixSelect.Trigger>
       <RadixSelect.Portal>
-        <RadixSelect.Content className="bg-panel border border-borderStrong rounded-md overflow-hidden z-50">
+        <RadixSelect.Content className="bg-panel border border-borderStrong rounded-md overflow-hidden z-[10010]">
           <RadixSelect.Viewport>
             {options.map((opt) => (
               <RadixSelect.Item

@@ -32,7 +32,7 @@ export function AuthGateway() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 font-ui">
+    <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/85 font-ui">
       <form onSubmit={handleSubmit} className="w-[320px] bg-panel border border-borderStrong rounded-lg p-5 flex flex-col gap-3">
         <h2 className="m-0 text-sm font-bold text-text">Sign in to SURGE</h2>
         <p className="m-0 text-[11.5px] text-textFaint">Engineering access is required to load or edit project data.</p>
