@@ -1,7 +1,7 @@
 """Tests for AC load flow execution and analysis."""
 
 import math
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pyproj
 import pytest
@@ -14,6 +14,7 @@ from app.electrical.load_flow.models import LoadFlowViolationCode, WTGOperatingP
 from app.pnc.models import PNCFeeder, PNCSegment, ProjectPNCNetwork
 
 _CRS = pyproj.CRS("EPSG:32630")
+PNCFixture = tuple[ProjectPNCNetwork, list[WTGOperatingPoint]]
 
 
 @pytest.fixture
@@ -53,6 +54,7 @@ def simple_pnc() -> tuple[ProjectPNCNetwork, list[WTGOperatingPoint]]:
         to_node_id="WTG1",
         route_geometry=LineString([(0, 0), (5000, 0)]),
         route_length_m=5000.0,
+        traversal_cost=5000.0,
         segment_type="substation_to_wtg",
     )
 
@@ -87,7 +89,9 @@ def simple_pnc() -> tuple[ProjectPNCNetwork, list[WTGOperatingPoint]]:
     return net, ops
 
 
-def test_successful_convergence(simple_pnc, base_config):
+def test_successful_convergence(
+    simple_pnc: PNCFixture, base_config: LoadFlowConfig
+) -> None:
     net, ops = simple_pnc
     res = run_load_flow(net, ops, base_config)
 
@@ -104,6 +108,8 @@ def test_successful_convergence(simple_pnc, base_config):
     # The slack bus should be negative (absorbing power) roughly
     # equal to generation minus losses
     assert res.slack_power_mw is not None
+    assert res.total_active_loss_mw is not None
+    assert res.total_generation_mw is not None
     assert res.slack_power_mw < 0
     assert math.isclose(
         -res.slack_power_mw + res.total_active_loss_mw,
@@ -112,7 +118,7 @@ def test_successful_convergence(simple_pnc, base_config):
     )
 
 
-def test_overvoltage_violation(simple_pnc):
+def test_overvoltage_violation(simple_pnc: PNCFixture) -> None:
     net, ops = simple_pnc
 
     c = LoadFlowCableType(
@@ -142,7 +148,7 @@ def test_overvoltage_violation(simple_pnc):
     assert any(v.code == LoadFlowViolationCode.BUS_OVERVOLTAGE for v in res.violations)
 
 
-def test_cable_overload_violation(simple_pnc):
+def test_cable_overload_violation(simple_pnc: PNCFixture) -> None:
     net, ops = simple_pnc
 
     c = LoadFlowCableType(
@@ -170,7 +176,11 @@ def test_cable_overload_violation(simple_pnc):
 
 
 @patch("pandapower.runpp")
-def test_non_convergence_graceful(mock_runpp, simple_pnc, base_config):
+def test_non_convergence_graceful(
+    mock_runpp: MagicMock,
+    simple_pnc: PNCFixture,
+    base_config: LoadFlowConfig,
+) -> None:
     """Test that a solver failure is caught and handled gracefully."""
     from pandapower.powerflow import LoadflowNotConverged
 
@@ -190,7 +200,11 @@ def test_non_convergence_graceful(mock_runpp, simple_pnc, base_config):
 
 
 @patch("pandapower.runpp")
-def test_solver_execution_error_is_candidate_local(mock_runpp, simple_pnc, base_config):
+def test_solver_execution_error_is_candidate_local(
+    mock_runpp: MagicMock,
+    simple_pnc: PNCFixture,
+    base_config: LoadFlowConfig,
+) -> None:
     mock_runpp.side_effect = RuntimeError("solver crashed")
     net, ops = simple_pnc
 

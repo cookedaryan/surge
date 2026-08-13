@@ -15,6 +15,7 @@ from app.algorithms.route_refinement import RefinedPhysicalRoute
 from app.gis.row_analysis import (
     ConstraintFeature,
     ProjectConstraintLayers,
+    RowAnalysisResult,
     RowConfig,
     analyse_row_corridors,
 )
@@ -58,14 +59,14 @@ def make_feature(
     )
 
 
-def analyse(
+def analyse(  # type: ignore
     routes: tuple[RefinedPhysicalRoute, ...] = (make_route(),),
     features: tuple[ConstraintFeature, ...] = (),
     *,
     config: RowConfig | None = None,
     route_crs: CRS = PROJECT_CRS,
     constraint_crs: CRS = PROJECT_CRS,
-):
+) -> RowAnalysisResult:
     return analyse_row_corridors(
         routes,
         route_crs,

@@ -31,6 +31,7 @@ def _valid_inputs() -> tuple[ProjectPNCNetwork, LoadFlowNetworkResult]:
         to_node_id="WTG-1",
         route_geometry=LineString([(500000.0, 1000000.0), (500100.0, 1000000.0)]),
         route_length_m=100.0,
+        traversal_cost=100.0,
         segment_type="substation_to_wtg",
     )
     pnc = ProjectPNCNetwork(
@@ -128,6 +129,7 @@ def test_build_project_result_success() -> None:
                         to_node_id="WTG-1",
                         route_geometry=LineString([(1000.0, 1000.0), (1050.0, 1050.0)]),
                         route_length_m=70.7,
+                        traversal_cost=70.7,
                         segment_type="substation_to_wtg",
                     ),
                 ),
@@ -226,9 +228,13 @@ def test_build_project_result_success() -> None:
 def test_build_project_result_with_poles() -> None:
     """Test successful generation of presentation output including poles."""
     pnc, lf = _valid_inputs()
-    
-    from app.algorithms.pole_placement import place_poles_on_network, PolePlacementConfig
-    # Provide a simple pole config to generate poles and simulate what the orchestrator does
+
+    from app.algorithms.pole_placement import (
+        PolePlacementConfig,
+        place_poles_on_network,
+    )
+
+    # Generate poles here to simulate the network supplied by the orchestrator.
     pole_config = PolePlacementConfig(
         target_span_m=50.0,
         min_span_m=10.0,
@@ -257,22 +263,21 @@ def test_build_project_result_with_poles() -> None:
     # Rest should be poles
     pole_features = features[3:]
     assert len(pole_features) == result.pole_summary.total_poles
-    
+
     for i, pole_feature in enumerate(pole_features):
         props = pole_feature["properties"]
         assert props["feature_type"] == "pnc_pole"
-        
+
         # Verify canonical properties required by the presentation boundary
         assert "pole_id" in props
         assert "connected_feeder_ids" in props
         assert "connected_route_ids" in props
         assert "connected_node_ids" in props
         assert "pole_role" in props
-        
+
         # Verify ordering (topology_node, pole_id, route_ids) is deterministic
         # For a single route, they should naturally be in span order
         if i > 0:
-            prev_props = pole_features[i - 1]["properties"]
             # Just asserting that they are consistently formatted
             assert isinstance(props["pole_id"], str)
             assert isinstance(props["connected_feeder_ids"], list)
@@ -308,6 +313,7 @@ def test_place_poles_on_network_deduplicates_junction_poles() -> None:
                         to_node_id="WTG-1",
                         route_geometry=LineString([(1000.0, 1000.0), (1050.0, 1000.0)]),
                         route_length_m=50.0,
+                        traversal_cost=50.0,
                         segment_type="substation_to_wtg",
                     ),
                 ),
@@ -327,6 +333,7 @@ def test_place_poles_on_network_deduplicates_junction_poles() -> None:
                         to_node_id="WTG-2",
                         route_geometry=LineString([(1000.0, 1000.0), (1000.0, 1050.0)]),
                         route_length_m=50.0,
+                        traversal_cost=50.0,
                         segment_type="substation_to_wtg",
                     ),
                 ),
