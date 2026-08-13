@@ -7,6 +7,7 @@ from app.electrical.load_flow.models import LoadFlowNetworkResult, WTGOperatingP
 from app.gis.constraints import ConstraintLayer
 from app.gis.cost_surface import CostSurface
 from app.models.spatial import ProjectSpatialData
+from app.optimisation.engineering_metric_models import CandidateEngineeringAssessment
 from app.optimisation.scenario_models import (
     PNCScenario,
     ScenarioGenerationConfig,
@@ -83,6 +84,7 @@ class CandidateWorkflowResult:
     load_flow_result: LoadFlowNetworkResult | None
     evaluation: CandidateEvaluation | None
     execution_failure: CandidateFailure | None
+    engineering_assessment: CandidateEngineeringAssessment | None = None
     presentation_result: ProjectOptimizationResult | None = None
     pole_failure: CandidateFailure | None = None
     packaging_failure: CandidateFailure | None = None
@@ -104,6 +106,10 @@ class CandidateWorkflowResult:
                 raise ValueError("Execution failure cannot have a load-flow result.")
             if self.evaluation is not None:
                 raise ValueError("Execution failure cannot have an evaluation.")
+            if self.engineering_assessment is not None:
+                raise ValueError(
+                    "Execution failure cannot have an engineering assessment."
+                )
             if self.presentation_result is not None:
                 raise ValueError("Execution failure cannot have a presentation result.")
             if self.pole_failure is not None:
@@ -116,6 +122,14 @@ class CandidateWorkflowResult:
             if self.evaluation.assessment.scenario_id != self.scenario.scenario_id:
                 raise ValueError(
                     "Evaluation scenario_id must match the candidate scenario."
+                )
+        if self.engineering_assessment is not None:
+            if self.load_flow_result is None:
+                raise ValueError("Engineering assessment requires a load-flow result.")
+            if self.engineering_assessment.scenario_id != self.scenario.scenario_id:
+                raise ValueError(
+                    "Engineering assessment scenario_id must match the candidate "
+                    "scenario."
                 )
         if self.presentation_result is not None and self.evaluation is None:
             raise ValueError("Presentation result requires a candidate evaluation.")
@@ -211,6 +225,10 @@ class OptimisationWorkflowResult:
                 if candidate.load_flow_result is None or candidate.evaluation is None:
                     raise ValueError(
                         "Completed candidates require load-flow and evaluation results."
+                    )
+                if candidate.engineering_assessment is None:
+                    raise ValueError(
+                        "Completed candidates require an engineering assessment."
                     )
 
         if self.status in (

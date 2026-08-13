@@ -40,6 +40,7 @@ class PNCSegment:
     to_node_id: str
     route_geometry: LineString  # projected CRS
     route_length_m: float
+    traversal_cost: float
     segment_type: Literal["substation_to_wtg", "wtg_to_wtg"]
 
 

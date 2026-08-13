@@ -53,6 +53,7 @@ def simple_pnc() -> tuple[ProjectPNCNetwork, list[WTGOperatingPoint]]:
         to_node_id="WTG1",
         route_geometry=LineString([(0, 0), (5000, 0)]),
         route_length_m=5000.0,
+        traversal_cost=5000.0,
         segment_type="substation_to_wtg",
     )
 
@@ -87,7 +88,7 @@ def simple_pnc() -> tuple[ProjectPNCNetwork, list[WTGOperatingPoint]]:
     return net, ops
 
 
-def test_successful_convergence(simple_pnc, base_config):
+def test_successful_convergence(simple_pnc, base_config) -> None:  # type: ignore
     net, ops = simple_pnc
     res = run_load_flow(net, ops, base_config)
 
@@ -106,13 +107,13 @@ def test_successful_convergence(simple_pnc, base_config):
     assert res.slack_power_mw is not None
     assert res.slack_power_mw < 0
     assert math.isclose(
-        -res.slack_power_mw + res.total_active_loss_mw,
+        -res.slack_power_mw + res.total_active_loss_mw,  # type: ignore
         res.total_generation_mw,
         abs_tol=1e-3,
     )
 
 
-def test_overvoltage_violation(simple_pnc):
+def test_overvoltage_violation(simple_pnc) -> None:  # type: ignore
     net, ops = simple_pnc
 
     c = LoadFlowCableType(
@@ -142,7 +143,7 @@ def test_overvoltage_violation(simple_pnc):
     assert any(v.code == LoadFlowViolationCode.BUS_OVERVOLTAGE for v in res.violations)
 
 
-def test_cable_overload_violation(simple_pnc):
+def test_cable_overload_violation(simple_pnc) -> None:  # type: ignore
     net, ops = simple_pnc
 
     c = LoadFlowCableType(
@@ -170,7 +171,7 @@ def test_cable_overload_violation(simple_pnc):
 
 
 @patch("pandapower.runpp")
-def test_non_convergence_graceful(mock_runpp, simple_pnc, base_config):
+def test_non_convergence_graceful(mock_runpp, simple_pnc, base_config) -> None:  # type: ignore
     """Test that a solver failure is caught and handled gracefully."""
     from pandapower.powerflow import LoadflowNotConverged
 
@@ -190,7 +191,7 @@ def test_non_convergence_graceful(mock_runpp, simple_pnc, base_config):
 
 
 @patch("pandapower.runpp")
-def test_solver_execution_error_is_candidate_local(mock_runpp, simple_pnc, base_config):
+def test_solver_execution_error_is_candidate_local(mock_runpp, simple_pnc, base_config) -> None:  # type: ignore
     mock_runpp.side_effect = RuntimeError("solver crashed")
     net, ops = simple_pnc
 

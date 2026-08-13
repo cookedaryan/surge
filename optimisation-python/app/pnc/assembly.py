@@ -544,6 +544,7 @@ def _build_pnc_network(
                     to_node_id=v,
                     route_geometry=geom,
                     route_length_m=route.refined_length_m,
+                    traversal_cost=route.refined_traversal_cost,
                     segment_type=seg_type,  # type: ignore[arg-type]
                 )
             )

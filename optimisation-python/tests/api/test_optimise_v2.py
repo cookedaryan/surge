@@ -15,13 +15,13 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures"
 
 
 @pytest.fixture
-def mvp_v2_payload() -> dict:
+def mvp_v2_payload() -> dict:  # type: ignore
     fixture_path = FIXTURES_DIR / "mvp_demo_project_v2.json"
     with open(fixture_path) as f:
-        return json.load(f)
+        return json.load(f)  # type: ignore
 
 
-def test_v2_optimise_endpoint_success(mvp_v2_payload: dict) -> None:
+def test_v2_optimise_endpoint_success(mvp_v2_payload: dict) -> None:  # type: ignore
     response = client.post("/api/v2/optimise", json=mvp_v2_payload)
 
     assert response.status_code == 200, response.text
@@ -127,7 +127,7 @@ def test_v2_constraint_fixture_reports_soft_impacts() -> None:
     ],
 )
 def test_v2_optimise_endpoint_invalid_input(
-    mvp_v2_payload: dict,
+    mvp_v2_payload: dict,  # type: ignore
     mutation: str,
 ) -> None:
     payload = copy.deepcopy(mvp_v2_payload)
@@ -158,7 +158,7 @@ def test_v1_endpoint_remains_supported() -> None:
     assert post_op.get("deprecated") is not True
 
 
-def test_v2_reports_partial_success(mvp_v2_payload: dict) -> None:
+def test_v2_reports_partial_success(mvp_v2_payload: dict) -> None:  # type: ignore
     payload = copy.deepcopy(mvp_v2_payload)
     payload["scenario_config"]["candidate_count"] = 2
     payload["cable_config"]["nominal_voltage_kv"] = 66.0
@@ -173,7 +173,7 @@ def test_v2_reports_partial_success(mvp_v2_payload: dict) -> None:
     assert body["generation"]["accepted_candidate_count"] == 1
 
 
-def test_v2_reports_no_feasible_candidate(mvp_v2_payload: dict) -> None:
+def test_v2_reports_no_feasible_candidate(mvp_v2_payload: dict) -> None:  # type: ignore
     payload = copy.deepcopy(mvp_v2_payload)
     payload["cable_config"]["min_voltage_pu"] = 1.01
     payload["cable_config"]["max_voltage_pu"] = 1.10
@@ -188,7 +188,7 @@ def test_v2_reports_no_feasible_candidate(mvp_v2_payload: dict) -> None:
 
 
 def test_v2_reports_failed_workflow(
-    mvp_v2_payload: dict,
+    mvp_v2_payload: dict,  # type: ignore
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.optimisation import orchestrator

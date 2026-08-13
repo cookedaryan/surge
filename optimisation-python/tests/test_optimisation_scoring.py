@@ -110,8 +110,8 @@ def make_scenario(
             parameter_set_id="PS-X",
             strategy=strategy,
             grouping_seed=42,
-            grouping_objective="distance",
-            topology_weight_profile="default",
+            grouping_objective="distance",  # type: ignore
+            topology_weight_profile="default",  # type: ignore
             topology_penalty=0.0,
             effective_feeder_capacity_mw=10.0,
         ),
@@ -208,7 +208,7 @@ def make_wrapper(
     )
 
 
-def test_shortest_candidate_routing_advantage(
+def test_shortest_candidate_routing_advantage(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
@@ -237,7 +237,7 @@ def test_shortest_candidate_routing_advantage(
     assert winner_route_score.normalized_benefit == 1.0
 
 
-def test_lower_loss_candidate(
+def test_lower_loss_candidate(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
@@ -253,7 +253,7 @@ def test_lower_loss_candidate(
     assert rec.recommended_scenario_id == "SCN-002"
 
 
-def test_voltage_margin(
+def test_voltage_margin(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
@@ -277,12 +277,12 @@ def test_voltage_margin(
     assert rec.recommended_scenario_id == "SCN-002"
 
     evals = {e.assessment.scenario_id: e for e in rec.evaluations}
-    assert math.isclose(evals["SCN-002"].assessment.metrics.voltage_margin_pu, 0.02)
-    assert math.isclose(evals["SCN-001"].assessment.metrics.voltage_margin_pu, 0.01)
-    assert math.isclose(evals["SCN-003"].assessment.metrics.voltage_margin_pu, 0.005)
+    assert math.isclose(evals["SCN-002"].assessment.metrics.voltage_margin_pu, 0.02)  # type: ignore
+    assert math.isclose(evals["SCN-001"].assessment.metrics.voltage_margin_pu, 0.01)  # type: ignore
+    assert math.isclose(evals["SCN-003"].assessment.metrics.voltage_margin_pu, 0.005)  # type: ignore
 
 
-def test_lower_maximum_loading(
+def test_lower_maximum_loading(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
@@ -298,7 +298,7 @@ def test_lower_maximum_loading(
     assert rec.recommended_scenario_id == "SCN-002"
 
 
-def test_weighted_total_manual_calculation(
+def test_weighted_total_manual_calculation(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
 ):
     # Length: w=0.4, Loss: w=0.3, Loading: w=0.2, Voltage: w=0.1
@@ -328,7 +328,7 @@ def test_weighted_total_manual_calculation(
     assert rec.evaluations[1].total_benefit_score == 0.0
 
 
-def test_hard_feasibility(
+def test_hard_feasibility(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
@@ -357,7 +357,7 @@ def test_hard_feasibility(
     assert evals["SCN-001"].total_benefit_score is None
 
 
-def test_all_candidates_invalid(
+def test_all_candidates_invalid(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
@@ -372,7 +372,7 @@ def test_all_candidates_invalid(
     assert not rec.evaluations[0].assessment.eligible
 
 
-def test_deterministic_tie_breaking(
+def test_deterministic_tie_breaking(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
@@ -387,7 +387,7 @@ def test_deterministic_tie_breaking(
     assert rec1.evaluations[1].assessment.scenario_id == "SCN-002"
 
 
-def test_baseline_comparison(
+def test_baseline_comparison(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
@@ -412,13 +412,13 @@ def test_baseline_comparison(
         c for c in rec.baseline_comparisons if c.metric == ScoringMetric.ROUTE_LENGTH
     )
     assert route_comp.absolute_delta == -10_000.0
-    assert math.isclose(route_comp.relative_delta_percent, -10_000.0 / 60_000.0 * 100.0)
+    assert math.isclose(route_comp.relative_delta_percent, -10_000.0 / 60_000.0 * 100.0)  # type: ignore
 
     loss_comp = next(
         c for c in rec.baseline_comparisons if c.metric == ScoringMetric.ACTIVE_LOSS
     )
     assert math.isclose(loss_comp.absolute_delta, -0.2)
-    assert math.isclose(loss_comp.relative_delta_percent, -0.2 / 1.0 * 100.0)
+    assert math.isclose(loss_comp.relative_delta_percent, -0.2 / 1.0 * 100.0)  # type: ignore
 
     # Check reason includes BASELINE_IMPROVEMENT
     assert any(
@@ -426,7 +426,7 @@ def test_baseline_comparison(
     )
 
 
-def test_pairing_context_mismatch_rejection(
+def test_pairing_context_mismatch_rejection(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
@@ -466,7 +466,7 @@ def test_pairing_context_mismatch_rejection(
         evaluate_cohort((c5, c6), base_scoring_config, base_load_flow_config)
 
 
-def test_single_eligible_candidate(
+def test_single_eligible_candidate(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
@@ -486,14 +486,14 @@ def test_single_eligible_candidate(
         assert ms.weighted_benefit == 0.0
 
 
-def test_missing_metrics_disqualification(
+def test_missing_metrics_disqualification(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):
     c1 = make_wrapper(
         make_scenario("SCN-001", 50_000.0),
         # Converged but missing loading metric (simulating solver failure halfway)
-        make_load_flow_result(loading=None),
+        make_load_flow_result(loading=None),  # type: ignore
     )
     c2 = make_wrapper(
         make_scenario("SCN-002", 50_000.0),
@@ -509,7 +509,7 @@ def test_missing_metrics_disqualification(
     assert any(d.code == DisqualificationCode.ELECTRICAL_METRICS_MISSING for d in disqs)
 
 
-def test_complete_deterministic_result_across_multiple_runs(
+def test_complete_deterministic_result_across_multiple_runs(  # type: ignore
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
 ):

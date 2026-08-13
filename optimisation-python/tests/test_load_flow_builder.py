@@ -46,6 +46,7 @@ def valid_pnc() -> tuple[ProjectPNCNetwork, list[WTGOperatingPoint]]:
         to_node_id="WTG1",
         route_geometry=LineString([(0, 0), (100, 0)]),
         route_length_m=100.0,
+        traversal_cost=100.0,
         segment_type="substation_to_wtg",
     )
 
@@ -80,7 +81,7 @@ def valid_pnc() -> tuple[ProjectPNCNetwork, list[WTGOperatingPoint]]:
     return net, ops
 
 
-def test_builder_mappings_and_conversions(valid_pnc, base_config):
+def test_builder_mappings_and_conversions(valid_pnc, base_config) -> None:  # type: ignore
     net, ops = valid_pnc
     # Make length a specific value to check conversion to km
     # and update geometry to match length exactly to pass validation
@@ -102,6 +103,7 @@ def test_builder_mappings_and_conversions(valid_pnc, base_config):
         to_node_id="WTG1",
         route_geometry=LineString([(0, 0), (1375.5, 0)]),
         route_length_m=1375.5,
+        traversal_cost=1375.5,
         segment_type="substation_to_wtg",
     )
 
@@ -165,7 +167,7 @@ def test_builder_mappings_and_conversions(valid_pnc, base_config):
     assert res.net.line.at[line_idx, "c_nf_per_km"] == 100.0
 
 
-def test_builder_deterministic_order(valid_pnc, base_config):
+def test_builder_deterministic_order(valid_pnc, base_config) -> None:  # type: ignore
     # This just ensures we don't crash when running, actual stability is checked
     # by ensuring dicts are populated in sorted order of IDs in the builder.py.
     net, ops = valid_pnc

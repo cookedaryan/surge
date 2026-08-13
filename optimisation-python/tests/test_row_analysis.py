@@ -58,7 +58,7 @@ def make_feature(
     )
 
 
-def analyse(
+def analyse(  # type: ignore
     routes: tuple[RefinedPhysicalRoute, ...] = (make_route(),),
     features: tuple[ConstraintFeature, ...] = (),
     *,

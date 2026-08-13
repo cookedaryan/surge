@@ -49,6 +49,7 @@ def valid_pnc() -> tuple[ProjectPNCNetwork, list[WTGOperatingPoint]]:
         to_node_id="WTG1",
         route_geometry=LineString([(0, 0), (100, 0)]),
         route_length_m=100.0,
+        traversal_cost=100.0,
         segment_type="substation_to_wtg",
     )
 
@@ -83,12 +84,12 @@ def valid_pnc() -> tuple[ProjectPNCNetwork, list[WTGOperatingPoint]]:
     return net, ops
 
 
-def test_validate_inputs_success(valid_pnc, base_config):
+def test_validate_inputs_success(valid_pnc, base_config) -> None:  # type: ignore
     net, ops = valid_pnc
     _validate_inputs(net, ops, base_config)
 
 
-def test_validate_missing_substation_id(valid_pnc, base_config):
+def test_validate_missing_substation_id(valid_pnc, base_config) -> None:  # type: ignore
     net, ops = valid_pnc
     bad_net = ProjectPNCNetwork(
         project_id="P1",
@@ -110,7 +111,7 @@ def test_validate_missing_substation_id(valid_pnc, base_config):
         _validate_inputs(bad_net, ops, base_config)
 
 
-def test_validate_geographic_crs(valid_pnc, base_config):
+def test_validate_geographic_crs(valid_pnc, base_config) -> None:  # type: ignore
     net, ops = valid_pnc
     bad_net = ProjectPNCNetwork(
         project_id="P1",
@@ -130,7 +131,7 @@ def test_validate_geographic_crs(valid_pnc, base_config):
         _validate_inputs(bad_net, ops, base_config)
 
 
-def test_validate_missing_cable_assignment(valid_pnc, base_config):
+def test_validate_missing_cable_assignment(valid_pnc, base_config) -> None:  # type: ignore
     net, ops = valid_pnc
     bad_config = LoadFlowConfig(
         nominal_voltage_kv=33.0,
@@ -146,13 +147,13 @@ def test_validate_missing_cable_assignment(valid_pnc, base_config):
         _validate_inputs(net, ops, bad_config)
 
 
-def test_validate_missing_operating_point(valid_pnc, base_config):
+def test_validate_missing_operating_point(valid_pnc, base_config) -> None:  # type: ignore
     net, _ = valid_pnc
     with pytest.raises(ValueError, match="Missing operating points"):
         _validate_inputs(net, [], base_config)
 
 
-def test_validate_extra_operating_point(valid_pnc, base_config):
+def test_validate_extra_operating_point(valid_pnc, base_config) -> None:  # type: ignore
     net, ops = valid_pnc
     ops.append(
         WTGOperatingPoint(node_id="WTG2", active_power_mw=5.0, reactive_power_mvar=0.0)
@@ -161,7 +162,7 @@ def test_validate_extra_operating_point(valid_pnc, base_config):
         _validate_inputs(net, ops, base_config)
 
 
-def test_validate_duplicate_operating_point(valid_pnc, base_config):
+def test_validate_duplicate_operating_point(valid_pnc, base_config) -> None:  # type: ignore
     net, ops = valid_pnc
     # Add same WTG again
     ops.append(
@@ -171,7 +172,7 @@ def test_validate_duplicate_operating_point(valid_pnc, base_config):
         _validate_inputs(net, ops, base_config)
 
 
-def test_validate_self_loop(valid_pnc, base_config):
+def test_validate_self_loop(valid_pnc, base_config) -> None:  # type: ignore
     net, ops = valid_pnc
     seg = PNCSegment(
         segment_id="SEG2",
@@ -180,6 +181,7 @@ def test_validate_self_loop(valid_pnc, base_config):
         to_node_id="WTG1",  # self loop
         route_geometry=LineString([(100, 0), (100, 0)]),
         route_length_m=10.0,
+        traversal_cost=10.0,
         segment_type="wtg_to_wtg",
     )
     import networkx as nx
@@ -217,7 +219,7 @@ def test_validate_self_loop(valid_pnc, base_config):
         _validate_inputs(bad_net, ops, base_config)
 
 
-def test_validate_length_mismatch(valid_pnc, base_config):
+def test_validate_length_mismatch(valid_pnc, base_config) -> None:  # type: ignore
     net, ops = valid_pnc
     # segment route_length_m is 200, geometry length is 100
     seg = PNCSegment(
@@ -227,6 +229,7 @@ def test_validate_length_mismatch(valid_pnc, base_config):
         to_node_id="WTG1",
         route_geometry=LineString([(0, 0), (100, 0)]),
         route_length_m=200.0,  # mismatch
+        traversal_cost=200.0,
         segment_type="substation_to_wtg",
     )
 

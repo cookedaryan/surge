@@ -597,9 +597,9 @@ class TestVariationReachesAlgorithms:
         # Only request PS-001 and PS-002 and PS-003
         config = ScenarioGenerationConfig(candidate_count=3)
 
-        recorded_calls: list[dict] = []
+        recorded_calls: list[dict] = []  # type: ignore
 
-        def recording_group_wtgs(
+        def recording_group_wtgs(  # type: ignore
             proj,
             cap,
             *,
@@ -627,7 +627,7 @@ class TestVariationReachesAlgorithms:
 
         recorded_seeds: list[int] = []
 
-        def recording_group_wtgs(
+        def recording_group_wtgs(  # type: ignore
             proj,
             cap,
             *,
@@ -851,6 +851,7 @@ class TestFingerprintContent:
             to_node_id="wtg:T1",
             route_geometry=LineString([(0, 0), (10, 0)]),
             route_length_m=10.0,
+            traversal_cost=10.0,
             segment_type="substation_to_wtg",
         )
 
@@ -881,7 +882,7 @@ class TestFingerprintContent:
             mst_graph=mst_b,
         )
 
-        def _make_network(feeder, fid):
+        def _make_network(feeder, fid):  # type: ignore
             return ProjectPNCNetwork(
                 project_id="P",
                 substation_id=sub_id,
@@ -897,8 +898,8 @@ class TestFingerprintContent:
                 wtg_count_by_feeder={fid: 1},
             )
 
-        net_a = _make_network(feeder_a, "FDR-001")
-        net_b = _make_network(feeder_b, "FDR-099")
+        net_a = _make_network(feeder_a, "FDR-001")  # type: ignore
+        net_b = _make_network(feeder_b, "FDR-099")  # type: ignore
 
         assert scenario_fingerprint(net_a) == scenario_fingerprint(net_b)
 
@@ -947,7 +948,7 @@ class TestEarlyDuplicateSuppression:
 
         original_route = _route_collector_topology
 
-        def counting_route(*args, **kwargs):
+        def counting_route(*args, **kwargs):  # type: ignore
             nonlocal route_call_count
             route_call_count += 1
             return original_route(*args, **kwargs)
@@ -1041,7 +1042,7 @@ class TestFailureRecorded:
         original_route = _route_collector_topology
         call_count = [0]
 
-        def failing_after_first(*args, **kwargs):
+        def failing_after_first(*args, **kwargs):  # type: ignore
             call_count[0] += 1
             if call_count[0] > 1:
                 raise RouteNotFoundError("F1", "a", "b", "simulated failure")
@@ -1117,7 +1118,7 @@ class TestScenarioIdsStableOnRejection:
 class TestConfigValidation:
     def test_bool_candidate_count_rejected(self) -> None:
         with pytest.raises(InvalidScenarioConfigError, match="bool"):
-            ScenarioGenerationConfig(candidate_count=True)  # type: ignore[arg-type]
+            ScenarioGenerationConfig(candidate_count=True)  [arg-type]  # type: ignore
 
     def test_float_candidate_count_rejected(self) -> None:
         with pytest.raises(InvalidScenarioConfigError):
@@ -1141,7 +1142,7 @@ class TestConfigValidation:
 
     def test_bool_base_seed_rejected(self) -> None:
         with pytest.raises(InvalidScenarioConfigError, match="bool"):
-            ScenarioGenerationConfig(base_seed=True)  # type: ignore[arg-type]
+            ScenarioGenerationConfig(base_seed=True)  [arg-type]  # type: ignore
 
     def test_valid_config_accepted(self) -> None:
         cfg = ScenarioGenerationConfig(

@@ -606,8 +606,8 @@ def place_poles_on_network(
             geometry=segment.route_geometry,
             original_length_m=segment.route_length_m,
             refined_length_m=segment.route_length_m,
-            original_traversal_cost=segment.route_length_m,
-            refined_traversal_cost=segment.route_length_m,
+            original_traversal_cost=segment.traversal_cost,
+            refined_traversal_cost=segment.traversal_cost,
             route_id=segment.segment_id,
         )
         for segment in segments

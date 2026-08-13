@@ -5,7 +5,7 @@ import pytest
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 
 
-def test_cable_type_valid():
+def test_cable_type_valid() -> None:
     """Valid cable configuration should instantiate without errors."""
     c = LoadFlowCableType(
         cable_type_id="CABLE-1",
@@ -21,7 +21,7 @@ def test_cable_type_valid():
     assert c.derating_factor == 0.9
 
 
-def test_cable_type_invalid_id():
+def test_cable_type_invalid_id() -> None:
     with pytest.raises(ValueError, match="blank"):
         LoadFlowCableType(
             cable_type_id="   ",
@@ -42,7 +42,7 @@ def test_cable_type_invalid_id():
         (0.1, 0.1, 100.0, 0.0),
     ],
 )
-def test_cable_type_negative_values(r: float, x: float, c: float, i: float):
+def test_cable_type_negative_values(r: float, x: float, c: float, i: float) -> None:
     with pytest.raises(ValueError):
         LoadFlowCableType(
             cable_type_id="C1",
@@ -63,7 +63,7 @@ def test_cable_type_negative_values(r: float, x: float, c: float, i: float):
         (1, -0.5),
     ],
 )
-def test_cable_type_invalid_parallel_or_derating(parallel: int, derating: float):
+def test_cable_type_invalid_parallel_or_derating(parallel: int, derating: float) -> None:
     with pytest.raises(ValueError):
         LoadFlowCableType(
             cable_type_id="C1",
@@ -76,7 +76,7 @@ def test_cable_type_invalid_parallel_or_derating(parallel: int, derating: float)
         )
 
 
-def test_config_valid():
+def test_config_valid() -> None:
     """Valid config should instantiate."""
     c = LoadFlowCableType(
         cable_type_id="C1",
@@ -98,7 +98,7 @@ def test_config_valid():
     assert conf.nominal_voltage_kv == 33.0
 
 
-def test_config_invalid_voltage_bounds():
+def test_config_invalid_voltage_bounds() -> None:
     c = LoadFlowCableType(
         cable_type_id="C1",
         resistance_ohm_per_km=0.1,
@@ -132,7 +132,7 @@ def test_config_invalid_voltage_bounds():
         )
 
 
-def test_config_duplicate_cable_types():
+def test_config_duplicate_cable_types() -> None:
     c1 = LoadFlowCableType(
         cable_type_id="C1",
         resistance_ohm_per_km=0.1,
