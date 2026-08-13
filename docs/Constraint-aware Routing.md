@@ -65,6 +65,11 @@ rasterization, validation, routing, and reporting contract. It is not a payload
 captured from a KMZ upload/preview/commit cycle and does not verify Java's
 KMZ-to-JSON transformation.
 
+Using the repository fixture vocabulary, its provenance is `SYNTHETIC` and its
+verification is `PYTHON_CONTRACT_VERIFIED`; it is not
+`ROUND_TRIP_VERIFIED`. `REAL_SOURCE` and `DERIVED` are reserved for retained
+source artifacts and documented transformations, respectively.
+
 Upgrading it to a verified round-trip fixture requires a fixed test KMZ to pass
 through the real frontend/Java workflow, followed by capture and comparison of
 the exact request `OptimizationJobService` sends to Python. See the

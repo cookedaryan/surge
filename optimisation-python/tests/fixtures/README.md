@@ -20,6 +20,29 @@ The fixture proves that the Python service can:
 There is no separate V1 constraint fixture. The PY-021 V1 API tests load this
 file and add the legacy `scenario` field in memory.
 
+## Provenance vocabulary
+
+Use these documentation labels consistently for test and demonstration
+fixtures. They describe provenance separately from the behavior a test proves;
+a real source is not automatically a verified end-to-end round trip.
+
+| Label | Meaning |
+| --- | --- |
+| `SYNTHETIC` | Manually constructed or generated for a test, without a retained real-world source artifact. |
+| `REAL_SOURCE` | The original, retained input came from a real or controlled source. This label alone does not verify any downstream transformation. |
+| `DERIVED` | Produced from an identified source artifact through documented transformations. The source and transformation steps must be retained. |
+| `PYTHON_CONTRACT_VERIFIED` | Executed successfully against the documented Python request, mapping, optimisation, and response boundary covered by the associated tests. |
+| `ROUND_TRIP_VERIFIED` | Reproduced through every explicitly named system boundary, with the source artifact, captured intermediate payload, procedure, and assertions retained as evidence. |
+
+The labels may be combined when supported by evidence. For example, a captured
+payload could be both `REAL_SOURCE`, `DERIVED`, and `ROUND_TRIP_VERIFIED`.
+
+The current `constraint_demo_project_v2.json` labels are:
+
+- **Provenance:** `SYNTHETIC`
+- **Verification:** `PYTHON_CONTRACT_VERIFIED`
+- **Not verified:** `ROUND_TRIP_VERIFIED`
+
 ## Provenance limitation
 
 This file is **not a verified KMZ round-trip artifact**. It was not captured

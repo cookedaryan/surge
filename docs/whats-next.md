@@ -130,8 +130,22 @@ hand-authored constraint payload accurately as a Python-contract fixture. The
 full Python gate currently reports:
 
 ```text
-460 passed, 2 environment warnings
+477 passed, 2 environment warnings
 ```
+
+The active Python ticket sequence is:
+
+```text
+PY-022  Constraint fixture provenance                 COMPLETE
+PY-023  Network-level pole endpoint deduplication     COMPLETE
+PY-024  Pole placement workflow integration           IN PROGRESS
+PY-025  Pole GeoJSON + API presentation                PLANNED
+```
+
+PY-024 runs placement only after recommendation and attaches the PY-023
+deduplicated domain result to `OptimisationWorkflowResult`. It does not add pole
+count to scoring. PY-025 owns the stable public pole summary and GeoJSON/API
+contract.
 
 The Python routing path now distinguishes hard exclusions from soft penalties,
 checks endpoints against hard buffered geometry, and reports route-level
@@ -222,7 +236,8 @@ reviewed WTG/substation GeoJSON
     -> 33 kV Pandapower analysis
     -> hard electrical feasibility filter
     -> deterministic cohort scoring
-    -> recommended result + pole placement + GeoJSON
+    -> recommended result + canonical deduplicated pole network
+    -> PY-025 pole GeoJSON/API presentation
 ```
 
 For Sunday, retain the existing feasibility-first scoring dimensions: route
@@ -264,12 +279,14 @@ violations (must be zero), road crossings, and affected parcel count/length.
 4. **Complete: public Python request mapping.**
    V1 compatibility and V2 carry additive constraint and pole settings while
    preserving callers that omit them.
-5. **Remaining: normalize pole placement at network junctions.**
-   Route-local placement still duplicates shared topology endpoints. A
-   network-level pass must merge true shared endpoints without collapsing
+5. **Complete: normalize pole placement at network junctions.**
+   SURGE-PY-023 adds a network-level post-pass that merges true shared
+   endpoints into deterministic junction structures without collapsing
    coincidental nearby mid-route poles.
-6. **Complete: rich GeoJSON output.**
-   The rich result contains stable WGS-84 segment and preliminary pole features.
+6. **In progress: recommended-network pole integration.**
+   SURGE-PY-024 runs placement and the PY-023 pass only for the recommended PNC,
+   preserves routed segment provenance, and returns the canonical pole network
+   from the optimisation workflow. SURGE-PY-025 owns formal pole presentation.
 7. **Partial: fixture provenance.**
    The deterministic Python-contract fixture is committed and labeled by
    SURGE-PY-022. A provenance-verified payload still requires backend/frontend

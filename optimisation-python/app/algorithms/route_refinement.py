@@ -28,6 +28,7 @@ class RefinedPhysicalRoute:
     refined_length_m: float
     original_traversal_cost: float
     refined_traversal_cost: float
+    route_id: str | None = None
 
 
 @dataclass(frozen=True)

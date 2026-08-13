@@ -86,6 +86,7 @@ def test_v2_optimise_endpoint_success(mvp_v2_payload: dict) -> None:
             "33kV terminal/dead-end pole",
             "33kV angle/tension pole",
             "33kV tangent/suspension pole",
+            "33kV shared junction pole",
         }
     )
 

@@ -36,7 +36,7 @@ silently download missing layers.
 - Python now accepts avoidance GeoJSON, distinguishes hard exclusions from soft
   penalties, validates endpoints against hard buffers, and returns constraint
   evidence and pole output. V1/V2 coverage is green as part of the full Python
-  suite (`460 passed`, with two environment warnings).
+  suite (`476 passed`, with two environment warnings).
 - `OptimizationJobService` sends only WTGs/substations to Python.
 - Java's legacy response and `RouteService` retain LineStrings but discard rich
   `pnc_pole` Point features.
@@ -46,9 +46,11 @@ silently download missing layers.
 1. **Complete:** hard exclusions and soft road/parcel penalties are distinct.
 2. **Complete:** hard-buffer endpoint validation and final route compliance.
 3. **Complete:** additive V1/V2 constraint and pole contracts at explicit 33 kV.
-4. **Remaining:** deduplicate shared pole endpoints and classify true network
-   terminals.
-5. **Complete:** stable route and preliminary pole-type GeoJSON.
+4. **Complete:** SURGE-PY-023 deduplicates shared pole endpoints into
+   deterministic junction structures while retaining route-local spans.
+5. **In progress:** SURGE-PY-024 consumes the deduplicated physical-pole view
+   for summaries and stable WGS-84 GeoJSON/API output. This includes the
+   presentation workflow; no separate PY-025 pole-presentation ticket exists.
 6. **Complete:** deterministic Python-contract fixture/API tests with the
    provenance limitation documented by SURGE-PY-022.
 7. **Complete:** full pytest, Ruff, format, and mypy gates.

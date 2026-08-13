@@ -2,7 +2,7 @@
 
 **Canonical as of:** 2026-08-13
 **MVP freeze:** SURGE-PY-020
-**Current focus:** Two-day demo productisation sprint
+**Current ticket:** SURGE-PY-024 (in progress)
 
 This note is the Obsidian mirror of
 [`docs/Surge MVP Ticket Plan.md`](../../docs/Surge%20MVP%20Ticket%20Plan.md) and
@@ -22,6 +22,9 @@ onward. Earlier day-based plans are historical context only.
 | SURGE-PY-020 | MVP Demo API + End-to-End Validation | Complete | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
 | SURGE-PY-021 | V1 Constraint Regression Coverage | Complete | Enforce the existing V1 constraint behavior with deterministic positive, rejection, and compatibility API tests. |
 | SURGE-PY-022 | Constraint Fixture Provenance Labeling | Complete | Label the hand-authored constraint payload as a Python-contract fixture and document the evidence needed for verified KMZ provenance. |
+| SURGE-PY-023 | Network-Level Pole Endpoint Deduplication | Complete | Merge coincident shared topology endpoints into deterministic junction structures while preserving route-local span traceability. |
+| SURGE-PY-024 | Pole Placement Integration into the Optimisation Workflow | In progress | Run placement and PY-023 deduplication once for the recommended PNC, then attach the canonical pole network to `OptimisationWorkflowResult` without changing ranking. |
+| SURGE-PY-025 | Pole GeoJSON + API Presentation | Planned | Convert the canonical PY-024 pole network into the stable public summary and WGS-84 `pnc_pole` contract. |
 
 No feature may be inserted between these tickets unless it blocks the vertical
 workflow. If work expands beyond these boundaries, reduce MVP scope rather than
@@ -116,13 +119,41 @@ transformation. The fixture README records the cross-team capture and comparison
 steps required before the payload may be described as a verified KMZ round-trip
 artifact. No request data, test behavior, schema, or production code changed.
 
+### SURGE-PY-023
+
+PY-023 adds `deduplicate_pole_endpoints()` as an explicit post-pass over the
+route-local `CollectorPoleResult`. It exposes distinct `PhysicalPole` records,
+merges only different-route terminals that share a topology node and satisfy a
+strict pairwise coordinate tolerance, classifies merged structures as
+`junction`, and retains sorted feeder/route/source-pole references. Route-local
+poles and conductor spans remain unchanged; the deduplicated result's
+`total_poles` counts physical structures. Presentation consumption is deferred
+to the following presentation ticket.
+
+### SURGE-PY-024
+
+PY-024 owns the application boundary between recommendation and detailed pole
+engineering. After scoring selects the winner, `place_poles_on_network()`
+consumes that candidate's routed `PNCSegment` geometries, preserves segment IDs
+as provenance, applies the PY-023 endpoint-deduplication pass, and returns the
+canonical `CollectorPoleResult` on `OptimisationWorkflowResult.pole_network`.
+Pole configuration continues to flow through `OptimisationConfig`.
+
+Placement is not run for every candidate and pole count is not a PY-018 scoring
+objective. A generation error fails the detailed workflow with
+`POLE_PLACEMENT` / `POLE_NETWORK_GENERATION_FAILED`; it is never reported as a
+successful result with missing poles. PY-025 owns formal GeoJSON/API
+presentation of this domain result.
+
 ## Constraint and demo scope
 
 The public V1 and V2 requests accept optional `avoidance_geojson` features and
 the production pipeline maps them to hard exclusions or soft penalties before
 routing. PY-021 closes the V1 API coverage gap for that implemented path.
-Project-boundary clipping, terrain-derived costs, fixture provenance from a KMZ
-round trip, and pole endpoint deduplication remain separate follow-up work.
+Project-boundary clipping, terrain-derived costs, and fixture provenance from a
+KMZ round trip remain separate follow-up work. Pole endpoint deduplication is
+implemented by PY-023; PY-024 integrates it with the winning workflow and
+PY-025 owns its public presentation.
 
 ## Two-day demo productisation sprint
 
@@ -147,7 +178,7 @@ optimisation result.
 | Next 2 hours | Remove or hide false-success behaviour and synthetic engineering outputs from the demo path. | Failures are visible and every shown value has a real source. |
 | Final 1-2 hours | Write the smoke procedure and run focused checks from the correct project directories. | Another engineer can repeat the startup and smoke test. |
 
-**Exit gate:** Python remains green (`460 passed` on Python 3.11.9); the UI
+**Exit gate:** Python remains green (`476 passed` on Python 3.11.9); the UI
 starts a real job, persists and redraws the recommended WGS-84 route after
 refresh; a disconnected optimiser produces a failed state; and two identical
 runs select the same candidate. Docker, missing web dependencies, and the

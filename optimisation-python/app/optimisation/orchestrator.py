@@ -8,6 +8,7 @@ from typing import Any
 from shapely.geometry import Point
 
 from app.algorithms.physical_routing import validate_cost_surface
+from app.algorithms.pole_placement import place_poles_on_network
 from app.electrical.errors import CandidateElectricalEvaluationError
 from app.electrical.load_flow.analysis import run_load_flow
 from app.electrical.load_flow.config import LoadFlowConfig
@@ -374,12 +375,14 @@ def optimise_project(
 
     # 6. Recommendation and Status
     recommended_result = None
+    pole_network = None
     if recommendation and recommendation.recommended_scenario_id:
         winner_id = recommendation.recommended_scenario_id
         winner_candidate = candidate_map[winner_id]
 
         # Verify invariants before packaging
-        if not winner_candidate.load_flow_result:
+        load_flow_result = winner_candidate.load_flow_result
+        if load_flow_result is None:
             raise RuntimeError("Recommended scenario is missing a load flow result.")
         if (
             not winner_candidate.evaluation
@@ -387,11 +390,41 @@ def optimise_project(
         ):
             raise RuntimeError("Recommended scenario must be eligible.")
 
+        if config.pole is not None:
+            try:
+                pole_network = place_poles_on_network(
+                    winner_candidate.scenario.network,
+                    config.pole,
+                )
+            except Exception as exc:
+                logger.exception("Pole network generation failed for %s", winner_id)
+                failure = CandidateFailure(
+                    stage=WorkflowStage.POLE_PLACEMENT,
+                    code=WorkflowFailureCode.POLE_NETWORK_GENERATION_FAILED,
+                    message=str(exc),
+                    scenario_id=winner_id,
+                )
+                failures.append(failure)
+                winner_candidate = replace(winner_candidate, pole_failure=failure)
+                candidate_map[winner_id] = winner_candidate
+                ordered_candidates = tuple(
+                    candidate_map[s.scenario_id] for s in generation_result.candidates
+                )
+                return OptimisationWorkflowResult(
+                    status=OptimisationStatus.FAILED,
+                    generation_result=generation_result,
+                    candidates=ordered_candidates,
+                    recommendation=None,
+                    recommended_result=None,
+                    failures=tuple(failures),
+                )
+
         try:
             presentation = build_project_result(
                 pnc_network=winner_candidate.scenario.network,
-                load_flow_result=winner_candidate.load_flow_result,
+                load_flow_result=load_flow_result,
                 pole_config=config.pole,
+                pole_network=pole_network,
                 constraint_layers=project_input.constraint_layers,
             )
             # Create a new instance with the presentation result
@@ -433,7 +466,7 @@ def optimise_project(
             logger.exception("Unexpected packaging failure for %s", winner_id)
             failure = CandidateFailure(
                 stage=WorkflowStage.PACKAGING,
-                code=WorkflowFailureCode.UNEXPECTED_EXCEPTION,
+                code=WorkflowFailureCode.PACKAGING_FAILED,
                 message=str(exc),
                 scenario_id=winner_id,
             )
@@ -477,4 +510,5 @@ def optimise_project(
         recommendation=recommendation,
         recommended_result=recommended_result,
         failures=tuple(failures),
+        pole_network=pole_network,
     )

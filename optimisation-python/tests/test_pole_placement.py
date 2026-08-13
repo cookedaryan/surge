@@ -359,15 +359,15 @@ def test_multiple_route_sections() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 15. test_shared_topology_endpoint_not_duplicated (route-local scope)
+# 15. shared topology metadata retained (route-local scope)
 # ---------------------------------------------------------------------------
 
 
-def test_shared_topology_endpoint_not_duplicated() -> None:
+def test_shared_topology_metadata_retained_for_network_deduplication() -> None:
     """
     Two routes sharing a topology node ID each produce their own terminal
-    pole.  Route-local results remain separate (network-level deduplication
-    is a future pass); start_node_id / end_node_id are preserved for it.
+    pole. Route-local results remain separate so their spans stay traceable;
+    start_node_id / end_node_id identify them for the network-level pass.
     """
     route_a = make_route(
         [(0.0, 0.0), (240.0, 0.0)],
@@ -386,7 +386,7 @@ def test_shared_topology_endpoint_not_duplicated() -> None:
 
     assert result.routes[0].poles[0].pole_type == "terminal"
     assert result.routes[1].poles[-1].pole_type == "terminal"
-    # Topology node info preserved for future deduplication
+    # Topology node info is preserved for network-level deduplication.
     assert result.routes[0].start_node_id == "WTG-2"
     assert result.routes[1].end_node_id == "WTG-2"
 

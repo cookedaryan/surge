@@ -1,5 +1,5 @@
 """
-SURGE-PY-010 — Pole Placement Along Refined Feeder Routes
+SURGE-PY-010/PY-023 — Route-Local Placement and Network Endpoint Deduplication
 
 Converts each RefinedPhysicalRoute into an ordered sequence of physical pole
 structures suitable for an overhead collector network.
@@ -17,13 +17,19 @@ Design decisions
   F1-P009 for route B of the same feeder).  place_poles_on_route() accepts an
   optional sequence_offset keyword argument (default 0) for callers that need
   to chain sequences manually.
-* Route-level pole generation is independent.  Network-level deduplication of
-  shared topology endpoints (where two routes meet at the same WTG or
-  substation node) is deliberately separated: this module records
-  start_node_id / end_node_id on each PoleRouteResult and provides
-  place_poles_on_routes() which can serve as the integration point for a
-  future deduplication pass.  coordinate_tolerance_m is validated and stored
-  in config ready for that future pass.
+* Route-level pole generation is independent.  ``deduplicate_pole_endpoints``
+  is an additive network-level pass over ``CollectorPoleResult``.  It merges
+  only terminal records from different routes that declare the same topology
+  node and lie within ``coordinate_tolerance_m``.  Route-local records remain
+  unchanged so their pole/span traceability is preserved.
+* A merged terminal is classified as ``junction`` and retains the sorted union
+  of contributing feeder, route, and source-pole IDs.  Its stable ID is derived
+  from the topology node plus sorted feeder/route identities, not input order.
+* Endpoint clusters use deterministic strict-pairwise membership: a candidate
+  may join a cluster only when it lies within tolerance of every member.  Thus
+  A-B and B-C proximity does not merge A-C when A and C exceed the tolerance.
+  The canonical output coordinate is an existing member coordinate selected by
+  deterministic sort order rather than an off-route centroid.
 * max_span_m is a hard constraint.  min_span_m is a soft subdivision
   threshold: a section at or below it receives no fill pole.  Mandatory angle
   poles can still give a short route more than two poles.
@@ -38,12 +44,14 @@ Design decisions
   The while-loop still enforces the hard max_span_m upper bound.
 """
 
+import hashlib
 import math
 from dataclasses import dataclass
 
 from shapely.geometry import LineString, Point
 
 from app.algorithms.route_refinement import RefinedPhysicalRoute
+from app.pnc.models import ProjectPNCNetwork
 
 # ---------------------------------------------------------------------------
 # Tolerances
@@ -89,9 +97,9 @@ class PolePlacementConfig:
         a straight continuation, 90° for a right-angle turn, 180° for a full
         reversal.
     coordinate_tolerance_m:
-        Reserved for future network-level deduplication of shared topology
-        endpoints.  Stored and validated but not yet applied during
-        route-local placement.
+        Maximum projected distance used by ``deduplicate_pole_endpoints`` for
+        terminal records that declare the same topology node.  Route-local
+        placement does not use this value.
     """
 
     target_span_m: float
@@ -213,13 +221,17 @@ class PoleRouteResult:
     Attributes
     ----------
     route_id:
-        Composite identifier ``{feeder_id}_{start_node_id}_{end_node_id}``.
+        Upstream route/segment identifier when supplied, otherwise the
+        composite ``{feeder_id}_{start_node_id}_{end_node_id}``.
     feeder_id:
         Feeder identifier from the upstream route.
     start_node_id:
         Topology node ID at the route start (WTG or substation).
     end_node_id:
         Topology node ID at the route end.
+    geometry:
+        Original projected route geometry, retained unchanged so the
+        physical-pole view can be reconciled with its source segment.
     poles:
         Ordered tuple of poles from start to end.
     spans:
@@ -230,8 +242,28 @@ class PoleRouteResult:
     feeder_id: str
     start_node_id: str
     end_node_id: str
+    geometry: LineString
     poles: tuple[Pole, ...]
     spans: tuple[PoleSpan, ...]
+
+
+@dataclass(frozen=True)
+class PhysicalPole:
+    """One distinct physical structure after network-level endpoint merging.
+
+    ``source_pole_ids`` retains every route-local record represented by this
+    structure. ``feeder_ids`` and ``route_ids`` provide deterministic
+    downstream traceability. ``topology_node_id`` is present only for route
+    endpoints; intermediate and angle poles remain independent structures.
+    """
+
+    pole_id: str
+    geometry: Point
+    pole_type: str
+    feeder_ids: tuple[str, ...]
+    route_ids: tuple[str, ...]
+    source_pole_ids: tuple[str, ...]
+    topology_node_id: str | None
 
 
 @dataclass(frozen=True)
@@ -247,6 +279,10 @@ class CollectorPoleResult:
         Sum of poles across all routes.
     total_spans:
         Sum of spans across all routes.
+    physical_poles:
+        Distinct physical structures. The raw batch result contains one entry
+        per route-local pole. ``deduplicate_pole_endpoints`` returns a new
+        result whose shared topology endpoints are represented once.
 
     Notes
     -----
@@ -255,17 +291,23 @@ class CollectorPoleResult:
     so that route A of feeder F1 receives F1-P001…F1-P004 and route B of
     feeder F1 receives F1-P005…F1-P007.
 
-    Shared topology endpoints (e.g. a WTG referenced by two MST edges) still
-    appear as separate terminal poles in their respective PoleRouteResults.
-    Network-level deduplication — merging those into a single physical
-    structure — is the responsibility of a future integration pass that can
-    use start_node_id / end_node_id together with coordinate_tolerance_m to
-    identify coincident endpoints.
+    Shared endpoints remain in each ``PoleRouteResult`` because route spans
+    refer to those local pole IDs. Distinct structure counts and downstream
+    presentation should use ``physical_poles`` and ``total_poles`` from the
+    result returned by ``deduplicate_pole_endpoints``.
     """
 
     routes: tuple[PoleRouteResult, ...]
     total_poles: int
     total_spans: int
+    physical_poles: tuple[PhysicalPole, ...] = ()
+
+
+@dataclass(frozen=True)
+class _EndpointPoleRecord:
+    pole: Pole
+    route_id: str
+    topology_node_id: str
 
 
 # ---------------------------------------------------------------------------
@@ -473,12 +515,15 @@ def place_poles_on_route(
             )
         )
 
-    route_id = f"{route.feeder_id}_{route.start_node_id}_{route.end_node_id}"
+    route_id = route.route_id or (
+        f"{route.feeder_id}_{route.start_node_id}_{route.end_node_id}"
+    )
     result = PoleRouteResult(
         route_id=route_id,
         feeder_id=route.feeder_id,
         start_node_id=route.start_node_id,
         end_node_id=route.end_node_id,
+        geometry=geometry,
         poles=tuple(poles),
         spans=tuple(spans),
     )
@@ -523,18 +568,253 @@ def place_poles_on_routes(
         feeder_offsets[route.feeder_id] = offset + len(result.poles)
         route_results.append(result)
 
-    total_poles = sum(len(r.poles) for r in route_results)
+    physical_poles = _route_local_physical_poles(tuple(route_results))
+    total_poles = len(physical_poles)
     total_spans = sum(len(r.spans) for r in route_results)
     return CollectorPoleResult(
         routes=tuple(route_results),
         total_poles=total_poles,
         total_spans=total_spans,
+        physical_poles=physical_poles,
+    )
+
+
+def place_poles_on_network(
+    network: ProjectPNCNetwork,
+    config: PolePlacementConfig,
+) -> CollectorPoleResult:
+    """Build the canonical pole network for an assembled project PNC.
+
+    Pole placement consumes each segment's routed geometry and preserves the
+    upstream segment ID as route provenance. The network-level PY-023 endpoint
+    deduplication pass is always applied before the result is returned.
+    """
+    segments = tuple(
+        sorted(
+            (segment for feeder in network.feeders for segment in feeder.segments),
+            key=lambda segment: (segment.feeder_id, segment.segment_id),
+        )
+    )
+    if not segments:
+        raise ValueError("Project PNC network has no routed segments.")
+
+    routes = tuple(
+        RefinedPhysicalRoute(
+            feeder_id=segment.feeder_id,
+            start_node_id=segment.from_node_id,
+            end_node_id=segment.to_node_id,
+            geometry=segment.route_geometry,
+            original_length_m=segment.route_length_m,
+            refined_length_m=segment.route_length_m,
+            original_traversal_cost=segment.route_length_m,
+            refined_traversal_cost=segment.route_length_m,
+            route_id=segment.segment_id,
+        )
+        for segment in segments
+    )
+    route_result = place_poles_on_routes(routes, config)
+    return deduplicate_pole_endpoints(
+        route_result,
+        coordinate_tolerance_m=config.coordinate_tolerance_m,
+    )
+
+
+def deduplicate_pole_endpoints(
+    result: CollectorPoleResult,
+    coordinate_tolerance_m: float,
+) -> CollectorPoleResult:
+    """Return a network view with coincident shared endpoints represented once.
+
+    Only terminal poles attached to the same declared topology node on
+    different routes are eligible. Intermediate/angle poles and geometrically
+    close endpoints with different node IDs remain distinct. Clustering is
+    deterministic and strict-pairwise: a record joins a cluster only when its
+    coordinate is within ``coordinate_tolerance_m`` of every existing member.
+
+    Multi-route clusters are classified as ``junction``. Route-local poles and
+    spans are deliberately retained unchanged for conductor-span traceability;
+    ``total_spans`` therefore remains the number of route conductor spans while
+    ``total_poles`` becomes the number of distinct physical structures.
+    """
+
+    _require_finite("coordinate_tolerance_m", coordinate_tolerance_m)
+    if coordinate_tolerance_m < 0:
+        raise ValueError(
+            f"coordinate_tolerance_m must be non-negative, got {coordinate_tolerance_m}"
+        )
+
+    endpoint_records = _endpoint_pole_records(result.routes)
+    endpoint_source_ids = {
+        (record.route_id, record.pole.pole_id) for record in endpoint_records
+    }
+    independent = [
+        physical
+        for physical in _route_local_physical_poles(result.routes)
+        if (physical.route_ids[0], physical.source_pole_ids[0])
+        not in endpoint_source_ids
+    ]
+
+    clusters: list[list[_EndpointPoleRecord]] = []
+    for record in endpoint_records:
+        matching_cluster = next(
+            (
+                cluster
+                for cluster in clusters
+                if _can_join_endpoint_cluster(
+                    record,
+                    cluster,
+                    coordinate_tolerance_m,
+                )
+            ),
+            None,
+        )
+        if matching_cluster is None:
+            clusters.append([record])
+        else:
+            matching_cluster.append(record)
+
+    physical_poles = independent + [
+        _physical_pole_from_endpoint_cluster(cluster) for cluster in clusters
+    ]
+    physical_poles.sort(key=_physical_pole_sort_key)
+    return CollectorPoleResult(
+        routes=result.routes,
+        total_poles=len(physical_poles),
+        total_spans=result.total_spans,
+        physical_poles=tuple(physical_poles),
     )
 
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+
+def _route_local_physical_poles(
+    routes: tuple[PoleRouteResult, ...],
+) -> tuple[PhysicalPole, ...]:
+    physical_poles = [
+        PhysicalPole(
+            pole_id=pole.pole_id,
+            geometry=pole.geometry,
+            pole_type=pole.pole_type,
+            feeder_ids=(route.feeder_id,),
+            route_ids=(route.route_id,),
+            source_pole_ids=(pole.pole_id,),
+            topology_node_id=_pole_topology_node_id(route, pole_index),
+        )
+        for route in routes
+        for pole_index, pole in enumerate(route.poles)
+    ]
+    physical_poles.sort(key=_physical_pole_sort_key)
+    return tuple(physical_poles)
+
+
+def _endpoint_pole_records(
+    routes: tuple[PoleRouteResult, ...],
+) -> tuple[_EndpointPoleRecord, ...]:
+    records: list[_EndpointPoleRecord] = []
+    for route in routes:
+        endpoint_indexes = ((0, route.start_node_id), (-1, route.end_node_id))
+        for pole_index, topology_node_id in endpoint_indexes:
+            pole = route.poles[pole_index]
+            if pole.pole_type != "terminal":
+                raise ValueError(
+                    f"Route {route.route_id} endpoint pole {pole.pole_id} "
+                    "must be terminal"
+                )
+            records.append(
+                _EndpointPoleRecord(
+                    pole=pole,
+                    route_id=route.route_id,
+                    topology_node_id=topology_node_id,
+                )
+            )
+    return tuple(
+        sorted(
+            records,
+            key=lambda record: (
+                record.topology_node_id,
+                record.route_id,
+                record.pole.feeder_id,
+                record.pole.pole_id,
+            ),
+        )
+    )
+
+
+def _pole_topology_node_id(
+    route: PoleRouteResult,
+    pole_index: int,
+) -> str | None:
+    if pole_index == 0:
+        return route.start_node_id
+    if pole_index == len(route.poles) - 1:
+        return route.end_node_id
+    return None
+
+
+def _can_join_endpoint_cluster(
+    record: _EndpointPoleRecord,
+    cluster: list[_EndpointPoleRecord],
+    coordinate_tolerance_m: float,
+) -> bool:
+    return all(
+        record.topology_node_id == member.topology_node_id
+        and record.route_id != member.route_id
+        and record.pole.geometry.distance(member.pole.geometry)
+        <= coordinate_tolerance_m + _DISTANCE_EPSILON
+        for member in cluster
+    )
+
+
+def _physical_pole_from_endpoint_cluster(
+    cluster: list[_EndpointPoleRecord],
+) -> PhysicalPole:
+    members = sorted(
+        cluster,
+        key=lambda record: (
+            record.route_id,
+            record.pole.feeder_id,
+            record.pole.pole_id,
+        ),
+    )
+    feeder_ids = tuple(sorted({member.pole.feeder_id for member in members}))
+    route_ids = tuple(sorted(member.route_id for member in members))
+    source_pole_ids = tuple(sorted(member.pole.pole_id for member in members))
+    topology_node_id = members[0].topology_node_id
+
+    if len(members) == 1:
+        member = members[0]
+        return PhysicalPole(
+            pole_id=member.pole.pole_id,
+            geometry=member.pole.geometry,
+            pole_type=member.pole.pole_type,
+            feeder_ids=feeder_ids,
+            route_ids=route_ids,
+            source_pole_ids=source_pole_ids,
+            topology_node_id=topology_node_id,
+        )
+
+    stable_identity = repr((topology_node_id, feeder_ids, route_ids))
+    digest = hashlib.sha256(stable_identity.encode("utf-8")).hexdigest()[:12]
+    return PhysicalPole(
+        pole_id=f"JUNCTION-{digest}",
+        geometry=members[0].pole.geometry,
+        pole_type="junction",
+        feeder_ids=feeder_ids,
+        route_ids=route_ids,
+        source_pole_ids=source_pole_ids,
+        topology_node_id=topology_node_id,
+    )
+
+
+def _physical_pole_sort_key(physical: PhysicalPole) -> tuple[str, str, str]:
+    return (
+        physical.topology_node_id or "",
+        physical.pole_id,
+        "|".join(physical.route_ids),
+    )
 
 
 def _require_finite(field: str, value: float) -> None:

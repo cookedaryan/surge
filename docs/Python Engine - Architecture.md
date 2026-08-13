@@ -4,7 +4,7 @@
 
 The SURGE Python service is a stateless FastAPI computation boundary. It currently validates project Point GeoJSON, transforms coordinates into one UTM CRS, builds a complete NetworkX candidate graph, groups WTGs under feeder-capacity constraints, creates one minimum spanning tree per feeder, routes each selected edge across a raster cost surface, and exposes refined WGS84 LineStrings.
 
-SURGE-PY-007 through SURGE-PY-009 provide a uniform projected cost-surface abstraction, A* physical routing, and obstacle-safe route refinement. The cost surface currently defaults to 1.0 everywhere, meaning routes optimize for distance until terrain and exclusion layers are rasterized. SURGE-PY-010 provides pole placement over refined routes, and SURGE-PY-011 provides right-of-way corridor and constraint-intersection analysis. Both are standalone algorithms that are not yet invoked by the service pipeline or represented in the API response.
+SURGE-PY-007 through SURGE-PY-009 provide a uniform projected cost-surface abstraction, A* physical routing, and obstacle-safe route refinement. The cost surface currently defaults to 1.0 everywhere, meaning routes optimize for distance until terrain and exclusion layers are rasterized. SURGE-PY-010 provides pole placement over refined routes, PY-023 adds project-wide endpoint deduplication, and PY-024 runs both stages once for the recommended PNC and returns the canonical pole network from the optimisation workflow. SURGE-PY-011 provides right-of-way corridor and constraint-intersection analysis.
 
 ## Pipeline
 
@@ -40,7 +40,7 @@ ProjectSpatialData -> uniform CostSurface + Affine transform
 | `topology.py` | SURGE-PY-006 per-feeder MST topology | Implemented internally |
 | `physical_routing.py` | SURGE-PY-008 A* translation from topology edges to projected physical routes | Implemented |
 | `route_refinement.py` | SURGE-PY-009 duplicate/collinear removal and supercover-validated visibility shortcuts | Implemented |
-| `pole_placement.py` | SURGE-PY-010 geometry-based terminal, angle, and intermediate pole placement | Implemented standalone; not service-integrated |
+| `pole_placement.py` | SURGE-PY-010/PY-023 route placement plus network endpoint deduplication | Implemented and integrated for the recommended PNC by PY-024 |
 | `app/gis/row_analysis.py` | SURGE-PY-011 projected ROW buffers, indexed constraint intersections, and impact aggregates | Implemented standalone; no constraint API input yet |
 | `cost_function.py` | Lifecycle-cost evaluation | Placeholder |
 | `app/electrical` | SURGE-PY-013 deterministic electrical screening proxy (ampacity & voltage drop) | Implemented standalone; not service-integrated |
@@ -87,9 +87,9 @@ Coincident endpoints are rejected during refinement because they collapse to few
 
 Mandatory positions split the route into independent sections. A section at or below `min_span_m` receives no intermediate fill pole. For a longer section, the initial span count is `round(section_length / target_span_m)` using Python's ties-to-even rule and is increased as necessary to keep the arc-length interval at or below `max_span_m`. Consequently, `max_span_m` is hard while `min_span_m` is a soft subdivision threshold; the implementation does not promise that every resulting span is at least the minimum.
 
-`Pole.distance_along_route_m` stores arc length along the LineString, while `PoleSpan.span_length_m` stores the Euclidean chord between consecutive pole Points. Batch placement maintains a continuous sequence per `feeder_id`, preventing ID collisions between multiple routes from the same feeder. Shared topology endpoints are still represented by separate route-local terminal poles; network-level spatial deduplication is deferred.
+`Pole.distance_along_route_m` stores arc length along the LineString, while `PoleSpan.span_length_m` stores the Euclidean chord between consecutive pole Points. Batch placement maintains a continuous sequence per `feeder_id`, preventing ID collisions between multiple routes from the same feeder. SURGE-PY-023 adds an explicit network post-pass: terminal records from different routes merge only when they declare the same topology node and fall within a strict-pairwise coordinate tolerance. The resulting `PhysicalPole` is classified as a junction with stable identity and sorted feeder, source-pole, and route/segment references, while route-local pole and span records remain unchanged. When the input comes from a `ProjectPNCNetwork`, the canonical `PNCSegment.segment_id` is preserved as that route reference.
 
-The module does not yet use DEM profiles, calculate sag or clearance, select structural pole classes, insert crossing structures, or create ROW geometry. `OptimisationService` does not call it, and `/api/v1/optimise` does not return its results.
+The module does not yet use DEM profiles, calculate sag or clearance, select structural pole classes, insert crossing structures, or create ROW geometry. `place_poles_on_network()` adapts the recommended `ProjectPNCNetwork` without reconstructing routes, applies PY-023 deduplication, and preserves canonical segment IDs. `OptimisationWorkflowResult.pole_network` owns that domain result; pole generation runs after recommendation and does not affect PY-018 scoring. Formal public presentation remains the PY-025 boundary.
 
 ## SURGE-PY-011: ROW Corridor and Constraint Analysis
 
