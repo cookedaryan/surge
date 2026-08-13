@@ -66,6 +66,7 @@ def test_optimise_stub() -> None:
     assert body["candidates"]
     assert body["recommendation"]["recommended_scenario_id"]
     assert body["recommended_result"]["network_summary"]["wtg_count"] == 1
+    assert body["recommended_result"]["pole_summary"]["total_poles"] > 0
     assert body["recommended_result"]["feature_collection"]["type"] == (
         "FeatureCollection"
     )

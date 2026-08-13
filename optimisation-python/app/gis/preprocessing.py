@@ -4,6 +4,12 @@ from typing import Any, cast
 
 from shapely.geometry import Point
 
+from app.gis.constraints import (
+    ConstraintLayer,
+    ConstraintMode,
+    effective_constraint_geometry,
+)
+from app.gis.cost_surface import CostSurface, world_to_grid
 from app.gis.crs import WGS84_CRS, get_transformer, get_utm_crs, transform_geometry
 from app.gis.geojson import parse_geojson
 from app.models.spatial import ProjectSpatialData, Substation, WindTurbine
@@ -142,3 +148,42 @@ def process_project_data(
     return ProjectSpatialData(
         turbines=tuple(turbines), substation=substation, projected_crs=projected_crs
     )
+
+
+def validate_project_routing_endpoints(
+    project: ProjectSpatialData,
+    surface: CostSurface,
+    constraints: tuple[ConstraintLayer, ...],
+) -> None:
+    """Reject project endpoints covered by a hard exclusion or blocked cell."""
+    endpoints = [
+        ("WTG", turbine.turbine_id, turbine.location) for turbine in project.turbines
+    ]
+    endpoints.append(
+        ("Substation", project.substation.substation_id, project.substation.location)
+    )
+    hard_layers = tuple(
+        layer for layer in constraints if layer.mode == ConstraintMode.HARD_EXCLUSION
+    )
+
+    for endpoint_type, endpoint_id, point in endpoints:
+        covering_ids = sorted(
+            layer.layer_id
+            for layer in hard_layers
+            if effective_constraint_geometry(layer).covers(point)
+        )
+        if covering_ids:
+            raise ValueError(
+                f"{endpoint_type} {endpoint_id} lies inside hard exclusion(s): "
+                + ", ".join(covering_ids)
+            )
+
+        row, col = world_to_grid(point.x, point.y, surface)
+        if not (0 <= row < surface.height and 0 <= col < surface.width):
+            raise ValueError(
+                f"{endpoint_type} {endpoint_id} lies outside the routing surface"
+            )
+        if math.isinf(float(surface.costs[row, col])):
+            raise ValueError(
+                f"{endpoint_type} {endpoint_id} lies in a hard-exclusion raster cell"
+            )

@@ -1,0 +1,105 @@
+{
+  "request_id": "REQ-CONSTRAINT-DEMO-001",
+  "project_id": "CONSTRAINT-DEMO",
+  "wtg_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.0000, 52.0000]},
+        "properties": {"turbine_id": "T01", "capacity_mw": 5.0}
+      }
+    ]
+  },
+  "substation_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {"type": "Point", "coordinates": [-1.0000, 52.0020]},
+        "properties": {"substation_id": "SUB1"}
+      }
+    ]
+  },
+  "avoidance_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [[
+            [-1.0002, 52.0007],
+            [-0.9998, 52.0007],
+            [-0.9998, 52.0013],
+            [-1.0002, 52.0013],
+            [-1.0002, 52.0007]
+          ]]
+        },
+        "properties": {
+          "constraint_id": "restricted-1",
+          "constraint_type": "RESTRICTED_AREA",
+          "routing_mode": "HARD_EXCLUSION",
+          "buffer_m": 0.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [[-1.0030, 52.0004], [-0.9970, 52.0004]]
+        },
+        "properties": {
+          "constraint_id": "road-1",
+          "constraint_type": "ROAD",
+          "routing_mode": "SOFT_PENALTY",
+          "buffer_m": 5.0,
+          "cost_weight": 8.0
+        }
+      }
+    ]
+  },
+  "routing_config": {
+    "resolution_m": 10.0,
+    "padding_m": 150.0,
+    "avoidance_buffer_m": 0.0,
+    "avoidance_cost_weight": 20.0
+  },
+  "pole_config": {
+    "target_span_m": 80.0,
+    "min_span_m": 30.0,
+    "max_span_m": 100.0,
+    "angle_pole_threshold_deg": 10.0
+  },
+  "operating_point_config": {
+    "operating_factor": 1.0,
+    "power_factor": 0.95,
+    "power_factor_mode": "lagging"
+  },
+  "cable_config": {
+    "nominal_voltage_kv": 33.0,
+    "slack_voltage_pu": 1.0,
+    "min_voltage_pu": 0.95,
+    "max_voltage_pu": 1.05,
+    "system_base_mva": 100.0,
+    "cable_types": [
+      {
+        "cable_type_id": "33kV-demo",
+        "resistance_ohm_per_km": 0.03,
+        "reactance_ohm_per_km": 0.1,
+        "capacitance_nf_per_km": 200.0,
+        "max_current_a": 500.0,
+        "parallel_count": 1,
+        "derating_factor": 1.0
+      }
+    ],
+    "default_cable_type_id": "33kV-demo"
+  },
+  "scenario_config": {"candidate_count": 1},
+  "scoring_weights": {
+    "route_length_weight": 0.4,
+    "electrical_loss_weight": 0.25,
+    "cable_loading_weight": 0.2,
+    "voltage_margin_weight": 0.15
+  }
+}

@@ -2,7 +2,7 @@
 
 **Canonical as of:** 2026-08-13
 **MVP freeze:** SURGE-PY-020
-**Current ticket:** SURGE-PY-020 (complete)
+**Current ticket:** SURGE-PY-024 (in progress)
 
 This document is authoritative for Python ticket numbering and MVP scope from
 SURGE-PY-014 onward. Earlier day-based plans are historical context only.
@@ -18,6 +18,11 @@ SURGE-PY-014 onward. Earlier day-based plans are historical context only.
 | SURGE-PY-018 | Multi-Objective Scoring + Recommendation | Complete | Score electrically evaluated candidates and return an explainable deterministic recommendation. |
 | SURGE-PY-019 | End-to-End Optimisation Orchestrator | Complete | Connect preprocessing, candidate generation, load flow, scoring, recommendation, and presentation behind one internal call. |
 | SURGE-PY-020 | MVP Demo API + End-to-End Validation | Complete | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
+| SURGE-PY-021 | V1 Constraint Regression Coverage | Complete | Enforce the existing V1 constraint behavior with deterministic positive, rejection, and compatibility API tests. |
+| SURGE-PY-022 | Constraint Fixture Provenance Labeling | Complete | Label the hand-authored constraint payload as a Python-contract fixture and document the evidence needed for verified KMZ provenance. |
+| SURGE-PY-023 | Network-Level Pole Endpoint Deduplication | Complete | Merge coincident shared topology endpoints into deterministic junction structures while preserving route-local span traceability. |
+| SURGE-PY-024 | Pole Placement Integration into the Optimisation Workflow | Complete | Run placement and PY-023 deduplication once for the recommended PNC, then attach the canonical pole network to `OptimisationWorkflowResult` without changing ranking. |
+| SURGE-PY-025 | Pole GeoJSON + API Presentation | Complete | Convert the canonical PY-024 pole network into the stable public summary and WGS-84 `pnc_pole` contract. |
 
 No feature may be inserted between these tickets unless it blocks the vertical
 workflow. If work expands beyond these boundaries, reduce MVP scope rather than
@@ -128,35 +133,153 @@ requests and receives three unique electrically valid candidates, then checks
 repeat-call equality, complete WTG and segment coverage, ranked candidates,
 recommendation, and WGS-84 GeoJSON.
 
+### SURGE-PY-021 - V1 Constraint Regression Coverage [COMPLETE]
+
+PY-021 is additive test coverage above the frozen PY-020 MVP boundary; it does
+not change the request or response contract.
+`optimisation-python/tests/api/test_optimise_v1.py` reuses the deterministic
+constraint fixture to verify successful hard/soft constraint handling,
+route-level hard-polygon avoidance, byte-identical repeat responses, endpoint
+rejection inside a named hard buffer, and unchanged uniform-cost routing when
+`avoidance_geojson` is omitted.
+
+### SURGE-PY-022 - Constraint Fixture Provenance Labeling [COMPLETE]
+
+PY-022 documents `constraint_demo_project_v2.json` as a hand-authored,
+deterministic Python-contract fixture. It verifies Python behavior after a
+well-formed payload reaches the service; it does not verify Java's KMZ-to-JSON
+transformation. The fixture README records the cross-team capture and comparison
+steps required before the payload may be described as a verified KMZ round-trip
+artifact. No request data, test behavior, schema, or production code changed.
+
+### SURGE-PY-023 - Network-Level Pole Endpoint Deduplication [COMPLETE]
+
+PY-023 adds `deduplicate_pole_endpoints()` as an explicit post-pass over the
+route-local `CollectorPoleResult`. It exposes distinct `PhysicalPole` records,
+merges only different-route terminals that share a topology node and satisfy a
+strict pairwise coordinate tolerance, classifies merged structures as
+`junction`, and retains sorted feeder/route/source-pole references. Route-local
+poles and conductor spans remain unchanged; the deduplicated result's
+`total_poles` counts physical structures. Presentation consumption is deferred
+to the following presentation ticket.
+
+### SURGE-PY-024 - Pole Placement Integration into the Optimisation Workflow [IN PROGRESS]
+
+PY-024 owns the application boundary between recommendation and detailed pole
+engineering. After scoring selects the winner, `place_poles_on_network()`
+consumes that candidate's routed `PNCSegment` geometries, preserves segment IDs
+as provenance, applies the PY-023 endpoint-deduplication pass, and returns the
+canonical `CollectorPoleResult` on `OptimisationWorkflowResult.pole_network`.
+Pole configuration continues to flow through `OptimisationConfig`.
+
+Placement is not run for every candidate and pole count is not a PY-018 scoring
+objective. A generation error fails the detailed workflow with
+`POLE_PLACEMENT` / `POLE_NETWORK_GENERATION_FAILED`; it is never reported as a
+successful result with missing poles. PY-025 owns formal GeoJSON/API
+presentation of this domain result.
+
 ## Constraint and demo scope
 
-The current public request does not transport project boundaries or raw
-restriction/exclusion layers, and the production pipeline does not rasterize
-those layers. To preserve the PY-020 deadline, raw GIS constraint transport and
-rasterization are outside this MVP freeze.
+The public V1 and V2 requests accept optional `avoidance_geojson` features and
+the production pipeline maps them to hard exclusions or soft penalties before
+routing. PY-021 closes the V1 API coverage gap for that implemented path.
+Project-boundary clipping, terrain-derived costs, and fixture provenance from a
+KMZ round trip remain separate follow-up work. Pole endpoint deduplication is
+implemented by PY-023; PY-024 integrates it with the winning workflow and
+PY-025 owns its public presentation.
 
-The internal scenario generator must continue to respect blocked or penalized
-cells already encoded in its prepared `CostSurface`. The public golden fixture
-uses the currently supported WTG/substation inputs and uniform prepared cost
-surface. Raw boundary, exclusion, terrain, parcel, and ROW inputs must not be
-claimed in the Sunday API demonstration until a later ticket integrates them.
+## Two-day demo productisation sprint
 
-## Remaining schedule
+**Outcome by Saturday, 15 August:** a repeatable vertical-slice demonstration
+that accepts a controlled wind-project dataset, runs the real optimisation
+workflow, shows the selected route on the map, and explains the recommendation
+with traceable electrical and routing evidence.
 
-| Date | Target |
-| --- | --- |
-| Wed 12 Aug | PY-017 implemented and focused tests validated |
-| Thu 13 Aug | PY-018 deterministic electrical-aware scoring |
-| Fri 14 Aug | PY-019 end-to-end orchestrator |
-| Sat 15 Aug | PY-020 compatible API and golden fixture |
-| Sun 16 Aug | End-to-end stabilization and demonstration only |
+This sprint is about turning the completed engine into credible product proof.
+It does not expand the engineering scope. The demonstration must be narrower
+before it is allowed to display synthetic, placeholder, or unsupported results.
 
-The deterministic MVP sequence through PY-020 is complete.
+### Day 1 - Thursday, 13 August: make the real product path reliable
+
+**Goal:** prove one honest path from project data to a persisted, visible
+optimisation result.
+
+| Time box | Work | Evidence at the end of the block |
+| --- | --- | --- |
+| First 2 hours | Freeze one named demo dataset and its electrical assumptions. Record the supported inputs and expected candidate count. | Versioned fixture, input checklist, and expected high-level result. |
+| Next 3 hours | Bring up and verify the actual path: Web GIS -> Java job API -> Python V1 compatibility endpoint -> PostGIS -> route API -> Web GIS. Fix only blockers in this path. | A fresh run completes without manually inserting result data. |
+| Next 2 hours | Remove or hide false-success behaviour from the demo path. An optimiser, persistence, or refresh failure must be visible to the user. Synthetic scenario-comparison and parcel-impact values must not be presented as calculated results. | Failed runs fail clearly; every visible engineering value has a real source. |
+| Final 1-2 hours | Add a repeatable smoke procedure and run the focused quality checks from the correct project directories. Capture runtime and known warnings. | One short startup/smoke checklist that another engineer can follow. |
+
+**Day 1 exit gate**
+
+- The Python suite remains green; the current baseline is `476 passed` on
+  Python 3.11.9.
+- A job created from the UI reaches the real Python optimiser, persists the
+  recommended WGS-84 route, and renders it after a page refresh.
+- A broken optimiser connection produces a visible failed state rather than a
+  simulated completion.
+- The same fixed input produces the same recommendation on two consecutive
+  runs.
+- Environment blockers are explicit. At planning time Docker is unavailable
+  on the workstation, web dependencies are not installed, and the Maven
+  wrapper cannot create its default user-level `.m2` directory in the managed
+  environment.
+
+### Day 2 - Friday, 14 August: make the proof feel investable
+
+**Goal:** make the working vertical slice communicate an engineering decision,
+not merely draw a line.
+
+| Time box | Work | Evidence at the end of the block |
+| --- | --- | --- |
+| First 3 hours | Carry the existing rich optimiser result across the product boundary. Show the recommended candidate, score/reason, route length, active losses, maximum loading, minimum voltage, feasibility, and rejected-candidate reasons. | A reviewer can answer "why this route?" from the product without reading raw logs. |
+| Next 2 hours | Tighten the result experience: clear running/failed/completed states, units, preliminary-engineering labels, useful empty states, and map focus on the recommended network. | The primary workflow is understandable without developer narration. |
+| Next 2 hours | Provide trustworthy outputs using existing real data: recommended-route GeoJSON plus a compact candidate/electrical summary. Hide exports whose figures are still synthetic or disconnected from the optimiser. | Downloaded evidence matches the on-screen recommendation. |
+| Final 1-2 hours | Run the full available checks, perform two cold-start demo rehearsals, fix only release blockers, and capture a short evidence pack. | Test/build logs, screenshots, measured runtime, demo script, and limitations are ready. |
+
+**Day 2 exit gate**
+
+- At least three distinct candidates are evaluated for the golden fixture and
+  the recommended candidate is clearly identified.
+- All displayed metrics are generated by the current run and use explicit
+  units; no hard-coded scenario numbers appear in the demo.
+- Invalid or electrically infeasible candidates remain visible with rejection
+  reasons and cannot be recommended.
+- The map, summary, and exported result refer to the same candidate and job.
+- The product survives two consecutive rehearsals from startup to export.
+
+### Saturday demonstration gate
+
+Use a 6-8 minute story:
+
+1. Introduce the project, WTGs, substation, and engineering assumptions.
+2. Start one optimisation job and show honest progress and completion states.
+3. Show the candidate comparison and the selected radial network on the map.
+4. Explain the winner using length, loss, loading, voltage, and feasibility.
+5. Export the recommended route and summary, then state the current limits.
+
+The build is ready only if a fresh run completes without manual data repair,
+the recommendation repeats for the same input, every demonstrated number is
+traceable to stored or returned data, and no unsupported terrain, parcel, ROW,
+ML, or production-readiness claim is made.
+
+### Deliberate two-day cuts
+
+- KMZ-to-constraint provenance, Java transport, and terrain-derived costs
+- ML ranking, N-1 analysis, and automatic electrical repair
+- New algorithms or a broad UI redesign
+- Cloud deployment and production security hardening
+- Detailed BoQ/PDF work not backed by the current optimisation result
+
+These cuts protect the Saturday outcome: one real, deterministic,
+electrically screened decision workflow that looks like the foundation of an
+industry product.
 
 ## Explicit post-MVP work
 
-- raw project-boundary, terrain, exclusion, parcel, ROW, and accessibility
-  transport/rasterization;
+- project-boundary clipping, terrain-derived costs, and verified KMZ-to-Python
+  constraint provenance/transport;
 - automatic electrical repair, cable resizing, and feeder rebalancing;
 - detailed BoQ and additional export formats;
 - advanced Pareto and large-scale parallel candidate search;

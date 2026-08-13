@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.algorithms.pole_placement import CollectorPoleResult, PolePlacementConfig
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult, WTGOperatingPoint
+from app.gis.constraints import ConstraintLayer
 from app.gis.cost_surface import CostSurface
 from app.models.spatial import ProjectSpatialData
 from app.optimisation.scenario_models import (
@@ -38,6 +40,7 @@ class ProjectInput:
     cost_surface: CostSurface
     feeder_capacity_mw: float
     operating_points: tuple[WTGOperatingPoint, ...]
+    constraint_layers: tuple[ConstraintLayer, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -45,12 +48,14 @@ class OptimisationConfig:
     scenario: ScenarioGenerationConfig
     electrical: LoadFlowConfig
     scoring: CandidateScoringConfig
+    pole: PolePlacementConfig | None = None
 
 
 class WorkflowStage(StrEnum):
     PNC_GENERATION = "PNC_GENERATION"
     ELECTRICAL_VALIDATION = "ELECTRICAL_VALIDATION"
     SCORING = "SCORING"
+    POLE_PLACEMENT = "POLE_PLACEMENT"
     PACKAGING = "PACKAGING"
 
 
@@ -58,6 +63,7 @@ class WorkflowFailureCode(StrEnum):
     GENERATION_FAILED = "GENERATION_FAILED"
     ELECTRICAL_EXECUTION_ERROR = "ELECTRICAL_EXECUTION_ERROR"
     SCORING_FAILED = "SCORING_FAILED"
+    POLE_NETWORK_GENERATION_FAILED = "POLE_NETWORK_GENERATION_FAILED"
     PACKAGING_FAILED = "PACKAGING_FAILED"
     UNEXPECTED_EXCEPTION = "UNEXPECTED_EXCEPTION"
 
@@ -78,6 +84,7 @@ class CandidateWorkflowResult:
     evaluation: CandidateEvaluation | None
     execution_failure: CandidateFailure | None
     presentation_result: ProjectOptimizationResult | None = None
+    pole_failure: CandidateFailure | None = None
     packaging_failure: CandidateFailure | None = None
 
     def __post_init__(self) -> None:
@@ -99,6 +106,8 @@ class CandidateWorkflowResult:
                 raise ValueError("Execution failure cannot have an evaluation.")
             if self.presentation_result is not None:
                 raise ValueError("Execution failure cannot have a presentation result.")
+            if self.pole_failure is not None:
+                raise ValueError("Execution failure cannot have a pole failure.")
             if self.packaging_failure is not None:
                 raise ValueError("Execution failure cannot have a packaging failure.")
         if self.evaluation is not None:
@@ -110,6 +119,28 @@ class CandidateWorkflowResult:
                 )
         if self.presentation_result is not None and self.evaluation is None:
             raise ValueError("Presentation result requires a candidate evaluation.")
+        if self.pole_failure is not None:
+            if self.load_flow_result is None or self.evaluation is None:
+                raise ValueError(
+                    "Pole failure requires load-flow and evaluation results."
+                )
+            if self.presentation_result is not None:
+                raise ValueError(
+                    "Pole failure cannot coexist with a presentation result."
+                )
+            if self.packaging_failure is not None:
+                raise ValueError(
+                    "Pole failure cannot coexist with a packaging failure."
+                )
+            if self.pole_failure.stage != WorkflowStage.POLE_PLACEMENT:
+                raise ValueError("Pole failure must use the POLE_PLACEMENT stage.")
+            if (
+                self.pole_failure.code
+                != WorkflowFailureCode.POLE_NETWORK_GENERATION_FAILED
+            ):
+                raise ValueError(
+                    "Pole failure must use POLE_NETWORK_GENERATION_FAILED."
+                )
         if self.packaging_failure is not None:
             if self.load_flow_result is None or self.evaluation is None:
                 raise ValueError(
@@ -132,6 +163,14 @@ class CandidateWorkflowResult:
                 "Execution failure scenario_id must match the candidate scenario."
             )
         if (
+            self.pole_failure
+            and self.pole_failure.scenario_id
+            and self.pole_failure.scenario_id != self.scenario.scenario_id
+        ):
+            raise ValueError(
+                "Pole failure scenario_id must match the candidate scenario."
+            )
+        if (
             self.packaging_failure
             and self.packaging_failure.scenario_id
             and self.packaging_failure.scenario_id != self.scenario.scenario_id
@@ -149,12 +188,17 @@ class OptimisationWorkflowResult:
     recommendation: OptimizationRecommendation | None
     recommended_result: ProjectOptimizationResult | None
     failures: tuple[CandidateFailure, ...]
+    pole_network: CollectorPoleResult | None = None
 
     def __post_init__(self) -> None:
         candidate_failures = tuple(
             failure
             for candidate in self.candidates
-            for failure in (candidate.execution_failure, candidate.packaging_failure)
+            for failure in (
+                candidate.execution_failure,
+                candidate.pole_failure,
+                candidate.packaging_failure,
+            )
             if failure is not None
         )
         if any(failure not in self.failures for failure in candidate_failures):
@@ -208,11 +252,15 @@ class OptimisationWorkflowResult:
                 raise ValueError(
                     "NO_FEASIBLE_CANDIDATE cannot have a recommended_result."
                 )
+            if self.pole_network is not None:
+                raise ValueError("NO_FEASIBLE_CANDIDATE cannot have a pole network.")
         elif self.status == OptimisationStatus.FAILED:
             if self.recommendation is not None:
                 raise ValueError("FAILED status cannot have a recommendation.")
             if self.recommended_result is not None:
                 raise ValueError("FAILED status cannot have a recommended_result.")
+            if self.pole_network is not None:
+                raise ValueError("FAILED status cannot have a pole network.")
             if not self.failures:
                 raise ValueError("FAILED status requires failure diagnostics.")
 
@@ -238,3 +286,29 @@ class OptimisationWorkflowResult:
             raise ValueError(
                 "recommended_result must be the recommended candidate presentation."
             )
+        if self.pole_network is not None:
+            self._validate_pole_network(winner)
+
+    def _validate_pole_network(self, winner: CandidateWorkflowResult) -> None:
+        assert self.pole_network is not None
+        segments = {
+            segment.segment_id: segment
+            for feeder in winner.scenario.network.feeders
+            for segment in feeder.segments
+        }
+        routes = {route.route_id: route for route in self.pole_network.routes}
+        if set(routes) != set(segments):
+            raise ValueError(
+                "pole_network routes must exactly cover recommended PNC segments."
+            )
+        for segment_id, route in routes.items():
+            segment = segments[segment_id]
+            if (
+                route.feeder_id != segment.feeder_id
+                or route.start_node_id != segment.from_node_id
+                or route.end_node_id != segment.to_node_id
+                or not route.geometry.equals_exact(segment.route_geometry, 0.0)
+            ):
+                raise ValueError(
+                    "pole_network must be generated from the recommended PNC geometry."
+                )

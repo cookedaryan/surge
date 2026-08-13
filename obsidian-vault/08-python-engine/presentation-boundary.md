@@ -9,7 +9,7 @@ SURGE-PY-016 adds `app.presentation`, the adapter between the internal engineeri
 
 It returns `ProjectOptimizationResult`, which contains network and feeder summaries, electrical violations, and a map-ready GeoJSON `FeatureCollection`. The module does not generate topology, route cables, or run load flow. Its calculations are limited to presentation concerns such as rounding, ordering, grouping violations, and calculating a WGS-84 bounding box.
 
-The existing `/api/v1/optimise` response and the Java DTO/import boundary do not yet use this model. API integration remains a separate ticket.
+The `/api/v1/optimise` response correctly uses this presentation model by filtering it to match the legacy Java DTO schema. V2 endpoints expose the full `ProjectOptimizationResult`.
 
 ## How the pieces work together
 
@@ -38,12 +38,15 @@ Violations are ordered deterministically. A violation with a WTG or segment refe
 The returned RFC 7946-style `FeatureCollection` contains features in this stable order:
 
 1. the substation Point;
-2. WTG Points sorted by WTG ID; and
-3. segment LineStrings sorted by segment ID.
+2. WTG Points sorted by WTG ID;
+3. segment LineStrings sorted by segment ID; and
+4. deduplicated physical pole Points sorted canonically by topology node, pole ID, then route IDs (if pole placement is configured).
 
-Every feature receives a stable top-level ID: `substation-{id}`, `wtg-{id}`, or `segment-{id}`. Coordinates contain exactly longitude and latitude, must be finite, and are checked against WGS-84 longitude and latitude bounds. The collection includes `[west, south, east, north]` in `bbox`. `ProjectOptimizationResult.source_crs` records the original PNC CRS; all feature geometry is EPSG:4326.
+Every feature receives a stable top-level ID: `substation-{id}`, `wtg-{id}`, `segment-{id}`, or `pole-{id}`. Coordinates contain exactly longitude and latitude, must be finite, and are checked against WGS-84 longitude and latitude bounds. The collection includes `[west, south, east, north]` in `bbox`. `ProjectOptimizationResult.source_crs` records the original PNC CRS; all feature geometry is EPSG:4326.
 
 Node properties include voltage, voltage angle, and net active/reactive demand. Segment properties include terminal currents, maximum current, loading, losses, endpoint voltages, and physical PNC identifiers. `has_voltage_violation` is set only for under- or over-voltage codes; `has_cable_overload` is set only for a cable-overload code.
+
+Pole features represent deduplicated physical structures rather than logical route endpoints. Coincident topology endpoints are merged into a single `junction` pole, while keeping their contributor references (`connected_feeder_ids`, `connected_route_ids`) and `connected_node_ids`. Pole summary semantics (`total_poles`, `terminal_poles`, `angle_poles`, `intermediate_poles`, `junction_poles`) are strictly calculated from these unique physical structures rather than raw route-local pole counts.
 
 ## Non-convergence
 

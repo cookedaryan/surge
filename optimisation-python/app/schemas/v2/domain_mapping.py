@@ -2,10 +2,15 @@ import dataclasses
 import math
 from dataclasses import dataclass
 
+from app.algorithms.pole_placement import PolePlacementConfig
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import WTGOperatingPoint
+from app.gis.constraints import ingest_avoidance_constraints
 from app.gis.cost_surface import build_project_cost_surface
-from app.gis.preprocessing import process_project_data
+from app.gis.preprocessing import (
+    process_project_data,
+    validate_project_routing_endpoints,
+)
 from app.optimisation.scenario_models import ScenarioGenerationConfig
 from app.optimisation.scoring_models import CandidateScoringConfig
 from app.optimisation.workflow_models import (
@@ -64,13 +69,25 @@ def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocatio
             + ", ".join(sorted(missing_capacity_ids))
         )
 
-    # 2. Build bounded uniform cost surface
+    # 2. Build bounded surface and burn road/land exclusions into it.
     try:
         cost_surface = build_project_cost_surface(
             project_data,
             resolution_m=request.routing_config.resolution_m,
             padding_m=request.routing_config.padding_m,
             max_cells=MAX_RASTER_CELLS,
+        )
+        constraint_application = ingest_avoidance_constraints(
+            cost_surface,
+            request.avoidance_geojson,
+            buffer_m=request.routing_config.avoidance_buffer_m,
+            soft_cost_weight=request.routing_config.avoidance_cost_weight,
+        )
+        cost_surface = constraint_application.surface
+        validate_project_routing_endpoints(
+            project_data,
+            cost_surface,
+            constraint_application.layers,
         )
     except ValueError as exc:
         raise OptimisationInputError(str(exc)) from exc
@@ -184,12 +201,19 @@ def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocatio
         cost_surface=cost_surface,
         feeder_capacity_mw=feeder_capacity_mw,
         operating_points=tuple(operating_points),
+        constraint_layers=constraint_application.layers,
     )
 
     config = OptimisationConfig(
         scenario=scenario_config,
         electrical=load_flow_config,
         scoring=scoring_config,
+        pole=PolePlacementConfig(
+            target_span_m=request.pole_config.target_span_m,
+            min_span_m=request.pole_config.min_span_m,
+            max_span_m=request.pole_config.max_span_m,
+            angle_pole_threshold_deg=request.pole_config.angle_pole_threshold_deg,
+        ),
     )
 
     return WorkflowInvocation(project_input=project_input, config=config)

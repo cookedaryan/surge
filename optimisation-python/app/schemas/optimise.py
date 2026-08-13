@@ -9,6 +9,7 @@ from app.schemas.v2.optimise import (
     FailuresSummary,
     GenerationSummary,
     OperatingPointConfig,
+    PoleConfigRequest,
     RecommendationSummary,
     RoutingConfigRequest,
     ScenarioConfigRequest,
@@ -38,6 +39,7 @@ class OptimisationRequest(BaseModel):
 
     wtg_geojson: GeoJSON
     substation_geojson: GeoJSON
+    avoidance_geojson: GeoJSON | None = None
 
     electrical_params: ElectricalParams = Field(default_factory=ElectricalParams)
     routing_config: RoutingConfigRequest = Field(
@@ -46,6 +48,7 @@ class OptimisationRequest(BaseModel):
             padding_m=100.0,
         )
     )
+    pole_config: PoleConfigRequest = Field(default_factory=PoleConfigRequest)
     operating_point_config: OperatingPointConfig = Field(
         default_factory=OperatingPointConfig
     )

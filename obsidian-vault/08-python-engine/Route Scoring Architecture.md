@@ -31,7 +31,12 @@ To ensure full auditability, the exact `NormalizationRange` used to bind the coh
 ## Deduplication Aggregation
 Metrics such as ROW footprint area, environmental area overlap, and cadastral parcel hits are inherently non-additive across route segments (e.g., overlapping corridors or parcels that touch multiple feeders). The route scorer expects the caller to have already resolved identity deduplication prior to invoking `evaluate_network_candidates`. 
 
-> **Note on Poles**: Because network-level pole deduplication at shared junctions/endpoints is not yet implemented, the pole criterion specifically evaluates `generated_pole_record_count`, reflecting a raw summation of pole records generated across segments rather than distinct physical structures.
+> **Note on poles:** SURGE-PY-023 adds a network-level endpoint merge pass. The
+> compatibility field remains named `generated_pole_record_count`, but a caller
+> scoring output from the pole-placement pipeline should populate it from the
+> deduplicated `CollectorPoleResult.total_poles`, which represents distinct
+> physical structures. Callers constructing `NetworkCandidateMetrics` directly
+> remain responsible for supplying a deduplicated value.
 
 ## Constraint Failures
 Candidates that trigger exclusionary constraints are recorded via `hard_violation_ids`. 

@@ -1,7 +1,7 @@
 # Variable-Span Pole Placement
 
-> [!note] Implementation status: Partially implemented — SURGE-PY-010
-> `app/algorithms/pole_placement.py` provides geometry-based pole placement along refined feeder routes. It is a tested standalone algorithm and is not yet called by `OptimisationService` or exposed through `/api/v1/optimise`. DEM sag/clearance analysis and structural optimisation remain planned for later tickets.
+> [!note] Implementation status: Recommended-network workflow integration implemented — SURGE-PY-010/PY-023/PY-024
+> `app/algorithms/pole_placement.py` provides geometry-based route placement, an explicit distinct-structure post-pass, and `place_poles_on_network()` for the winning PNC. `OptimisationWorkflowResult.pole_network` owns the canonical deduplicated domain result. DEM sag/clearance analysis and structural optimisation remain planned for later work.
 
 ## SURGE-PY-010 Implementation
 
@@ -15,8 +15,10 @@ Key behaviours:
 - **Soft minimum**: `min_span_m` controls whether a section is subdivided; it is not enforced as a lower bound on every resulting span. A section at or below the minimum receives no fill pole. A whole short route can still contain more than two poles when it has mandatory angle vertices.
 - **Span measurement**: `distance_along_route_m` is arc length measured along the LineString. `PoleSpan.span_length_m` is instead the Euclidean chord between adjacent pole Points, so it can be shorter than their arc-length separation when the route bends between them.
 - **Deterministic IDs**: IDs use `{feeder_id}-P{sequence:03d}`. Direct single-route placement starts at one by default. `place_poles_on_routes()` maintains a separate cumulative sequence for each feeder, preventing collisions when several routes share a `feeder_id`.
-- **Batch result**: `place_poles_on_routes()` returns a `CollectorPoleResult` with one route result per input route and aggregate pole/span counts. Route order determines the feeder-wide sequence and must therefore be deterministic when stable IDs matter.
-- `start_node_id` / `end_node_id` are preserved on each `PoleRouteResult` for future network-level endpoint deduplication.
+- **Batch result**: `place_poles_on_routes()` returns a `CollectorPoleResult` with one route result per input route, a route-local `PhysicalPole` view, and aggregate pole/span counts. Route order determines feeder-wide route-local sequences and must therefore be deterministic when those IDs matter.
+- **Network endpoint deduplication (SURGE-PY-023)**: `deduplicate_pole_endpoints()` returns a new `CollectorPoleResult` whose `physical_poles` view merges terminal records only when different routes declare the same topology node and their coordinates are within tolerance. Route-local poles/spans remain unchanged for traceability; `total_poles` becomes the distinct physical-structure count, while `total_spans` remains the route conductor-span count.
+- **Merged identity and role**: a shared endpoint becomes a `junction` structure with a deterministic hash-based ID plus sorted feeder, route/segment, and source-pole references. Its coordinate is a deterministic existing endpoint coordinate rather than an off-route centroid. PNC presentation adapters preserve each canonical `PNCSegment.segment_id` as the route reference rather than replacing it with an inferred node-pair label.
+- **Clustering rule**: strict pairwise membership is used. A candidate joins a cluster only when it is within tolerance of every existing member, so transitive A–B/B–C proximity cannot merge A and C when they exceed tolerance. Nearby mid-route poles and endpoints with different topology node IDs never merge.
 
 ## How the Components Work Together
 
@@ -24,15 +26,23 @@ Key behaviours:
 2. `PolePlacementConfig` supplies the preferred, soft-minimum, hard-maximum, and angle-threshold policies.
 3. `place_poles_on_route()` detects mandatory positions, fills each resulting section, interpolates exact Point geometries, classifies poles, and connects adjacent poles with `PoleSpan` records.
 4. `place_poles_on_routes()` applies that route-local operation to a batch and coordinates feeder-wide numbering.
-5. The caller can later serialize or persist the results, but the current service and API do not perform that integration.
+5. `place_poles_on_network()` converts the recommended PNC's actual routed segments while preserving their stable IDs.
+6. `deduplicate_pole_endpoints()` creates the distinct physical-structure view returned by the optimisation workflow before persistence, costing, or future scoring.
 
 The route-local and batch APIs are deliberately independent of `CostSurface`. Pole placement consumes the refined geometry rather than GIS raster internals, which keeps the algorithm testable and allows later terrain, crossing, or policy stages to add mandatory locations without coupling span placement to A* implementation details.
 
 ## Current Integration Boundary
 
-The active request pipeline ends after route refinement, WGS84 conversion, and route GeoJSON construction. PY-010 is therefore implemented but not operationally invoked. The optimisation response contains routes and aggregate refined length, not pole or span collections.
+The rich optimisation path selects its recommended scenario before running pole
+placement. PY-024 then applies route-local placement and PY-023 deduplication to
+that exact `ProjectPNCNetwork` and attaches the result to
+`OptimisationWorkflowResult.pole_network`. Pole count remains an engineering
+metric and does not participate in candidate scoring.
 
-Network-level endpoint deduplication is also deferred. If two route results meet at one topology node, each currently retains its own terminal pole even when their Point coordinates coincide. `start_node_id`, `end_node_id`, and `coordinate_tolerance_m` preserve the information needed for a later merge pass.
+Network-level endpoint deduplication is implemented as an explicit post-pass.
+It does not rewrite route-local pole IDs or spans. Downstream consumers must use
+the returned `physical_poles` view and deduplicated `total_poles`; PY-025 owns
+the formal public GeoJSON/API contract.
 
 ## Concepts
 
@@ -49,11 +59,11 @@ Common preliminary pole roles include:
 ## Planned Engineering Extensions
 
 1. Sample a DEM elevation profile along a routed LineString.
-2. Add mandatory crossing and junction structures to the terminal/angle rules already implemented.
+2. Add mandatory crossing structures and engineering-specific junction classes beyond the geometry-only PY-023 merge role.
 3. Generate terrain-aware candidate support positions.
 4. Check conductor sag, ground clearance, structural loading, and applicable engineering standards.
 5. Select structural pole classes rather than only geometric terminal/angle/intermediate roles.
-6. Deduplicate shared network endpoints and feed quantities and foundation classes into [[Cost Model]].
+6. Feed deduplicated quantities and future foundation classes into [[Cost Model]].
 
 ## Safety Boundary
 

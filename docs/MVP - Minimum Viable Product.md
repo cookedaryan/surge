@@ -355,13 +355,13 @@ The problem statement specifically requires independent span treatment, reductio
 
 **SURGE-PY-010 — Implemented** (`app/algorithms/pole_placement.py`):
 
-- `PolePlacementConfig` carries `target_span_m`, `min_span_m`, `max_span_m`, `angle_pole_threshold_deg`, and `coordinate_tolerance_m` (reserved for future deduplication). All fields validated for finiteness and range.
+- `PolePlacementConfig` carries `target_span_m`, `min_span_m`, `max_span_m`, `angle_pole_threshold_deg`, and `coordinate_tolerance_m`. All fields are validated for finiteness and range; the coordinate tolerance is consumed by the SURGE-PY-023 endpoint-deduplication pass.
 - Mandatory structures at route start/end (terminal) and at LineString vertices whose deflection angle ≥ `angle_pole_threshold_deg` (angle). Deflection is the angle between the two forward direction vectors at the vertex: 0° straight, 90° right-angle, 180° reversal.
 - Section-based span fill: for each section longer than `min_span_m`, the initial span count is `round(L / target_span_m)` using Python's ties-to-even rounding, with a minimum of one. The count is then increased until the arc-length interval is no greater than `max_span_m`. The maximum is a hard limit; the minimum is a subdivision threshold, not a guaranteed lower bound for every result span. A short section receives no fill pole, although its endpoints can still include mandatory angle poles.
 - `PoleSpan.span_length_m` is the Euclidean chord distance between adjacent pole Points. Pole IDs are deterministic (`{feeder_id}-P{sequence:03d}`) with a continuous per-feeder sequence across all routes in a batch.
-- DEM sag, structural analysis, pole-aware road/river crossings, and network-level pole deduplication are deferred to later tickets. ROW buffering now exists independently in SURGE-PY-011 but is not integrated with pole placement.
+- SURGE-PY-023 adds deterministic network-level endpoint deduplication, classifying merged shared terminals as junction structures while retaining route-local pole/span traceability. DEM sag, structural analysis, and pole-aware road/river crossings remain deferred. ROW buffering exists independently in SURGE-PY-011 but is not integrated with pole placement.
 
-**Integration boundary:** PY-010 consumes `RefinedPhysicalRoute` objects and is fully unit-tested as an algorithm module. It is not part of the current `/api/v1/optimise` execution flow, and the optimisation response does not yet expose poles or spans.
+**Integration boundary:** PY-010 consumes `RefinedPhysicalRoute` objects and is fully unit-tested as an algorithm module. The rich optimisation result invokes route-local placement and exposes preliminary pole output; presentation consumption of PY-023's deduplicated `PhysicalPole` view is owned by the following presentation ticket.
 
 ## Step 7: ROW and land-parcel analysis
 
