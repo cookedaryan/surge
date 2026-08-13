@@ -165,7 +165,7 @@ def test_missing_substation() -> None:
     assert "Substation GeoJSON is empty or missing" in response.json()["detail"]
 
 
-def test_multiple_substations() -> None:
+def test_multiple_substations_are_supported() -> None:
     payload = create_payload()
     payload["substation_geojson"]["features"].append(
         {
@@ -177,8 +177,8 @@ def test_multiple_substations() -> None:
 
     response = client.post("/api/v1/optimise", json=payload)
 
-    assert response.status_code == 422
-    assert "exactly one Substation feature" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
 
 
 def test_malformed_feature_collection() -> None:

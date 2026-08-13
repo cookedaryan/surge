@@ -76,6 +76,20 @@ def test_missing_substation_rejected() -> None:
         process_project_data(wtgs, sub)
 
 
+def test_multiple_substations_selects_nearest_when_capacity_missing() -> None:
+    wtgs = _make_fc([_make_pt(-3.0, 55.0, {"id": "W1"})])
+    substations = _make_fc(
+        [
+            _make_pt(-3.5, 55.5, {"id": "FAR"}),
+            _make_pt(-3.01, 55.01, {"id": "NEAR"}),
+        ]
+    )
+
+    project_data = process_project_data(wtgs, substations)
+
+    assert project_data.substation.substation_id == "NEAR"
+
+
 def test_empty_wtg_rejected() -> None:
     wtgs = _make_fc([])
     sub = _make_fc([_make_pt(-3.05, 55.05)])

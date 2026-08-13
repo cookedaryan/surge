@@ -82,6 +82,12 @@ def build_project_cost_surface(
         height = max(1, int(math.ceil((max_y - min_y) / resolution_m)))
         total_cells = width * height
 
+    if max_cells is not None and total_cells > max_cells:
+        raise ValueError(
+            "Cost surface exceeds the maximum allowed cells after resolution "
+            "adjustment."
+        )
+
     # Affine transform for Raster (origin top-left, y points down)
     transform = Affine.translation(min_x, max_y) * Affine.scale(
         resolution_m, -resolution_m
