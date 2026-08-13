@@ -6,6 +6,10 @@ ENV PIP_NO_CACHE_DIR=1
 
 WORKDIR /service
 
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.lock.txt .
 
 RUN pip install --upgrade pip \
