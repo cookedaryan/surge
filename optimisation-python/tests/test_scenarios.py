@@ -35,6 +35,7 @@ Test matrix
 """
 
 import math
+from typing import Any
 from unittest.mock import patch
 
 import networkx as nx
@@ -44,7 +45,7 @@ import pytest
 from affine import Affine
 from shapely.geometry import LineString, Point
 
-from app.algorithms.physical_routing import RouteNotFoundError
+from app.algorithms.physical_routing import PhysicalRoutingResult, RouteNotFoundError
 from app.algorithms.physical_routing import (
     route_collector_topology as _route_collector_topology,
 )
@@ -52,7 +53,11 @@ from app.algorithms.route_graph import (
     build_project_graph,
     turbine_node_id,
 )
-from app.algorithms.wtg_grouping import GroupingObjective, group_wtgs
+from app.algorithms.wtg_grouping import (
+    FeederGroupingResult,
+    GroupingObjective,
+    group_wtgs,
+)
 from app.gis.cost_surface import CostSurface
 from app.models.spatial import ProjectSpatialData, Substation, WindTurbine
 from app.optimisation import (
@@ -71,7 +76,7 @@ from app.optimisation.scenarios import (
     _build_scenario_parameters,
 )
 from app.pnc.assembly import build_pnc_network
-from app.pnc.models import ProjectPNCNetwork
+from app.pnc.models import PNCFeeder, ProjectPNCNetwork
 
 _PSD = ProjectSpatialData  # short alias for test method signatures
 
@@ -597,15 +602,15 @@ class TestVariationReachesAlgorithms:
         # Only request PS-001 and PS-002 and PS-003
         config = ScenarioGenerationConfig(candidate_count=3)
 
-        recorded_calls: list[dict] = []
+        recorded_calls: list[dict[str, int | GroupingObjective]] = []
 
         def recording_group_wtgs(
-            proj,
-            cap,
+            proj: ProjectSpatialData,
+            cap: float,
             *,
             random_state: int = 42,
             objective: GroupingObjective = GroupingObjective.MINIMIZE_DISTANCE,
-        ):
+        ) -> FeederGroupingResult:
             recorded_calls.append(
                 {"random_state": random_state, "objective": objective}
             )
@@ -628,12 +633,12 @@ class TestVariationReachesAlgorithms:
         recorded_seeds: list[int] = []
 
         def recording_group_wtgs(
-            proj,
-            cap,
+            proj: ProjectSpatialData,
+            cap: float,
             *,
             random_state: int = 42,
             objective: GroupingObjective = GroupingObjective.MINIMIZE_DISTANCE,
-        ):
+        ) -> FeederGroupingResult:
             recorded_seeds.append(random_state)
             return group_wtgs(proj, cap, random_state=random_state, objective=objective)
 
@@ -842,7 +847,7 @@ class TestFingerprintContent:
         """Create two networks with identical topology but swapped feeder IDs.
         The fingerprint must be identical.
         """
-        from app.pnc.models import PNCFeeder, PNCSegment, ProjectPNCNetwork
+        from app.pnc.models import PNCSegment, ProjectPNCNetwork
 
         seg = PNCSegment(
             segment_id="SEG-FDR001-0001",
@@ -851,6 +856,7 @@ class TestFingerprintContent:
             to_node_id="wtg:T1",
             route_geometry=LineString([(0, 0), (10, 0)]),
             route_length_m=10.0,
+            traversal_cost=10.0,
             segment_type="substation_to_wtg",
         )
 
@@ -881,7 +887,7 @@ class TestFingerprintContent:
             mst_graph=mst_b,
         )
 
-        def _make_network(feeder, fid):
+        def _make_network(feeder: PNCFeeder, fid: str) -> ProjectPNCNetwork:
             return ProjectPNCNetwork(
                 project_id="P",
                 substation_id=sub_id,
@@ -947,7 +953,7 @@ class TestEarlyDuplicateSuppression:
 
         original_route = _route_collector_topology
 
-        def counting_route(*args, **kwargs):
+        def counting_route(*args: Any, **kwargs: Any) -> PhysicalRoutingResult:
             nonlocal route_call_count
             route_call_count += 1
             return original_route(*args, **kwargs)
@@ -1041,7 +1047,7 @@ class TestFailureRecorded:
         original_route = _route_collector_topology
         call_count = [0]
 
-        def failing_after_first(*args, **kwargs):
+        def failing_after_first(*args: Any, **kwargs: Any) -> PhysicalRoutingResult:
             call_count[0] += 1
             if call_count[0] > 1:
                 raise RouteNotFoundError("F1", "a", "b", "simulated failure")
@@ -1117,7 +1123,7 @@ class TestScenarioIdsStableOnRejection:
 class TestConfigValidation:
     def test_bool_candidate_count_rejected(self) -> None:
         with pytest.raises(InvalidScenarioConfigError, match="bool"):
-            ScenarioGenerationConfig(candidate_count=True)  # type: ignore[arg-type]
+            ScenarioGenerationConfig(candidate_count=True)
 
     def test_float_candidate_count_rejected(self) -> None:
         with pytest.raises(InvalidScenarioConfigError):
@@ -1141,7 +1147,7 @@ class TestConfigValidation:
 
     def test_bool_base_seed_rejected(self) -> None:
         with pytest.raises(InvalidScenarioConfigError, match="bool"):
-            ScenarioGenerationConfig(base_seed=True)  # type: ignore[arg-type]
+            ScenarioGenerationConfig(base_seed=True)
 
     def test_valid_config_accepted(self) -> None:
         cfg = ScenarioGenerationConfig(

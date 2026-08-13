@@ -34,6 +34,7 @@ New tests added for the two-boundary refactor
 20  geometry.length inconsistent with refined_length_m → UNROUTED_TOPOLOGY_EDGE
 21  Incorrect aggregate total in RefinedRoutingResult → ValueError
 22  Deterministic IDs and ordering are identical through both paths
+23  Refined traversal cost is preserved on PNCSegment
 """
 
 import math
@@ -75,6 +76,10 @@ from app.pnc.models import ProjectPNCNetwork
 # ---------------------------------------------------------------------------
 
 _CRS = pyproj.CRS("EPSG:32630")
+
+
+def _ordered_edge(first: str, second: str) -> tuple[str, str]:
+    return (first, second) if first <= second else (second, first)
 
 
 @pytest.fixture
@@ -130,7 +135,7 @@ def _make_single_edge_topology(
         node_ids=(sub_id, w_id),
         total_capacity_mw=5.0,
         total_length_m=40.0,
-        mst_edges=(tuple(sorted((sub_id, w_id))),),
+        mst_edges=(_ordered_edge(sub_id, w_id),),
         mst_graph=mst,
     )
     return CollectorTopologyResult(feeders=(ft,))
@@ -370,8 +375,8 @@ class TestMissingPhysicalRoute:
             total_capacity_mw=10.0,
             total_length_m=90.0,
             mst_edges=(
-                tuple(sorted((sub_id, w1_id))),
-                tuple(sorted((w1_id, w2_id))),
+                _ordered_edge(sub_id, w1_id),
+                _ordered_edge(w1_id, w2_id),
             ),
             mst_graph=mst,
         )
@@ -896,3 +901,28 @@ class TestPrecomputedRouteValidation:
         )
         with pytest.raises(ValueError, match="total_refined_length_m"):
             assemble_pnc_network("EX21", project, topology, routing)
+
+    def test_refined_traversal_cost_is_preserved(
+        self,
+        one_wtg_setup: tuple[ProjectSpatialData, str, str, CollectorTopologyResult],
+    ) -> None:
+        project, sub_id, w1_id, topology = one_wtg_setup
+        route = RefinedPhysicalRoute(
+            feeder_id="F1",
+            start_node_id=sub_id,
+            end_node_id=w1_id,
+            geometry=LineString([(5.0, 395.0), (45.0, 395.0)]),
+            original_length_m=40.0,
+            refined_length_m=40.0,
+            original_traversal_cost=80.0,
+            refined_traversal_cost=125.0,
+        )
+        routing = RefinedRoutingResult(
+            routes=(route,),
+            total_original_length_m=40.0,
+            total_refined_length_m=40.0,
+        )
+
+        network = assemble_pnc_network("EX22", project, topology, routing)
+
+        assert network.feeders[0].segments[0].traversal_cost == pytest.approx(125.0)

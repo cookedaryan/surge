@@ -14,6 +14,7 @@ from app.electrical.load_flow.analysis import run_load_flow
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import WTGOperatingPoint
 from app.gis.cost_surface import world_to_grid
+from app.optimisation.engineering_metrics import build_candidate_engineering_metrics
 from app.optimisation.scenario_models import (
     ScenarioGenerationConfig,
     ScenarioGenerationError,
@@ -329,7 +330,30 @@ def optimise_project(
                 ),
             )
 
-    # 5. Candidate Scoring
+    # 5. Canonical Engineering Metrics
+    engineering_assessments = {}
+    for evaluated in evaluated_scenarios:
+        assessment = build_candidate_engineering_metrics(
+            scenario=evaluated.scenario,
+            load_flow_result=evaluated.load_flow_result,
+            load_flow_config=config.electrical,
+            constraint_layers=project_input.constraint_layers,
+            pole_config=config.pole,
+        )
+        engineering_assessments[evaluated.scenario.scenario_id] = assessment
+        if assessment.engineering_metrics_available:
+            logger.info(
+                "%s engineering metrics extracted",
+                evaluated.scenario.scenario_id,
+            )
+        else:
+            logger.warning(
+                "%s engineering metrics unavailable: %s",
+                evaluated.scenario.scenario_id,
+                ", ".join(failure.code for failure in assessment.extraction_failures),
+            )
+
+    # 6. Candidate Scoring (unchanged PY-018 policy)
     recommendation = None
     if evaluated_scenarios:
         try:
@@ -364,6 +388,9 @@ def optimise_project(
                     load_flow_result=es.load_flow_result,
                     evaluation=eval_map.get(es.scenario.scenario_id),
                     execution_failure=None,
+                    engineering_assessment=engineering_assessments[
+                        es.scenario.scenario_id
+                    ],
                 )
             )
 
@@ -373,7 +400,7 @@ def optimise_project(
         candidate_map[s.scenario_id] for s in generation_result.candidates
     )
 
-    # 6. Recommendation and Status
+    # 7. Recommendation and Status
     recommended_result = None
     pole_network = None
     if recommendation and recommendation.recommended_scenario_id:
@@ -392,9 +419,15 @@ def optimise_project(
 
         if config.pole is not None:
             try:
-                pole_network = place_poles_on_network(
-                    winner_candidate.scenario.network,
-                    config.pole,
+                winner_assessment = winner_candidate.engineering_assessment
+                pole_network = (
+                    winner_assessment.pole_result
+                    if winner_assessment is not None
+                    and winner_assessment.pole_result is not None
+                    else place_poles_on_network(
+                        winner_candidate.scenario.network,
+                        config.pole,
+                    )
                 )
             except Exception as exc:
                 logger.exception("Pole network generation failed for %s", winner_id)

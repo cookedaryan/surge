@@ -55,7 +55,7 @@ def default_config(**overrides: float) -> PolePlacementConfig:
         coordinate_tolerance_m=0.1,
     )
     base.update(overrides)
-    return PolePlacementConfig(**base)  # type: ignore[arg-type]
+    return PolePlacementConfig(**base)
 
 
 # ---------------------------------------------------------------------------

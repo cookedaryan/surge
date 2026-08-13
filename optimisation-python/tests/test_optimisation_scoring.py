@@ -18,9 +18,11 @@ Test matrix
 """
 
 import math
+from typing import cast
 
 import pytest
 
+from app.algorithms.wtg_grouping import GroupingObjective
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import (
     LoadFlowBusResult,
@@ -34,6 +36,7 @@ from app.optimisation.scenario_models import (
     PNCScenario,
     ScenarioParameters,
     ScenarioStrategy,
+    TopologyWeightProfile,
 )
 from app.optimisation.scoring import (
     evaluate_cohort,
@@ -89,7 +92,7 @@ def make_mock_network(length: float) -> ProjectPNCNetwork:
         wtg_count = 10
         segment_count = 9
 
-    return MockNetwork()  # type: ignore
+    return cast(ProjectPNCNetwork, MockNetwork())
 
 
 def make_scenario(
@@ -110,8 +113,8 @@ def make_scenario(
             parameter_set_id="PS-X",
             strategy=strategy,
             grouping_seed=42,
-            grouping_objective="distance",
-            topology_weight_profile="default",
+            grouping_objective=GroupingObjective.MINIMIZE_DISTANCE,
+            topology_weight_profile=TopologyWeightProfile.DEFAULT,
             topology_penalty=0.0,
             effective_feeder_capacity_mw=10.0,
         ),
@@ -128,7 +131,7 @@ def make_load_flow_result(
     converged: bool = True,
     is_valid: bool = True,
     loss: float = 1.0,
-    loading: float = 50.0,
+    loading: float | None = 50.0,
     min_v: float = 0.98,
     max_v: float = 1.02,
     violations: tuple[LoadFlowViolation, ...] = (),
@@ -211,7 +214,7 @@ def make_wrapper(
 def test_shortest_candidate_routing_advantage(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     # SCN-001: longer, SCN-002: shorter
     # Other metrics identical
     c1 = make_wrapper(
@@ -240,7 +243,7 @@ def test_shortest_candidate_routing_advantage(
 def test_lower_loss_candidate(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     c1 = make_wrapper(
         make_scenario("SCN-001", 50_000.0),
         make_load_flow_result(loss=1.0),
@@ -256,7 +259,7 @@ def test_lower_loss_candidate(
 def test_voltage_margin(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     # Limits are 0.95 and 1.05
     # c1 min_v=0.96 (margin 0.01), max_v=1.04 (margin 0.01) -> margin=0.01
     c1 = make_wrapper(
@@ -277,15 +280,24 @@ def test_voltage_margin(
     assert rec.recommended_scenario_id == "SCN-002"
 
     evals = {e.assessment.scenario_id: e for e in rec.evaluations}
-    assert math.isclose(evals["SCN-002"].assessment.metrics.voltage_margin_pu, 0.02)
-    assert math.isclose(evals["SCN-001"].assessment.metrics.voltage_margin_pu, 0.01)
-    assert math.isclose(evals["SCN-003"].assessment.metrics.voltage_margin_pu, 0.005)
+    assert all(
+        evaluation.assessment.metrics is not None for evaluation in evals.values()
+    )
+    scn_002_metrics = evals["SCN-002"].assessment.metrics
+    scn_001_metrics = evals["SCN-001"].assessment.metrics
+    scn_003_metrics = evals["SCN-003"].assessment.metrics
+    assert scn_002_metrics is not None
+    assert scn_001_metrics is not None
+    assert scn_003_metrics is not None
+    assert math.isclose(scn_002_metrics.voltage_margin_pu, 0.02)
+    assert math.isclose(scn_001_metrics.voltage_margin_pu, 0.01)
+    assert math.isclose(scn_003_metrics.voltage_margin_pu, 0.005)
 
 
 def test_lower_maximum_loading(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     c1 = make_wrapper(
         make_scenario("SCN-001", 50_000.0),
         make_load_flow_result(loading=80.0),
@@ -300,7 +312,7 @@ def test_lower_maximum_loading(
 
 def test_weighted_total_manual_calculation(
     base_load_flow_config: LoadFlowConfig,
-):
+) -> None:
     # Length: w=0.4, Loss: w=0.3, Loading: w=0.2, Voltage: w=0.1
     config = CandidateScoringConfig(0.4, 0.3, 0.2, 0.1)
 
@@ -331,7 +343,7 @@ def test_weighted_total_manual_calculation(
 def test_hard_feasibility(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     # SCN-001 has better metrics but is overloaded
     c1 = make_wrapper(
         make_scenario("SCN-001", 50_000.0),
@@ -360,7 +372,7 @@ def test_hard_feasibility(
 def test_all_candidates_invalid(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     c1 = make_wrapper(
         make_scenario("SCN-001", 50_000.0),
         make_load_flow_result(converged=False),
@@ -375,7 +387,7 @@ def test_all_candidates_invalid(
 def test_deterministic_tie_breaking(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     # Exactly same scores, different scenarios.
     c1 = make_wrapper(make_scenario("SCN-001", 50_000.0), make_load_flow_result())
     c2 = make_wrapper(make_scenario("SCN-002", 50_000.0), make_load_flow_result())
@@ -390,7 +402,7 @@ def test_deterministic_tie_breaking(
 def test_baseline_comparison(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     # Baseline is SCN-002 due to strategy
     c1 = make_wrapper(
         make_scenario(
@@ -412,12 +424,14 @@ def test_baseline_comparison(
         c for c in rec.baseline_comparisons if c.metric == ScoringMetric.ROUTE_LENGTH
     )
     assert route_comp.absolute_delta == -10_000.0
+    assert route_comp.relative_delta_percent is not None
     assert math.isclose(route_comp.relative_delta_percent, -10_000.0 / 60_000.0 * 100.0)
 
     loss_comp = next(
         c for c in rec.baseline_comparisons if c.metric == ScoringMetric.ACTIVE_LOSS
     )
     assert math.isclose(loss_comp.absolute_delta, -0.2)
+    assert loss_comp.relative_delta_percent is not None
     assert math.isclose(loss_comp.relative_delta_percent, -0.2 / 1.0 * 100.0)
 
     # Check reason includes BASELINE_IMPROVEMENT
@@ -429,7 +443,7 @@ def test_baseline_comparison(
 def test_pairing_context_mismatch_rejection(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     c1 = make_wrapper(
         make_scenario("SCN-001", 50_000.0),
         make_load_flow_result(),
@@ -469,7 +483,7 @@ def test_pairing_context_mismatch_rejection(
 def test_single_eligible_candidate(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     c1 = make_wrapper(
         make_scenario("SCN-001", 50_000.0),
         make_load_flow_result(),
@@ -489,7 +503,7 @@ def test_single_eligible_candidate(
 def test_missing_metrics_disqualification(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     c1 = make_wrapper(
         make_scenario("SCN-001", 50_000.0),
         # Converged but missing loading metric (simulating solver failure halfway)
@@ -512,7 +526,7 @@ def test_missing_metrics_disqualification(
 def test_complete_deterministic_result_across_multiple_runs(
     base_load_flow_config: LoadFlowConfig,
     base_scoring_config: CandidateScoringConfig,
-):
+) -> None:
     c1 = make_wrapper(
         make_scenario("SCN-001", 60_000.0, strategy=ScenarioStrategy.BASELINE),
         make_load_flow_result(loss=1.0),

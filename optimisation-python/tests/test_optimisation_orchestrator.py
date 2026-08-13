@@ -1,12 +1,18 @@
 from dataclasses import replace
+from typing import Any, NoReturn
 
 import numpy as np
 import pytest
 
-from app.algorithms.pole_placement import PolePlacementConfig
+from app.algorithms.pole_placement import (
+    CollectorPoleResult,
+    PolePlacementConfig,
+    place_poles_on_network,
+)
 from app.electrical.errors import CandidateElectricalEvaluationError
+from app.electrical.load_flow.analysis import run_load_flow
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
-from app.electrical.load_flow.models import WTGOperatingPoint
+from app.electrical.load_flow.models import LoadFlowNetworkResult, WTGOperatingPoint
 from app.optimisation.orchestrator import optimise_project
 from app.optimisation.scenario_models import ScenarioGenerationConfig
 from app.optimisation.scoring_models import (
@@ -20,6 +26,7 @@ from app.optimisation.workflow_models import (
     WorkflowFailureCode,
     WorkflowStage,
 )
+from app.pnc.models import ProjectPNCNetwork
 from app.presentation.exceptions import PresentationDataMismatchError
 from tests.fixtures.demo_project import build_demo_cost_surface, build_demo_project_data
 
@@ -103,6 +110,14 @@ def test_complete_successful_workflow(
     assert result.recommended_result == winner_candidate.presentation_result
     assert len([c for c in result.candidates if c.presentation_result is not None]) == 1
     assert all(candidate.packaging_failure is None for candidate in result.candidates)
+    assert all(
+        candidate.engineering_assessment is not None for candidate in result.candidates
+    )
+    assert all(
+        not candidate.engineering_assessment.engineering_metrics_available
+        for candidate in result.candidates
+        if candidate.engineering_assessment is not None
+    )
 
     # Assert deterministic ordering of candidates matches PY-017
     assert tuple(c.scenario.scenario_id for c in result.candidates) == tuple(
@@ -114,18 +129,21 @@ def test_workflow_returns_canonical_poles_for_recommended_network(
     project_input: ProjectInput,
     base_config: OptimisationConfig,
     pole_config: PolePlacementConfig,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.optimisation import orchestrator
+    selected_networks: list[ProjectPNCNetwork] = []
 
-    selected_networks = []
-    original_place_poles = orchestrator.place_poles_on_network
+    def capture_network(
+        network: ProjectPNCNetwork,
+        config: PolePlacementConfig,
+    ) -> CollectorPoleResult:
+        selected_networks.append(network)
+        return place_poles_on_network(network, config)
 
-    def capture_network(*args, **kwargs):
-        selected_networks.append(args[0])
-        return original_place_poles(*args, **kwargs)
-
-    monkeypatch.setattr(orchestrator, "place_poles_on_network", capture_network)
+    monkeypatch.setattr(
+        "app.optimisation.engineering_metrics.place_poles_on_network",
+        capture_network,
+    )
     result = optimise_project(
         project_input,
         replace(base_config, pole=pole_config),
@@ -139,7 +157,14 @@ def test_workflow_returns_canonical_poles_for_recommended_network(
         for candidate in result.candidates
         if candidate.scenario.scenario_id == winner_id
     )
-    assert selected_networks == [winner.scenario.network]
+    assert selected_networks == [
+        candidate.scenario.network for candidate in result.candidates
+    ]
+    assert all(
+        candidate.engineering_assessment is not None
+        and candidate.engineering_assessment.engineering_metrics_available
+        for candidate in result.candidates
+    )
 
     pole_network = result.pole_network
     assert pole_network is not None
@@ -284,7 +309,7 @@ def test_invalid_default_cable_fails_fast(
 
 
 def test_all_scenario_generation_fails(
-    project_input: ProjectInput, base_config: OptimisationConfig, monkeypatch
+    project_input: ProjectInput, base_config: OptimisationConfig
 ) -> None:
     # Force generating zero valid scenarios by making feeder capacity impossible
     impossible_input = ProjectInput(
@@ -329,21 +354,25 @@ def test_all_electrical_candidates_infeasible(
 
 
 def test_electrical_execution_failure_isolation(
-    project_input: ProjectInput, base_config: OptimisationConfig, monkeypatch
+    project_input: ProjectInput,
+    base_config: OptimisationConfig,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.optimisation import orchestrator
-
-    original_run_load_flow = orchestrator.run_load_flow
 
     # We will just patch run_load_flow to throw on the second call
     call_count = 0
 
-    def side_effect_run_load_flow(*args, **kwargs):
+    def side_effect_run_load_flow(
+        pnc_network: ProjectPNCNetwork,
+        operating_points: tuple[WTGOperatingPoint, ...],
+        config: LoadFlowConfig,
+    ) -> LoadFlowNetworkResult:
         nonlocal call_count
         call_count += 1
         if call_count == 2:
             raise CandidateElectricalEvaluationError("Pandapower crashed on scenario 2")
-        return original_run_load_flow(*args, **kwargs)
+        return run_load_flow(pnc_network, operating_points, config)
 
     monkeypatch.setattr(orchestrator, "run_load_flow", side_effect_run_load_flow)
 
@@ -360,11 +389,11 @@ def test_electrical_execution_failure_isolation(
 def test_winner_packaging_failure_returns_structured_failure(
     project_input: ProjectInput,
     base_config: OptimisationConfig,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.optimisation import orchestrator
 
-    def fail_winner(*args, **kwargs):
+    def fail_winner(*args: Any, **kwargs: Any) -> NoReturn:
         raise PresentationDataMismatchError("winner packaging mismatch")
 
     monkeypatch.setattr(orchestrator, "build_project_result", fail_winner)
@@ -383,13 +412,18 @@ def test_pole_generation_failure_returns_structured_failure(
     project_input: ProjectInput,
     base_config: OptimisationConfig,
     pole_config: PolePlacementConfig,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.optimisation import orchestrator
+    from app.optimisation import engineering_metrics, orchestrator
 
-    def fail_pole_generation(*args, **kwargs):
+    def fail_pole_generation(*args: Any, **kwargs: Any) -> NoReturn:
         raise ValueError("invalid routed geometry for pole placement")
 
+    monkeypatch.setattr(
+        engineering_metrics,
+        "place_poles_on_network",
+        fail_pole_generation,
+    )
     monkeypatch.setattr(
         orchestrator,
         "place_poles_on_network",
@@ -423,11 +457,11 @@ def test_pole_generation_failure_returns_structured_failure(
 def test_scoring_failure_returns_structured_failure(
     project_input: ProjectInput,
     base_config: OptimisationConfig,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.optimisation import orchestrator
 
-    def fail_scoring(*args, **kwargs):
+    def fail_scoring(*args: Any, **kwargs: Any) -> NoReturn:
         raise RuntimeError("scoring crashed")
 
     monkeypatch.setattr(orchestrator, "evaluate_cohort", fail_scoring)
@@ -469,12 +503,16 @@ def test_deterministic_runs(
     result2 = optimise_project(project_input, config)
 
     # Check stable IDs and evaluations
+    assert result1.recommendation is not None
+    assert result2.recommendation is not None
     assert (
         result1.recommendation.recommended_scenario_id
         == result2.recommendation.recommended_scenario_id
     )
     c1 = result1.candidates[0]
     c2 = result2.candidates[0]
+    assert c1.evaluation is not None
+    assert c2.evaluation is not None
     assert c1.scenario.topology_fingerprint == c2.scenario.topology_fingerprint
     assert c1.evaluation.total_benefit_score == c2.evaluation.total_benefit_score
     assert result1.pole_network == result2.pole_network

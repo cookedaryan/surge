@@ -4,6 +4,7 @@ import math
 from typing import Literal
 
 from app.electrical.load_flow.config import LoadFlowConfig
+from app.optimisation.engineering_metrics import calculate_voltage_margin
 from app.optimisation.scenario_models import ScenarioStrategy
 from app.optimisation.scoring_models import (
     CandidateAssessment,
@@ -131,9 +132,12 @@ def extract_candidate_assessment(
     max_v = res.maximum_voltage_pu
     assert min_v is not None and max_v is not None
 
-    lower_margin = min_v - load_flow_config.min_voltage_pu
-    upper_margin = load_flow_config.max_voltage_pu - max_v
-    voltage_margin_pu = min(lower_margin, upper_margin)
+    voltage_margin_pu = calculate_voltage_margin(
+        min_v,
+        max_v,
+        load_flow_config.min_voltage_pu,
+        load_flow_config.max_voltage_pu,
+    )
 
     # total_route_length_m is guaranteed finite from PY-017
     # others are guaranteed non-None and finite by the checks above
