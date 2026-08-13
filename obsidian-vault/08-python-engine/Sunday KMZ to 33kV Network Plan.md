@@ -33,23 +33,25 @@ silently download missing layers.
   persistence already exist.
 - Python PNC generation, A* routing, 33 kV-compatible Pandapower validation,
   scoring, map-ready output, and pole-placement algorithm already exist.
-- Active uncommitted Python work adds avoidance GeoJSON and pole output. Its
-  focused affected tests passed (`69 passed`), but it currently hard-blocks all
-  avoidance features and is not connected to Java job data.
+- Python now accepts avoidance GeoJSON, distinguishes hard exclusions from soft
+  penalties, validates endpoints against hard buffers, and returns constraint
+  evidence and pole output. V1/V2 coverage is green as part of the full Python
+  suite (`460 passed`, with two environment warnings).
 - `OptimizationJobService` sends only WTGs/substations to Python.
 - Java's legacy response and `RouteService` retain LineStrings but discard rich
   `pnc_pole` Point features.
 
-## Python-owned P0 remaining
+## Python-owned P0 status
 
-1. Separate hard exclusions from soft road/parcel penalties.
-2. Validate WTG/substation versus hard buffers and prove final route compliance.
-3. Finish additive V1/V2 constraint and pole contracts at explicit 33 kV.
-4. Deduplicate shared pole endpoints and classify true network terminals.
-5. Return stable route and preliminary pole-type GeoJSON.
-6. Keep the deterministic Python-contract fixture and API tests; separately
-   capture and verify Java's Python request from a fixed KMZ round trip.
-7. Pass full pytest, Ruff, format, and mypy gates.
+1. **Complete:** hard exclusions and soft road/parcel penalties are distinct.
+2. **Complete:** hard-buffer endpoint validation and final route compliance.
+3. **Complete:** additive V1/V2 constraint and pole contracts at explicit 33 kV.
+4. **Remaining:** deduplicate shared pole endpoints and classify true network
+   terminals.
+5. **Complete:** stable route and preliminary pole-type GeoJSON.
+6. **Complete:** deterministic Python-contract fixture/API tests with the
+   provenance limitation documented by SURGE-PY-022.
+7. **Complete:** full pytest, Ruff, format, and mypy gates.
 
 ## Backend-owner P0 remaining
 
@@ -58,6 +60,8 @@ silently download missing layers.
 3. Select/reject ambiguous substations and send the configured 33 kV value.
 4. Carry the rich Python result without dropping pole Points.
 5. Return or persist the selected route and poles under the same job identity.
+6. Capture and verify the exact Python request emitted after a fixed KMZ
+   upload, preview, classification, confirmation, commit, and job cycle.
 
 ## Frontend-owner P0 remaining
 

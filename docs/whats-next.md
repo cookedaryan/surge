@@ -113,10 +113,9 @@ The following current product infrastructure exists:
 - `app/algorithms/pole_placement.py` already implements deterministic span,
   terminal, angle, and intermediate pole heuristics.
 
-### 3.2 Active uncommitted Python work discovered during planning
+### 3.2 Implemented Python constraint and presentation baseline
 
-Another developer currently has uncommitted work in the working tree. It must
-be preserved and reviewed rather than duplicated. That work currently adds:
+The Python service now includes:
 
 - `app/gis/constraints.py`, rasterizing WGS-84 lines/polygons onto a cost
   surface;
@@ -126,16 +125,19 @@ be preserved and reviewed rather than duplicated. That work currently adds:
   presentation result; and
 - focused constraint, API, and presentation tests.
 
-The focused affected test selection passed during this planning run:
+SURGE-PY-021 adds V1 constraint regression coverage and SURGE-PY-022 labels the
+hand-authored constraint payload accurately as a Python-contract fixture. The
+full Python gate currently reports:
 
 ```text
-69 passed, 2 environment warnings
+460 passed, 2 environment warnings
 ```
 
-This is promising but not yet a finished product path. The code currently
-treats every avoidance LineString and Polygon as a hard block, does not receive
-project constraints from Java jobs, and exposes pole Points only through the
-rich Python result that Java does not consume.
+The Python routing path now distinguishes hard exclusions from soft penalties,
+checks endpoints against hard buffered geometry, and reports route-level
+constraint evidence. The product path is still incomplete because Java jobs do
+not send persisted project constraints, and Java does not consume the rich
+Python result containing pole Points.
 
 ### 3.3 Exact missing link in the current product flow
 
@@ -245,40 +247,37 @@ Also return a compact summary containing candidate/recommendation identity,
 electrical validity, total route length, pole counts by type, hard-exclusion
 violations (must be zero), road crossings, and affected parcel count/length.
 
-## 5. Work remaining in the Python split
+## 5. Python split status
 
-### P0 — required from the Python owner
+### P0 — Python owner
 
-1. **Finish and harden the active constraint work.**
-   Preserve `app/gis/constraints.py`, but separate hard exclusions from soft
-   road/parcel penalties. Support per-feature buffer and cost policy with
-   deterministic validation and no mutation of the input surface.
-2. **Protect routing endpoints.**
-   Return a clear input error when a confirmed WTG or the selected substation
-   lies inside a hard buffered area. Do not silently unblock it.
-3. **Prove route compliance after refinement.**
-   Assert every final segment avoids hard cells and calculate deterministic
-   road-crossing/parcel-impact evidence from vector geometries where practical.
-4. **Finish the public Python request mapping.**
-   Make V1 compatibility and V2 explicit about 33 kV, constraint policy, and
-   pole settings. Keep existing clients valid when new inputs are omitted.
-5. **Normalize pole placement at network junctions.**
-   The current route-local algorithm duplicates shared topology endpoints and
-   calls every route edge endpoint terminal. Deduplicate coincident shared-node
-   poles and classify true network terminals separately from internal WTG/tap
-   junctions before presenting total pole counts.
-6. **Finish rich GeoJSON output.**
-   Preserve segment and pole Points together in the rich result, with stable
-   WGS-84 coordinates and explicit preliminary labels.
-7. **Add one versioned Sunday fixture.**
-   Create a small deterministic project representation derived from a reviewed
-   KMZ with WTGs, one substation, at least one road, one parcel, and one hard
-   exclusion. Do not depend on an untracked local customer file in CI.
-8. **Add real integration assertions.**
-   Prove the route detours around the hard polygon, uses/avoids soft features
-   according to cost, remains electrically valid at 33 kV, returns poles, and
-   repeats exactly for identical input.
-9. **Run the full Python gate.**
+1. **Complete: hard/soft constraint routing.**
+   `app/gis/constraints.py` applies deterministic hard exclusions and soft
+   penalties with per-feature buffer/cost policy without mutating the base
+   surface.
+2. **Complete: routing endpoint protection.**
+   WTGs and the selected substation are rejected when covered by hard buffered
+   geometry or a blocked raster cell.
+3. **Complete: post-routing constraint evidence.**
+   Presentation packaging checks final routes against hard geometry and reports
+   road crossings, soft overlap, and parcel impacts.
+4. **Complete: public Python request mapping.**
+   V1 compatibility and V2 carry additive constraint and pole settings while
+   preserving callers that omit them.
+5. **Remaining: normalize pole placement at network junctions.**
+   Route-local placement still duplicates shared topology endpoints. A
+   network-level pass must merge true shared endpoints without collapsing
+   coincidental nearby mid-route poles.
+6. **Complete: rich GeoJSON output.**
+   The rich result contains stable WGS-84 segment and preliminary pole features.
+7. **Partial: fixture provenance.**
+   The deterministic Python-contract fixture is committed and labeled by
+   SURGE-PY-022. A provenance-verified payload still requires backend/frontend
+   capture from a fixed KMZ round trip.
+8. **Complete: Python integration assertions.**
+   V1/V2 and lower-level tests cover hard avoidance, soft impacts, endpoint
+   rejection, omitted-constraint compatibility, and deterministic responses.
+9. **Complete: full Python gate.**
 
    ```powershell
    .\.venv\Scripts\python.exe -m pytest -q
@@ -363,11 +362,11 @@ classification bug. The upload and preview boundary is already the correct one.
 
 ### Thursday — freeze the contract and stabilize current Python work
 
-- Review and preserve the current uncommitted avoidance/pole changes.
-- Agree on hard versus soft feature policy and exact request properties.
-- Freeze one redacted/generated source KMZ and capture Java's emitted Python
-  request as a separate, provenance-verified fixture.
-- Finish Python constraint validation and focused tests.
+- Keep the committed avoidance/pole changes stable and review only blockers.
+- Preserve the agreed hard/soft feature policy and request properties.
+- Backend/frontend owners freeze one redacted/generated source KMZ and capture
+  Java's emitted Python request as a separate, provenance-verified fixture.
+- Keep Python constraint validation and focused regression tests green.
 
 **Exit gate:** the same reviewed GeoJSON deterministically creates a route that
 cannot enter a hard polygon, and focused Python tests are green.
