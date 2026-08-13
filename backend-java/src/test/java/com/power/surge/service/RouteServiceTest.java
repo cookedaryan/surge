@@ -7,6 +7,7 @@ import com.power.surge.domain.OptimizationJob;
 import com.power.surge.domain.Project;
 import com.power.surge.dto.route.CreateRouteRequest;
 import com.power.surge.dto.route.GeneratedRouteResponse;
+import com.power.surge.repository.GeneratedPoleRepository;
 import com.power.surge.repository.GeneratedRouteRepository;
 import com.power.surge.repository.OptimizationJobRepository;
 import com.power.surge.repository.ProjectRepository;
@@ -42,6 +43,9 @@ class RouteServiceTest {
     @Mock
     private GeneratedRouteRepository routeRepository;
 
+    @Mock
+    private GeneratedPoleRepository poleRepository;
+
     private RouteService routeService;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
 
@@ -51,6 +55,7 @@ class RouteServiceTest {
                 projectRepository,
                 jobRepository,
                 routeRepository,
+                poleRepository,
                 new ObjectMapper()
         );
     }
@@ -129,12 +134,13 @@ class RouteServiceTest {
         });
 
         GeneratedRoute route = new GeneratedRoute(
-                job, "Feeder-01", new BigDecimal("2500.00"), new BigDecimal("150000.00"), new BigDecimal("12.5"), 15, lineString, null
+                job, "Feeder-01", new BigDecimal("2500.00"), new BigDecimal("150000.00"), new BigDecimal("12.5"), 15, lineString, null, null
         );
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
         when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of(route));
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(any())).thenReturn(List.of());
 
         Map<String, Object> geoJson = routeService.getRoutesGeoJsonForJob(projectId, jobId);
 

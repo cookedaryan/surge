@@ -41,6 +41,15 @@ public class GeneratedPole extends AuditableEntity {
     @Column(name = "connected_feeder_ids", columnDefinition = "text[]")
     private List<String> connectedFeederIds;
 
+    /**
+     * The Python engine's segment_id(s) (pnc_segment.segment_id) this pole sits on — one for most
+     * poles, more than one for a shared junction pole where two route edges meet. Matches
+     * GeneratedRoute.segmentId, letting a route's real pole count be counted instead of estimated.
+     */
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "connected_route_ids", columnDefinition = "text[]")
+    private List<String> connectedRouteIds;
+
     @Column(name = "location", nullable = false, columnDefinition = "geometry(Point, 4326)")
     private Point location;
 
@@ -54,6 +63,7 @@ public class GeneratedPole extends AuditableEntity {
             String poleRole,
             String recommendedPoleType,
             List<String> connectedFeederIds,
+            List<String> connectedRouteIds,
             Point location
     ) {
         this.job = Objects.requireNonNull(job, "Optimization job is required.");
@@ -62,6 +72,7 @@ public class GeneratedPole extends AuditableEntity {
         this.poleRole = poleRole;
         this.recommendedPoleType = recommendedPoleType;
         this.connectedFeederIds = connectedFeederIds;
+        this.connectedRouteIds = connectedRouteIds;
         this.location = requireWgs84Point(location);
     }
 
@@ -87,6 +98,10 @@ public class GeneratedPole extends AuditableEntity {
 
     public List<String> getConnectedFeederIds() {
         return connectedFeederIds;
+    }
+
+    public List<String> getConnectedRouteIds() {
+        return connectedRouteIds;
     }
 
     public Point getLocation() {

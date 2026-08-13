@@ -51,6 +51,15 @@ public class GeneratedRoute extends AuditableEntity {
     @Column(name = "pole_locations", columnDefinition = "geometry(MultiPoint, 4326)")
     private MultiPoint poleLocations;
 
+    /**
+     * The Python engine's segment_id for this edge (e.g. "SEG-FDR001-0001"), used to look up the
+     * real pole count via GeneratedPole.connectedRouteIds instead of the /150m estimate stored in
+     * poleCount above. Null for routes created before this linkage existed, or via the manual
+     * CreateRouteRequest API path that has no segment_id to supply.
+     */
+    @Column(name = "segment_id", length = 60)
+    private String segmentId;
+
     protected GeneratedRoute() {
     }
 
@@ -62,7 +71,8 @@ public class GeneratedRoute extends AuditableEntity {
             BigDecimal electricalLossesKw,
             Integer poleCount,
             LineString routePath,
-            MultiPoint poleLocations
+            MultiPoint poleLocations,
+            String segmentId
     ) {
         this.job = Objects.requireNonNull(job, "Optimization job is required.");
         this.feederName = requireFeederName(feederName);
@@ -72,6 +82,7 @@ public class GeneratedRoute extends AuditableEntity {
         this.poleCount = poleCount != null ? poleCount : 0;
         this.routePath = requireWgs84LineString(routePath);
         this.poleLocations = poleLocations != null ? requireWgs84MultiPoint(poleLocations) : null;
+        this.segmentId = segmentId;
     }
 
     public OptimizationJob getJob() {
@@ -104,6 +115,10 @@ public class GeneratedRoute extends AuditableEntity {
 
     public MultiPoint getPoleLocations() {
         return poleLocations;
+    }
+
+    public String getSegmentId() {
+        return segmentId;
     }
 
     private static String requireFeederName(String feederName) {

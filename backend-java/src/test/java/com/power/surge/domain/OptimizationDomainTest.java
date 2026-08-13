@@ -68,6 +68,7 @@ class OptimizationDomainTest {
                 new BigDecimal("12.50"),
                 10,
                 path,
+                null,
                 null
         );
 
@@ -117,6 +118,7 @@ class OptimizationDomainTest {
                 null,
                 5,
                 missingSrid,
+                null,
                 null
         )).withMessage("Route path must use SRID 4326.");
     }

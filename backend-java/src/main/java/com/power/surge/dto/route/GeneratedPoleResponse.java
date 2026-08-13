@@ -14,6 +14,7 @@ public record GeneratedPoleResponse(
         String poleRole,
         String recommendedPoleType,
         List<String> connectedFeederIds,
+        List<String> connectedRouteIds,
         List<Double> location,
         Instant createdAt
 ) {
@@ -30,6 +31,7 @@ public record GeneratedPoleResponse(
                 pole.getPoleRole(),
                 pole.getRecommendedPoleType(),
                 pole.getConnectedFeederIds(),
+                pole.getConnectedRouteIds(),
                 coords,
                 pole.getCreatedAt()
         );

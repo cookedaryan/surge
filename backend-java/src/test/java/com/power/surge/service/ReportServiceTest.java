@@ -72,7 +72,7 @@ class ReportServiceTest {
                 new Coordinate(77.25, 28.64)
         });
         GeneratedRoute route = new GeneratedRoute(
-                job, "Feeder-01", new BigDecimal("2500.00"), new BigDecimal("150000.00"), new BigDecimal("12.5"), 15, lineString, null
+                job, "Feeder-01", new BigDecimal("2500.00"), new BigDecimal("150000.00"), new BigDecimal("12.5"), 15, lineString, null, null
         );
 
         LinearRing ring = geometryFactory.createLinearRing(new Coordinate[]{
@@ -115,7 +115,7 @@ class ReportServiceTest {
                 new Coordinate(77.25, 28.64)
         });
         GeneratedRoute route = new GeneratedRoute(
-                job, "Feeder-01", new BigDecimal("2500.00"), new BigDecimal("150000.00"), new BigDecimal("12.5"), 15, lineString, null
+                job, "Feeder-01", new BigDecimal("2500.00"), new BigDecimal("150000.00"), new BigDecimal("12.5"), 15, lineString, null, null
         );
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));

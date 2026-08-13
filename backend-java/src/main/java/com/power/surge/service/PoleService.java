@@ -100,6 +100,7 @@ public class PoleService {
             String poleRole = extractString(properties, "poleRole", "pole_role");
             String recommendedPoleType = extractString(properties, "recommendedPoleType", "recommended_pole_type");
             List<String> feederIds = extractStringList(properties, "feederIds", "connected_feeder_ids");
+            List<String> routeIds = extractStringList(properties, "connectedRouteIds", "connected_route_ids");
 
             GeneratedPole pole = new GeneratedPole(
                     job,
@@ -108,6 +109,7 @@ public class PoleService {
                     poleRole,
                     recommendedPoleType,
                     feederIds,
+                    routeIds,
                     point
             );
             entities.add(pole);
@@ -189,6 +191,7 @@ public class PoleService {
             properties.put("poleId", pole.getPoleIdentifier());
             properties.put("feederName", pole.getFeederName());
             properties.put("feederIds", pole.getConnectedFeederIds());
+            properties.put("connectedRouteIds", pole.getConnectedRouteIds());
             properties.put("poleRole", pole.getPoleRole());
             properties.put("recommendedPoleType", pole.getRecommendedPoleType());
             properties.put("jobId", pole.getJob().getId());

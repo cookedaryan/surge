@@ -1,6 +1,7 @@
 package com.power.surge.service;
 
 import com.power.surge.domain.CadastralParcel;
+import com.power.surge.domain.GeneratedPole;
 import com.power.surge.domain.GeneratedRoute;
 import com.power.surge.domain.JobStatus;
 import com.power.surge.domain.OptimizationJob;
@@ -20,7 +21,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -54,17 +57,25 @@ public class ReportService {
         List<GeneratedRoute> routes = routeRepository.findAllByJobIdOrderByFeederNameAsc(job.getId());
         List<CadastralParcel> parcels = parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId);
 
+        List<GeneratedPole> poles = poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(job.getId());
+        Map<String, Long> poleCountBySegment = poleCountBySegmentId(poles);
+
         List<FeederBomSummary> feederSummaries = new ArrayList<>();
         BigDecimal totalLength = BigDecimal.ZERO;
         BigDecimal totalCost = BigDecimal.ZERO;
         BigDecimal totalLosses = BigDecimal.ZERO;
-        int totalPoles = 0;
 
         for (GeneratedRoute r : routes) {
+            // GeneratedRoute.poleCount is only ever a /150m fallback estimate (routes are persisted
+            // before real pole placement runs, and can predate it entirely for older jobs). Prefer
+            // the real per-segment count so this matches what the map popup shows for this route.
+            Long realCount = r.getSegmentId() != null ? poleCountBySegment.get(r.getSegmentId()) : null;
+            int rowPoleCount = realCount != null ? realCount.intValue() : (r.getPoleCount() != null ? r.getPoleCount() : 0);
+
             feederSummaries.add(new FeederBomSummary(
                     r.getFeederName(),
                     r.getTotalLengthMeters(),
-                    r.getPoleCount(),
+                    rowPoleCount,
                     r.getTotalCost(),
                     r.getElectricalLossesKw()
             ));
@@ -78,18 +89,11 @@ public class ReportService {
             if (r.getElectricalLossesKw() != null) {
                 totalLosses = totalLosses.add(r.getElectricalLossesKw());
             }
-            if (r.getPoleCount() != null) {
-                totalPoles += r.getPoleCount();
-            }
         }
 
-        // GeneratedRoute.poleCount is only ever a /150m fallback estimate (routes are persisted
-        // before real pole placement runs, and can predate it entirely for older jobs). Prefer the
-        // actual placed pole count so this figure — and its response to "Max pole span" — is real.
-        int actualPoleCount = poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(job.getId()).size();
-        if (actualPoleCount > 0) {
-            totalPoles = actualPoleCount;
-        }
+        // The network total counts each physical pole once, even where a junction pole is shared
+        // by two segments and so appears in both of their row counts above.
+        int totalPoles = !poles.isEmpty() ? poles.size() : feederSummaries.stream().mapToInt(FeederBomSummary::poleCount).sum();
 
         List<ParcelImpactSummary> parcelSummaries = new ArrayList<>();
         for (CadastralParcel p : parcels) {
@@ -239,6 +243,25 @@ public class ReportService {
         }
 
         return new com.power.surge.dto.report.ScenarioComparisonResponse(projectId, items);
+    }
+
+    /**
+     * Counts real placed poles per segment_id. A junction pole can carry more than one
+     * segment_id (it's shared between the two edges that meet there), so it's counted once
+     * toward each — matching what a rider would actually see standing at each individual segment.
+     */
+    private static Map<String, Long> poleCountBySegmentId(List<GeneratedPole> poles) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (GeneratedPole pole : poles) {
+            List<String> routeIds = pole.getConnectedRouteIds();
+            if (routeIds == null) {
+                continue;
+            }
+            for (String routeId : routeIds) {
+                counts.merge(routeId, 1L, Long::sum);
+            }
+        }
+        return counts;
     }
 
     private Project getProjectOrThrow(UUID projectId) {

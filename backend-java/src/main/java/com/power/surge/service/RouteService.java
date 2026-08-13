@@ -2,12 +2,14 @@ package com.power.surge.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.power.surge.domain.GeneratedPole;
 import com.power.surge.domain.GeneratedRoute;
 import com.power.surge.domain.JobStatus;
 import com.power.surge.domain.OptimizationJob;
 import com.power.surge.domain.Project;
 import com.power.surge.dto.route.CreateRouteRequest;
 import com.power.surge.dto.route.GeneratedRouteResponse;
+import com.power.surge.repository.GeneratedPoleRepository;
 import com.power.surge.repository.GeneratedRouteRepository;
 import com.power.surge.repository.OptimizationJobRepository;
 import com.power.surge.repository.ProjectRepository;
@@ -38,6 +40,7 @@ public class RouteService {
     private final ProjectRepository projectRepository;
     private final OptimizationJobRepository jobRepository;
     private final GeneratedRouteRepository routeRepository;
+    private final GeneratedPoleRepository poleRepository;
     private final ObjectMapper objectMapper;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
 
@@ -45,11 +48,13 @@ public class RouteService {
             ProjectRepository projectRepository,
             OptimizationJobRepository jobRepository,
             GeneratedRouteRepository routeRepository,
+            GeneratedPoleRepository poleRepository,
             ObjectMapper objectMapper
     ) {
         this.projectRepository = projectRepository;
         this.jobRepository = jobRepository;
         this.routeRepository = routeRepository;
+        this.poleRepository = poleRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -82,7 +87,8 @@ public class RouteService {
                     req.electricalLossesKw(),
                     req.poleCount() != null ? req.poleCount() : 0,
                     lineString,
-                    multiPoint
+                    multiPoint,
+                    null
             );
             entities.add(route);
         }
@@ -167,6 +173,8 @@ public class RouteService {
                 poleCount = Math.max(2, (int) Math.ceil(totalLength.doubleValue() / 150.0) + 1);
             }
 
+            String segmentId = extractString(properties, "segmentId", "segment_id");
+
             GeneratedRoute route = new GeneratedRoute(
                     job,
                     feederName,
@@ -175,7 +183,8 @@ public class RouteService {
                     lossesKw,
                     poleCount,
                     lineString,
-                    null
+                    null,
+                    segmentId
             );
             entities.add(route);
         }
@@ -268,6 +277,9 @@ public class RouteService {
 
     private Map<String, Object> toFeatureCollection(List<GeneratedRoute> routes) {
         List<Map<String, Object>> features = new ArrayList<>();
+        Map<String, Long> poleCountBySegment = routes.isEmpty()
+                ? Map.of()
+                : poleCountBySegmentId(routes.get(0).getJob().getId());
 
         for (GeneratedRoute route : routes) {
             Map<String, Object> feature = new LinkedHashMap<>();
@@ -286,12 +298,17 @@ public class RouteService {
             geometry.put("coordinates", coords);
             feature.put("geometry", geometry);
 
+            // Prefer the real placed-pole count for this exact segment over the /150m estimate
+            // stored on the route at save time; not every route has a matching segmentId (older
+            // jobs, or the manual CreateRouteRequest path), so fall back when there's no match.
+            Long realPoleCount = route.getSegmentId() != null ? poleCountBySegment.get(route.getSegmentId()) : null;
+
             Map<String, Object> properties = new LinkedHashMap<>();
             properties.put("feederName", route.getFeederName());
             properties.put("totalLengthMeters", route.getTotalLengthMeters());
             properties.put("totalCost", route.getTotalCost());
             properties.put("electricalLossesKw", route.getElectricalLossesKw());
-            properties.put("poleCount", route.getPoleCount());
+            properties.put("poleCount", realPoleCount != null ? realPoleCount.intValue() : route.getPoleCount());
             properties.put("jobId", route.getJob().getId());
             feature.put("properties", properties);
 
@@ -302,6 +319,25 @@ public class RouteService {
         featureCollection.put("type", "FeatureCollection");
         featureCollection.put("features", features);
         return featureCollection;
+    }
+
+    /**
+     * Counts real placed poles per segment_id for a job. A junction pole can carry more than one
+     * segment_id (it's shared between the two edges that meet there), so it's counted once toward
+     * each — matching what a rider would actually see standing at each individual segment.
+     */
+    private Map<String, Long> poleCountBySegmentId(UUID jobId) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (GeneratedPole pole : poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)) {
+            List<String> routeIds = pole.getConnectedRouteIds();
+            if (routeIds == null) {
+                continue;
+            }
+            for (String routeId : routeIds) {
+                counts.merge(routeId, 1L, Long::sum);
+            }
+        }
+        return counts;
     }
 
     private static double calculateLineStringLengthMeters(LineString lineString) {
