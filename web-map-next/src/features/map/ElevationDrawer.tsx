@@ -24,7 +24,7 @@ export function ElevationDrawer({ routes }: ElevationDrawerProps) {
   if (!open) return null;
 
   return (
-    <div className="absolute left-3.5 right-3.5 bottom-3.5 h-[190px] bg-panel border border-borderStrong rounded-lg p-2.5 font-ui">
+    <div className="absolute left-3.5 right-3.5 bottom-3.5 h-[190px] z-[1010] bg-panel border border-borderStrong rounded-lg p-2.5 font-ui">
       <div className="flex items-center justify-between mb-1">
         <h4 className="m-0 text-[10.5px] uppercase tracking-wide text-textFaint font-bold">Elevation Profile</h4>
         <button onClick={() => setOpen(false)} className="text-textFaint hover:text-text text-xs leading-none">✕</button>

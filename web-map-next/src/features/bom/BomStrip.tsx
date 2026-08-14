@@ -22,7 +22,7 @@ export function BomStrip() {
 
   return (
     <div
-      className={`absolute left-3.5 flex rounded-lg overflow-hidden font-ui transition-all ${
+      className={`absolute left-3.5 z-[1010] flex rounded-lg overflow-hidden font-ui transition-all ${
         elevationDrawerOpen ? 'bottom-[220px]' : 'bottom-3.5'
       }`}
     >

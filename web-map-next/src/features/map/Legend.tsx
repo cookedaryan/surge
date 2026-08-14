@@ -10,7 +10,7 @@ export function Legend() {
     { color: '#8B5CF6', label: 'Junction pole' }
   ];
   return (
-    <div className="absolute right-3.5 top-3.5 w-[172px] bg-surface border border-border rounded-lg p-2.5 font-ui pointer-events-none">
+    <div className="absolute right-3.5 top-3.5 z-[1010] w-[172px] bg-surface border border-border rounded-lg p-2.5 font-ui pointer-events-none">
       <h4 className="m-0 mb-2 text-[10.5px] uppercase tracking-wide text-textFaint font-bold">Legend</h4>
       {items.map((item) => (
         <div key={item.label} className="flex items-center gap-1.5 py-0.5 text-[11px] text-textMuted">

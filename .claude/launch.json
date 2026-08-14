@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "web-map", "run", "dev", "--", "--host"],
       "port": 5173
+    },
+    {
+      "name": "surge-web-map-next",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web-map-next", "run", "dev", "--", "--host", "--port", "5174"],
+      "port": 5174
     }
   ]
 }
