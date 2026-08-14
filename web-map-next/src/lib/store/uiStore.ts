@@ -40,8 +40,8 @@ interface UiState {
   importPreviewOpen: boolean;
   setImportPreviewOpen: (v: boolean) => void;
 
-  toast: string | null;
-  showToast: (message: string) => void;
+  toast: { message: string; variant: 'success' | 'error' | 'info' } | null;
+  showToast: (message: string, variant?: 'success' | 'error' | 'info') => void;
   clearToast: () => void;
 
   liveBomOverride: { lengthKm: string; poles: number; cost: number } | null;
@@ -90,7 +90,7 @@ export const useUiStore = create<UiState>((set) => ({
   setImportPreviewOpen: (v) => set({ importPreviewOpen: v }),
 
   toast: null,
-  showToast: (message) => set({ toast: message }),
+  showToast: (message, variant = 'info') => set({ toast: { message, variant } }),
   clearToast: () => set({ toast: null }),
 
   liveBomOverride: null,

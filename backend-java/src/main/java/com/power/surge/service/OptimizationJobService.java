@@ -2,19 +2,28 @@ package com.power.surge.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.power.surge.client.PythonOptimizationClient;
+import com.power.surge.domain.CadastralParcel;
+import com.power.surge.domain.LineType;
 import com.power.surge.domain.OptimizationJob;
 import com.power.surge.domain.Project;
+import com.power.surge.domain.ReferenceLine;
+import com.power.surge.domain.RestrictedArea;
 import com.power.surge.domain.Substation;
 import com.power.surge.domain.WtgLocation;
 import com.power.surge.dto.client.python.PythonOptimisationRequest;
 import com.power.surge.dto.client.python.PythonOptimisationResponse;
 import com.power.surge.dto.job.CreateOptimizationJobRequest;
 import com.power.surge.dto.job.OptimizationJobResponse;
+import com.power.surge.repository.CadastralParcelRepository;
 import com.power.surge.repository.GeneratedRouteRepository;
 import com.power.surge.repository.OptimizationJobRepository;
 import com.power.surge.repository.ProjectRepository;
+import com.power.surge.repository.ReferenceLineRepository;
+import com.power.surge.repository.RestrictedAreaRepository;
 import com.power.surge.repository.SubstationRepository;
 import com.power.surge.repository.WtgLocationRepository;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Polygon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -39,6 +48,9 @@ public class OptimizationJobService {
     private final GeneratedRouteRepository routeRepository;
     private final WtgLocationRepository wtgLocationRepository;
     private final SubstationRepository substationRepository;
+    private final ReferenceLineRepository referenceLineRepository;
+    private final CadastralParcelRepository parcelRepository;
+    private final RestrictedAreaRepository restrictedAreaRepository;
     private final RouteService routeService;
     private final PoleService poleService;
     private final PythonOptimizationClient pythonClient;
@@ -51,6 +63,9 @@ public class OptimizationJobService {
             GeneratedRouteRepository routeRepository,
             WtgLocationRepository wtgLocationRepository,
             SubstationRepository substationRepository,
+            ReferenceLineRepository referenceLineRepository,
+            CadastralParcelRepository parcelRepository,
+            RestrictedAreaRepository restrictedAreaRepository,
             RouteService routeService,
             PoleService poleService,
             PythonOptimizationClient pythonClient,
@@ -62,6 +77,9 @@ public class OptimizationJobService {
         this.routeRepository = routeRepository;
         this.wtgLocationRepository = wtgLocationRepository;
         this.substationRepository = substationRepository;
+        this.referenceLineRepository = referenceLineRepository;
+        this.parcelRepository = parcelRepository;
+        this.restrictedAreaRepository = restrictedAreaRepository;
         this.routeService = routeService;
         this.poleService = poleService;
         this.pythonClient = pythonClient;
@@ -122,6 +140,7 @@ public class OptimizationJobService {
             electricalParams.put("feeder_capacity_mw", req.feederCapacityMw() != null ? req.feederCapacityMw().doubleValue() : 20.0);
             electricalParams.put("max_voltage_drop_pct", req.maxVoltageDropPct() != null ? req.maxVoltageDropPct().doubleValue() : 5.0);
             electricalParams.put("row_width_m", req.rowWidthM() != null ? req.rowWidthM().doubleValue() : 18.0);
+            electricalParams.put("nominal_voltage_kv", req.voltageKv() != null ? req.voltageKv().doubleValue() : 33.0);
 
             // Scaled from the user's chosen max span using the same target/min ratios as the
             // Python engine's own defaults (target_span_m=100/max_span_m=120, min_span_m=30/
@@ -133,6 +152,8 @@ public class OptimizationJobService {
             poleConfig.put("target_span_m", maxSpanM * (100.0 / 120.0));
             poleConfig.put("min_span_m", maxSpanM * (30.0 / 120.0));
 
+            Map<String, Object> avoidanceGeoJson = buildAvoidanceGeoJson(projectId);
+
             PythonOptimisationRequest pythonReq = new PythonOptimisationRequest(
                     "job-" + job.getId(),
                     projectId.toString(),
@@ -140,13 +161,14 @@ public class OptimizationJobService {
                     wtgGeoJson,
                     subGeoJson,
                     electricalParams,
-                    poleConfig
+                    poleConfig,
+                    avoidanceGeoJson
             );
 
             PythonOptimisationResponse pythonResp = pythonClient.runOptimization(pythonReq);
 
             sseProgressService.emitProgress(job.getId(), 70, "Processing radial feeder topology and route outputs", com.power.surge.domain.JobStatus.RUNNING);
-            String summaryJson = objectMapper.writeValueAsString(pythonResp.metrics() != null ? pythonResp.metrics() : Map.of());
+            String summaryJson = objectMapper.writeValueAsString(buildResultSummary(pythonResp));
 
             if ("success".equalsIgnoreCase(pythonResp.status())) {
                 if (pythonResp.feederRoutesGeojson() != null && !pythonResp.feederRoutesGeojson().isEmpty()) {
@@ -159,8 +181,8 @@ public class OptimizationJobService {
                 job.markCompleted(summaryJson);
                 sseProgressService.completeProgress(job.getId(), "Optimization job completed successfully!", true);
             } else {
-                String errMsg = "Python optimization failed with status: " + pythonResp.status();
-                job.markFailed(errMsg);
+                String errMsg = describeFailure(pythonResp);
+                job.markFailed(errMsg, summaryJson);
                 sseProgressService.completeProgress(job.getId(), errMsg, false);
             }
 
@@ -254,6 +276,177 @@ public class OptimizationJobService {
         featureCollection.put("type", "FeatureCollection");
         featureCollection.put("features", features);
         return featureCollection;
+    }
+
+    /**
+     * Builds one avoidance FeatureCollection from the project's already-reviewed and persisted
+     * reference lines, cadastral parcels, and restricted areas, following the routing-treatment
+     * policy from docs/whats-next.md §2.2: roads/HT-lines/watercourses and land parcels are soft
+     * (crossable, penalized) constraints; restricted/no-go areas are hard exclusions. Returns null
+     * when the project has no such features, so the request omits avoidance_geojson entirely
+     * rather than sending an empty collection.
+     */
+    private Map<String, Object> buildAvoidanceGeoJson(UUID projectId) {
+        List<Map<String, Object>> features = new ArrayList<>();
+
+        for (ReferenceLine line : referenceLineRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)) {
+            if (!line.getLineType().isCrossingConstraint() || line.getPath() == null) {
+                continue; // EVACUATION_ROUTE, MEASUREMENT and UNKNOWN carry no avoidance meaning
+            }
+            List<List<Double>> coords = new ArrayList<>();
+            for (Coordinate c : line.getPath().getCoordinates()) {
+                coords.add(List.of(c.getX(), c.getY()));
+            }
+            Map<String, Object> geometry = new LinkedHashMap<>();
+            geometry.put("type", "LineString");
+            geometry.put("coordinates", coords);
+
+            Map<String, Object> properties = new LinkedHashMap<>();
+            properties.put("constraint_id", "line-" + line.getId());
+            properties.put("constraint_type", lineConstraintType(line.getLineType()));
+            properties.put("routing_mode", "soft");
+            if (line.getCrossingCost() != null) {
+                properties.put("cost_weight", line.getCrossingCost().doubleValue());
+            }
+
+            features.add(avoidanceFeature("line-" + line.getId(), geometry, properties));
+        }
+
+        for (CadastralParcel parcel : parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)) {
+            if (parcel.getGeometry() == null) {
+                continue;
+            }
+            Map<String, Object> properties = new LinkedHashMap<>();
+            properties.put("constraint_id", "parcel-" + parcel.getId());
+            properties.put("constraint_type", "parcel");
+            properties.put("routing_mode", "soft");
+
+            features.add(avoidanceFeature("parcel-" + parcel.getId(), polygonGeoJson(parcel.getGeometry()), properties));
+        }
+
+        for (RestrictedArea area : restrictedAreaRepository.findAllByProjectIdOrderByNameAsc(projectId)) {
+            if (area.getGeometry() == null) {
+                continue;
+            }
+            Map<String, Object> properties = new LinkedHashMap<>();
+            properties.put("constraint_id", "restricted-" + area.getId());
+            properties.put("constraint_type", "restricted_area");
+            properties.put("routing_mode", "hard");
+            if (area.getBufferMeters() != null) {
+                properties.put("buffer_m", area.getBufferMeters().doubleValue());
+            }
+
+            features.add(avoidanceFeature("restricted-" + area.getId(), polygonGeoJson(area.getGeometry()), properties));
+        }
+
+        if (features.isEmpty()) {
+            return null;
+        }
+        Map<String, Object> featureCollection = new LinkedHashMap<>();
+        featureCollection.put("type", "FeatureCollection");
+        featureCollection.put("features", features);
+        return featureCollection;
+    }
+
+    private static Map<String, Object> avoidanceFeature(String id, Map<String, Object> geometry, Map<String, Object> properties) {
+        Map<String, Object> feature = new LinkedHashMap<>();
+        feature.put("type", "Feature");
+        feature.put("id", id);
+        feature.put("geometry", geometry);
+        feature.put("properties", properties);
+        return feature;
+    }
+
+    private static String lineConstraintType(LineType lineType) {
+        return switch (lineType) {
+            case ROAD -> "road";
+            case HT_LINE -> "ht_line";
+            case WATERCOURSE -> "watercourse";
+            case EVACUATION_ROUTE, MEASUREMENT, UNKNOWN -> "road";
+        };
+    }
+
+    private static Map<String, Object> polygonGeoJson(Polygon polygon) {
+        List<List<Double>> exterior = new ArrayList<>();
+        for (Coordinate c : polygon.getExteriorRing().getCoordinates()) {
+            exterior.add(List.of(c.getX(), c.getY()));
+        }
+        List<List<List<Double>>> rings = new ArrayList<>();
+        rings.add(exterior);
+        for (int i = 0; i < polygon.getNumInteriorRing(); i++) {
+            List<List<Double>> interior = new ArrayList<>();
+            for (Coordinate c : polygon.getInteriorRingN(i).getCoordinates()) {
+                interior.add(List.of(c.getX(), c.getY()));
+            }
+            rings.add(interior);
+        }
+        Map<String, Object> geometry = new LinkedHashMap<>();
+        geometry.put("type", "Polygon");
+        geometry.put("coordinates", rings);
+        return geometry;
+    }
+
+    /**
+     * Combines the legacy metrics with the rich candidate comparison, recommendation reasoning,
+     * and electrical/network/pole summaries Python already computes but the old integration
+     * silently discarded, so the UI can answer "why this route" instead of showing a bare line.
+     */
+    private static Map<String, Object> buildResultSummary(PythonOptimisationResponse pythonResp) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("metrics", pythonResp.metrics() != null ? pythonResp.metrics() : Map.of());
+        summary.put("workflowStatus", pythonResp.workflowStatus());
+        summary.put("candidates", pythonResp.candidates() != null ? pythonResp.candidates() : List.of());
+        summary.put("recommendation", pythonResp.recommendation());
+        summary.put("failures", pythonResp.failures() != null ? pythonResp.failures() : List.of());
+
+        Map<String, Object> recommendedResult = pythonResp.recommendedResult();
+        if (recommendedResult != null) {
+            putIfPresent(summary, "networkSummary", recommendedResult.get("network_summary"));
+            putIfPresent(summary, "electricalSummary", recommendedResult.get("electrical_summary"));
+            putIfPresent(summary, "poleSummary", recommendedResult.get("pole_summary"));
+            putIfPresent(summary, "spatialConstraintSummary", recommendedResult.get("spatial_constraint_summary"));
+        }
+        return summary;
+    }
+
+    private static void putIfPresent(Map<String, Object> target, String key, Object value) {
+        if (value != null) {
+            target.put(key, value);
+        }
+    }
+
+    /** Turns Python's structured rejection into a message an engineer can act on. */
+    private static String describeFailure(PythonOptimisationResponse pythonResp) {
+        if (pythonResp.recommendation() != null) {
+            Object reasons = pythonResp.recommendation().get("reasons");
+            List<String> reasonList = asStringList(reasons);
+            if (!reasonList.isEmpty()) {
+                return "No feasible route: " + String.join("; ", reasonList);
+            }
+        }
+        if (pythonResp.candidates() != null && !pythonResp.candidates().isEmpty()) {
+            List<String> reasons = pythonResp.candidates().stream()
+                    .flatMap(candidate -> asStringList(candidate.get("disqualifications")).stream())
+                    .distinct()
+                    .toList();
+            if (!reasons.isEmpty()) {
+                return "No electrically or spatially feasible candidate: " + String.join("; ", reasons);
+            }
+        }
+        if (pythonResp.failures() != null && !pythonResp.failures().isEmpty()) {
+            Object message = pythonResp.failures().get(0).get("message");
+            if (message != null) {
+                return "Optimization failed: " + message;
+            }
+        }
+        return "Python optimization failed with status: " + pythonResp.status();
+    }
+
+    private static List<String> asStringList(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream().map(String::valueOf).toList();
+        }
+        return List.of();
     }
 
     /**

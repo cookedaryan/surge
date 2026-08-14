@@ -64,11 +64,11 @@ export function ImportPreviewModal({ preview, onClose }: ImportPreviewModalProps
       if (result.substationsImported) parts.push(`${result.substationsImported} substations`);
       if (result.towersImported) parts.push(`${result.towersImported} towers`);
       if (result.unclassified) parts.push(`${result.unclassified} skipped`);
-      showToast(`Imported ${parts.join(', ') || 'nothing'}`);
+      showToast(`Imported ${parts.join(', ') || 'nothing'}`, 'success');
       setOverrides({});
       onClose();
     } catch (err) {
-      showToast(`Import failed: ${(err as Error).message || err}`);
+      showToast(`Import failed: ${(err as Error).message || err}`, 'error');
     }
   }
 

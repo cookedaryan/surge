@@ -19,6 +19,63 @@ export interface Job {
   id: string;
   status?: string;
   errorMessage?: string;
+  resultSummaryJson?: string;
+}
+
+export interface CandidateSummary {
+  scenario_id: string;
+  strategy?: string;
+  electrical_status?: 'VALID' | 'INVALID';
+  eligible?: boolean;
+  rank?: number;
+  disqualifications?: string[];
+}
+
+export interface ElectricalSummary {
+  converged: boolean;
+  valid: boolean;
+  solver_algorithm?: string | null;
+  total_active_loss_mw?: number | null;
+  total_reactive_loss_mvar?: number | null;
+  minimum_voltage_pu?: number | null;
+  maximum_voltage_pu?: number | null;
+  maximum_loading_percent?: number | null;
+  violation_count: number;
+}
+
+export interface NetworkSummary {
+  wtg_count: number;
+  feeder_count: number;
+  segment_count: number;
+  total_route_length_m: number;
+}
+
+export interface PoleSummary {
+  total_poles: number;
+  terminal_poles: number;
+  angle_poles: number;
+  intermediate_poles: number;
+  junction_poles: number;
+}
+
+export interface SpatialConstraintSummary {
+  hard_exclusion_violation_count: number;
+  soft_constraint_intersection_count: number;
+  soft_constraint_overlap_length_m: number;
+  road_crossing_count: number;
+  affected_parcel_count: number;
+  affected_parcel_overlap_length_m: number;
+}
+
+export interface JobDecisionSummary {
+  workflowStatus?: string;
+  candidates?: CandidateSummary[];
+  recommendation?: { recommended_scenario_id?: string | null; reasons?: string[] };
+  failures?: { stage: string; code: string; message: string }[];
+  networkSummary?: NetworkSummary;
+  electricalSummary?: ElectricalSummary;
+  poleSummary?: PoleSummary;
+  spatialConstraintSummary?: SpatialConstraintSummary;
 }
 
 export interface JobProgress {

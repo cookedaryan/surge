@@ -12,9 +12,12 @@ import com.power.surge.dto.client.python.PythonOptimisationRequest;
 import com.power.surge.dto.client.python.PythonOptimisationResponse;
 import com.power.surge.dto.job.CreateOptimizationJobRequest;
 import com.power.surge.dto.job.OptimizationJobResponse;
+import com.power.surge.repository.CadastralParcelRepository;
 import com.power.surge.repository.GeneratedRouteRepository;
 import com.power.surge.repository.OptimizationJobRepository;
 import com.power.surge.repository.ProjectRepository;
+import com.power.surge.repository.ReferenceLineRepository;
+import com.power.surge.repository.RestrictedAreaRepository;
 import com.power.surge.repository.SubstationRepository;
 import com.power.surge.repository.WtgLocationRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,6 +62,15 @@ class OptimizationJobServiceTest {
     private SubstationRepository substationRepository;
 
     @Mock
+    private ReferenceLineRepository referenceLineRepository;
+
+    @Mock
+    private CadastralParcelRepository parcelRepository;
+
+    @Mock
+    private RestrictedAreaRepository restrictedAreaRepository;
+
+    @Mock
     private RouteService routeService;
 
     @Mock
@@ -81,6 +93,9 @@ class OptimizationJobServiceTest {
                 routeRepository,
                 wtgLocationRepository,
                 substationRepository,
+                referenceLineRepository,
+                parcelRepository,
+                restrictedAreaRepository,
                 routeService,
                 poleService,
                 pythonClient,
@@ -107,7 +122,9 @@ class OptimizationJobServiceTest {
         when(jobRepository.save(any(OptimizationJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         PythonOptimisationResponse pythonResponse = new PythonOptimisationResponse(
-                "job-123", "success", "Balanced", Map.of(), Map.of(), Map.of("feeder_count", 1, "total_length_m", 1500.0)
+                "job-123", "success", "Balanced", Map.of(), Map.of(),
+                Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                "SUCCESS", List.of(), Map.of(), Map.of(), List.of()
         );
         when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(pythonResponse);
 
@@ -150,7 +167,8 @@ class OptimizationJobServiceTest {
         when(jobRepository.save(any(OptimizationJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
                 new PythonOptimisationResponse("job-1", "success", "Balanced", Map.of(), Map.of(),
-                        Map.of("feeder_count", 1, "total_length_m", 1500.0)));
+                        Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                        "SUCCESS", List.of(), Map.of(), Map.of(), List.of()));
 
         jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
                 "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));

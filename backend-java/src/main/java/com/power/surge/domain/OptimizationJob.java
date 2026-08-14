@@ -134,8 +134,14 @@ public class OptimizationJob extends AuditableEntity {
     }
 
     public void markFailed(String errorMessage) {
+        markFailed(errorMessage, null);
+    }
+
+    /** Also records the diagnostic summary (rejected candidates, reasons) behind the failure. */
+    public void markFailed(String errorMessage, String summaryJson) {
         this.status = JobStatus.FAILED;
         this.errorMessage = errorMessage;
+        this.resultSummaryJson = summaryJson;
         this.completedAt = Instant.now();
     }
 

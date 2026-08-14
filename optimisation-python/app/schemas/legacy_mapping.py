@@ -20,7 +20,6 @@ from app.schemas.v2.optimise import (
 )
 
 _COMPATIBILITY_CABLE_ID = "MVP-COMPATIBILITY-CABLE"
-_COMPATIBILITY_NOMINAL_VOLTAGE_KV = 33.0
 
 
 def legacy_to_workflow_invocation(payload: OptimisationRequest) -> WorkflowInvocation:
@@ -108,15 +107,16 @@ def to_legacy_api_response(
 def _compatibility_cable_config(payload: OptimisationRequest) -> CableConfigRequest:
     """Derive the cable ampacity needed to retain the legacy feeder-capacity input."""
 
+    nominal_voltage_kv = payload.electrical_params.nominal_voltage_kv
     power_factor = payload.operating_point_config.power_factor
     max_current_a = (
         payload.electrical_params.feeder_capacity_mw
         * 1000.0
-        / (math.sqrt(3.0) * _COMPATIBILITY_NOMINAL_VOLTAGE_KV * power_factor)
+        / (math.sqrt(3.0) * nominal_voltage_kv * power_factor)
     )
     voltage_tolerance = payload.electrical_params.max_voltage_drop_pct / 100.0
     return CableConfigRequest(
-        nominal_voltage_kv=_COMPATIBILITY_NOMINAL_VOLTAGE_KV,
+        nominal_voltage_kv=nominal_voltage_kv,
         min_voltage_pu=max(0.001, 1.0 - voltage_tolerance),
         max_voltage_pu=1.0 + voltage_tolerance,
         cable_types=[

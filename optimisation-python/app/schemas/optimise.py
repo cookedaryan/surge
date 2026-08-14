@@ -30,6 +30,7 @@ class ElectricalParams(BaseModel):
     feeder_capacity_mw: float = Field(default=20.0, gt=0)
     max_voltage_drop_pct: float = Field(default=5.0, gt=0, le=100)
     row_width_m: float = Field(default=18.0, gt=0)
+    nominal_voltage_kv: float = Field(default=33.0, gt=0)
 
 
 class OptimisationRequest(BaseModel):
