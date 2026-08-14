@@ -4,6 +4,7 @@ import { Card, CardTitle, Select, Slider, Button } from '../../components/ui';
 import { useRunOptimization } from '../../lib/query';
 import { useUiStore } from '../../lib/store';
 import { useJobProgress } from './useJobProgress';
+import { useProjectData } from '../map/useProjectData';
 import type { Job, JobDecisionSummary } from '../../lib/api';
 
 const SCENARIOS = [
@@ -35,6 +36,8 @@ export function OptimizationPane() {
   const [maxSpanMeters, setMaxSpanMeters] = useState(150);
   const [voltageKv, setVoltageKv] = useState(33.0);
   const [lastJob, setLastJob] = useState<Job | null>(null);
+
+  const { counts, isLoading: assetsLoading } = useProjectData(currentProjectId, currentJobId);
 
   const runOptimization = useRunOptimization(currentProjectId);
   // The backend runs the pipeline synchronously within the POST /jobs request, so by the
@@ -70,8 +73,51 @@ export function OptimizationPane() {
   const isRunning = runOptimization.isPending;
   const summary = parseSummary(lastJob);
 
+  const blockers: string[] = [];
+  if (!currentProjectId) {
+    blockers.push('Select a project first.');
+  } else if (!assetsLoading) {
+    if (counts.wtgsOptimisable === 0) {
+      blockers.push(
+        counts.wtgsTotal === 0
+          ? 'No WTGs imported for this project.'
+          : `All ${counts.wtgsTotal} imported WTG(s) are excluded by status (cancelled/low-AEP/to-be-shifted) — none are optimisable.`
+      );
+    }
+    if (counts.substations === 0) {
+      blockers.push('No substation imported for this project.');
+    }
+  }
+  const canRun = blockers.length === 0 && !assetsLoading;
+  const multipleSubstationsNote =
+    currentProjectId && !assetsLoading && counts.substations > 1
+      ? `${counts.substations} substations found — the one nearest the WTG cluster will be used automatically.`
+      : null;
+
   return (
     <>
+      <Card>
+        <CardTitle>Confirmed Assets</CardTitle>
+        {!currentProjectId ? (
+          <p className="text-[11.5px] text-textFaint m-0">Select a project to see its confirmed assets.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: 'WTGs', value: counts.wtgsOptimisable === counts.wtgsTotal ? counts.wtgsTotal : `${counts.wtgsOptimisable}/${counts.wtgsTotal}` },
+              { label: 'Substations', value: counts.substations },
+              { label: 'Roads', value: counts.referenceLines },
+              { label: 'Parcels', value: counts.parcels },
+              { label: 'Restricted', value: counts.restrictedAreas }
+            ].map((m) => (
+              <div key={m.label} className="border border-border rounded-md bg-surface2 px-2 pt-2 pb-1.5">
+                <div className="font-mono text-[15px] font-semibold tabular leading-none">{m.value}</div>
+                <div className="text-[10px] text-textFaint mt-1">{m.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {multipleSubstationsNote && <p className="text-[11px] text-textFaint mt-2 mb-0">ℹ️ {multipleSubstationsNote}</p>}
+      </Card>
       <Card>
         <CardTitle>Scenario &amp; Algorithm</CardTitle>
         <div className="flex flex-col gap-3">
@@ -97,9 +143,16 @@ export function OptimizationPane() {
             </label>
             <Slider value={voltageKv} onValueChange={setVoltageKv} min={11} max={132} step={11} />
           </div>
-          <Button variant="primary" className="justify-center" disabled={isRunning} onClick={handleRun}>
+          <Button variant="primary" className="justify-center" disabled={isRunning || !canRun} onClick={handleRun}>
             {isRunning ? 'Running…' : 'Run optimization pipeline'}
           </Button>
+          {!isRunning && blockers.length > 0 && (
+            <ul className="list-disc list-inside text-[11px] text-danger m-0">
+              {blockers.map((b, i) => (
+                <li key={i}>{b}</li>
+              ))}
+            </ul>
+          )}
           {progress && isRunning && (
             <div className="mt-1">
               <div className="h-1.5 rounded-full bg-surface2 overflow-hidden">
