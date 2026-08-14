@@ -119,6 +119,7 @@ public class OptimizationJobService {
         OptimizationJob job = new OptimizationJob(
                 project,
                 req.algorithmType() != null ? req.algorithmType() : "MULTI_OBJECTIVE_A_STAR",
+                req.scenario() != null ? req.scenario() : "Balanced",
                 req.capexWeight() != null ? req.capexWeight() : new BigDecimal("0.5000"),
                 req.lossesWeight() != null ? req.lossesWeight() : new BigDecimal("0.5000"),
                 req.maxSpanMeters() != null ? req.maxSpanMeters() : new BigDecimal("150.00"),

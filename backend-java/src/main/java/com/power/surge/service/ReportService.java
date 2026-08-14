@@ -23,6 +23,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.UUID;
 
@@ -166,83 +167,77 @@ public class ReportService {
         return csv.toString();
     }
 
+    private static final List<String> SCENARIO_NAMES =
+            List.of("Balanced", "Minimum Cost", "Minimum Land Impact", "Minimum Environmental Impact");
+
+    /**
+     * Compares actual completed jobs per scenario for this project. A scenario the user hasn't
+     * run yet is simply omitted rather than filled in with an invented number — the previous
+     * implementation returned the same four hardcoded length/pole/cost figures for every project
+     * regardless of what was actually run.
+     */
     public com.power.surge.dto.report.ScenarioComparisonResponse getScenarioComparison(UUID projectId) {
-        Project project = getProjectOrThrow(projectId);
+        getProjectOrThrow(projectId);
         List<OptimizationJob> jobs = jobRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId);
 
-        List<String> scenarioNames = List.of("Balanced", "Minimum Cost", "Minimum Land Impact", "Minimum Environmental Impact");
-        List<com.power.surge.dto.report.ScenarioSummaryItem> items = new ArrayList<>();
+        // Prefer the most recent completed Balanced run as the delta baseline; fall back to
+        // whatever scenario was run most recently if Balanced hasn't been, so deltas still have
+        // a reference point instead of silently disappearing.
+        OptimizationJob baseJob = jobs.stream()
+                .filter(j -> j.getStatus() == JobStatus.COMPLETED && "Balanced".equalsIgnoreCase(j.getScenario()))
+                .findFirst()
+                .orElseGet(() -> jobs.stream().filter(j -> j.getStatus() == JobStatus.COMPLETED).findFirst().orElse(null));
 
-        Double baseCost = 676000.0;
-        Double baseLosses = 42.5;
-
-        OptimizationJob baseJob = jobs.stream().filter(j -> j.getStatus() == JobStatus.COMPLETED).findFirst().orElse(null);
+        Double baseCost = null;
+        Double baseLosses = null;
         if (baseJob != null) {
             EngineeringBomReportResponse baseReport = generateBomReport(projectId, baseJob.getId());
-            if (baseReport.totalEstimatedCost() != null && baseReport.totalEstimatedCost().doubleValue() > 0) {
-                baseCost = baseReport.totalEstimatedCost().doubleValue();
-            }
-            if (baseReport.totalElectricalLossesKw() != null && baseReport.totalElectricalLossesKw().doubleValue() > 0) {
-                baseLosses = baseReport.totalElectricalLossesKw().doubleValue();
-            }
+            baseCost = baseReport.totalEstimatedCost() != null ? baseReport.totalEstimatedCost().doubleValue() : null;
+            baseLosses = baseReport.totalElectricalLossesKw() != null ? baseReport.totalElectricalLossesKw().doubleValue() : null;
         }
 
-        for (String scName : scenarioNames) {
+        List<com.power.surge.dto.report.ScenarioSummaryItem> items = new ArrayList<>();
+        for (String scName : SCENARIO_NAMES) {
             OptimizationJob scJob = jobs.stream()
-                    .filter(j -> j.getStatus() == JobStatus.COMPLETED)
+                    .filter(j -> j.getStatus() == JobStatus.COMPLETED && scName.equalsIgnoreCase(j.getScenario()))
                     .findFirst()
                     .orElse(null);
-
-            Double length;
-            Integer poles;
-            Double cost;
-            Double losses;
-            Double landCost;
-
-            if ("Minimum Cost".equalsIgnoreCase(scName)) {
-                length = 7800.0;
-                poles = 52;
-                cost = Math.round(baseCost * 0.88 * 100.0) / 100.0;
-                losses = Math.round(baseLosses * 1.08 * 100.0) / 100.0;
-                landCost = 45000.0;
-            } else if ("Minimum Land Impact".equalsIgnoreCase(scName)) {
-                length = 8900.0;
-                poles = 59;
-                cost = Math.round(baseCost * 1.05 * 100.0) / 100.0;
-                losses = Math.round(baseLosses * 0.96 * 100.0) / 100.0;
-                landCost = 18000.0;
-            } else if ("Minimum Environmental Impact".equalsIgnoreCase(scName)) {
-                length = 9200.0;
-                poles = 61;
-                cost = Math.round(baseCost * 1.09 * 100.0) / 100.0;
-                losses = Math.round(baseLosses * 0.94 * 100.0) / 100.0;
-                landCost = 25000.0;
-            } else { // Balanced
-                length = 8450.0;
-                poles = 56;
-                cost = baseCost;
-                losses = baseLosses;
-                landCost = 36000.0;
+            if (scJob == null) {
+                continue;
             }
 
-            Double capexDelta = Math.round(((cost - baseCost) / baseCost) * 100.0 * 10.0) / 10.0;
-            Double lossesDelta = Math.round(((losses - baseLosses) / baseLosses) * 100.0 * 10.0) / 10.0;
+            EngineeringBomReportResponse report = generateBomReport(projectId, scJob.getId());
+            Double length = report.totalNetworkLengthMeters() != null ? report.totalNetworkLengthMeters().doubleValue() : null;
+            Double cost = report.totalEstimatedCost() != null ? report.totalEstimatedCost().doubleValue() : null;
+            Double losses = report.totalElectricalLossesKw() != null ? report.totalElectricalLossesKw().doubleValue() : null;
+            double landCost = report.parcelImpactSummaries().stream()
+                    .map(ParcelImpactSummary::estimatedCompensationCost)
+                    .filter(Objects::nonNull)
+                    .mapToDouble(BigDecimal::doubleValue)
+                    .sum();
 
             items.add(new com.power.surge.dto.report.ScenarioSummaryItem(
                     scName,
-                    scJob != null ? scJob.getId() : UUID.randomUUID(),
-                    JobStatus.COMPLETED,
+                    scJob.getId(),
+                    scJob.getStatus(),
                     length,
-                    poles,
+                    report.totalPoles(),
                     cost,
                     losses,
                     landCost,
-                    capexDelta,
-                    lossesDelta
+                    percentDelta(cost, baseCost),
+                    percentDelta(losses, baseLosses)
             ));
         }
 
         return new com.power.surge.dto.report.ScenarioComparisonResponse(projectId, items);
+    }
+
+    private static Double percentDelta(Double value, Double base) {
+        if (value == null || base == null || base == 0) {
+            return null;
+        }
+        return Math.round(((value - base) / base) * 1000.0) / 10.0;
     }
 
     /**

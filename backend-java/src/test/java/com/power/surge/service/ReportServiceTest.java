@@ -132,7 +132,7 @@ class ReportServiceTest {
     }
 
     @Test
-    void getScenarioComparison_success() {
+    void getScenarioComparison_omitsScenariosThatWereNeverRun() {
         UUID projectId = UUID.randomUUID();
         Project project = new Project("Test Project", "Description");
 
@@ -142,6 +142,41 @@ class ReportServiceTest {
         com.power.surge.dto.report.ScenarioComparisonResponse resp = reportService.getScenarioComparison(projectId);
 
         assertThat(resp).isNotNull();
-        assertThat(resp.scenarios()).hasSize(4);
+        assertThat(resp.scenarios()).isEmpty();
+    }
+
+    @Test
+    void getScenarioComparison_reflectsTheRealCompletedJobForThatScenario() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+
+        Project project = new Project("Test Project", "Description");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+        OptimizationJob job = new OptimizationJob(project, "MULTI_OBJECTIVE_A_STAR", "Minimum Cost", null, null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "id", jobId);
+        job.markCompleted("{}");
+
+        LineString lineString = geometryFactory.createLineString(new Coordinate[]{
+                new Coordinate(77.23, 28.63),
+                new Coordinate(77.25, 28.64)
+        });
+        GeneratedRoute route = new GeneratedRoute(
+                job, "Feeder-01", new BigDecimal("2500.00"), new BigDecimal("150000.00"), new BigDecimal("12.5"), 15, lineString, null, null
+        );
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(jobRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of(job));
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of(route));
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
+
+        com.power.surge.dto.report.ScenarioComparisonResponse resp = reportService.getScenarioComparison(projectId);
+
+        assertThat(resp.scenarios()).hasSize(1);
+        assertThat(resp.scenarios().get(0).scenarioName()).isEqualTo("Minimum Cost");
+        assertThat(resp.scenarios().get(0).jobId()).isEqualTo(jobId);
+        assertThat(resp.scenarios().get(0).totalEstimatedCost()).isEqualTo(150000.00);
+        assertThat(resp.scenarios().get(0).totalPoles()).isEqualTo(15);
     }
 }

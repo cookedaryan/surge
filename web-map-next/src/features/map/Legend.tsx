@@ -4,7 +4,10 @@ export function Legend() {
     { color: 'var(--warning)', label: 'Substation' },
     { color: 'var(--danger)', label: 'Restricted zone' },
     { color: 'var(--accent)', label: 'Feeder route', shape: 'dash' },
-    { color: '#94A3B8', label: 'Pole' }
+    { color: '#F59E0B', label: 'Terminal pole' },
+    { color: '#EF4444', label: 'Angle pole' },
+    { color: '#94A3B8', label: 'Tangent pole' },
+    { color: '#8B5CF6', label: 'Junction pole' }
   ];
   return (
     <div className="absolute right-3.5 top-3.5 w-[172px] bg-surface border border-border rounded-lg p-2.5 font-ui pointer-events-none">

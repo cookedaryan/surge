@@ -34,6 +34,10 @@ public class OptimizationJob extends AuditableEntity {
     @Column(name = "algorithm_type", nullable = false, length = 50)
     private String algorithmType;
 
+    @Size(max = 60)
+    @Column(name = "scenario", length = 60)
+    private String scenario;
+
     @Column(name = "capex_weight", nullable = false, precision = 5, scale = 4)
     private BigDecimal capexWeight;
 
@@ -69,9 +73,22 @@ public class OptimizationJob extends AuditableEntity {
             BigDecimal maxSpanMeters,
             BigDecimal voltageKv
     ) {
+        this(project, algorithmType, null, capexWeight, lossesWeight, maxSpanMeters, voltageKv);
+    }
+
+    public OptimizationJob(
+            Project project,
+            String algorithmType,
+            String scenario,
+            BigDecimal capexWeight,
+            BigDecimal lossesWeight,
+            BigDecimal maxSpanMeters,
+            BigDecimal voltageKv
+    ) {
         this.project = Objects.requireNonNull(project, "Project is required.");
         this.status = JobStatus.PENDING;
         this.algorithmType = algorithmType != null ? algorithmType.trim() : "MULTI_OBJECTIVE_A_STAR";
+        this.scenario = scenario != null ? scenario.trim() : "Balanced";
         this.capexWeight = capexWeight != null ? capexWeight : new BigDecimal("0.5000");
         this.lossesWeight = lossesWeight != null ? lossesWeight : new BigDecimal("0.5000");
         this.maxSpanMeters = maxSpanMeters != null ? maxSpanMeters : new BigDecimal("150.00");
@@ -88,6 +105,10 @@ public class OptimizationJob extends AuditableEntity {
 
     public String getAlgorithmType() {
         return algorithmType;
+    }
+
+    public String getScenario() {
+        return scenario;
     }
 
     public BigDecimal getCapexWeight() {

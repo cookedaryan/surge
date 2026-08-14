@@ -31,7 +31,10 @@ export class SurgeMapEngine {
       towers: L.featureGroup().addTo(this.map),
       referenceLines: L.featureGroup().addTo(this.map),
       routes: L.featureGroup().addTo(this.map),
-      poles: L.featureGroup().addTo(this.map),
+      polesTerminal: L.featureGroup().addTo(this.map),
+      polesAngle: L.featureGroup().addTo(this.map),
+      polesIntermediate: L.featureGroup().addTo(this.map),
+      polesJunction: L.featureGroup().addTo(this.map),
       parcels: L.featureGroup().addTo(this.map),
       restricted: L.featureGroup().addTo(this.map),
       imported: L.featureGroup().addTo(this.map)
@@ -195,38 +198,48 @@ export class SurgeMapEngine {
     }).addTo(this.layers.routes);
   }
 
+  private static readonly POLE_ROLE_STYLE: Record<string, { color: string; radius: number; layer: LayerName }> = {
+    terminal: { color: '#F59E0B', radius: 5, layer: 'polesTerminal' },
+    angle: { color: '#EF4444', radius: 5, layer: 'polesAngle' },
+    junction: { color: '#8B5CF6', radius: 5, layer: 'polesJunction' },
+    intermediate: { color: '#94A3B8', radius: 3, layer: 'polesIntermediate' }
+  };
+
   renderPoles(geoJson: FeatureCollection): void {
-    this.layers.poles.clearLayers();
+    this.layers.polesTerminal.clearLayers();
+    this.layers.polesAngle.clearLayers();
+    this.layers.polesIntermediate.clearLayers();
+    this.layers.polesJunction.clearLayers();
     if (!geoJson || !geoJson.features) return;
-    const roleColors: Record<string, string> = {
-      terminal: '#F59E0B',
-      angle: '#EF4444',
-      junction: '#8B5CF6',
-      intermediate: '#94A3B8'
-    };
-    L.geoJSON(geoJson, {
-      pointToLayer: (feature, latlng) => {
-        const props = (feature.properties || {}) as Record<string, any>;
-        const role = String(props.poleRole || 'intermediate').toLowerCase();
-        const color = roleColors[role] || roleColors.intermediate;
-        const marker = L.circleMarker(latlng, {
-          radius: role === 'intermediate' ? 3 : 5,
-          color,
-          weight: 1.5,
-          fillColor: color,
-          fillOpacity: 0.85
-        });
-        marker.bindPopup(`
-          <div class="popup-card">
-            <h4>${SVG_ICONS.genericPoint} Pole</h4>
-            <div class="popup-row"><span>Pole ID:</span> <strong>${props.poleId || feature.id}</strong></div>
-            <div class="popup-row"><span>Type:</span> <strong>${props.recommendedPoleType || role}</strong></div>
-            ${props.feederName ? `<div class="popup-row"><span>Feeder:</span> <strong>${props.feederName}</strong></div>` : ''}
-          </div>
-        `);
-        return marker;
-      }
-    }).addTo(this.layers.poles);
+
+    for (const feature of geoJson.features) {
+      if (feature.geometry?.type !== 'Point') continue;
+      const [lng, lat] = feature.geometry.coordinates;
+      const props = (feature.properties || {}) as Record<string, any>;
+      const role = String(props.poleRole || 'intermediate').toLowerCase();
+      const style = SurgeMapEngine.POLE_ROLE_STYLE[role] || SurgeMapEngine.POLE_ROLE_STYLE.intermediate;
+      const poleId: string = props.poleId || String(feature.id ?? '');
+      const sequenceMatch = poleId.match(/-P0*(\d+)$/);
+
+      const marker = L.circleMarker([lat, lng], {
+        radius: style.radius,
+        color: style.color,
+        weight: 1.5,
+        fillColor: style.color,
+        fillOpacity: 0.85
+      });
+      marker.bindPopup(`
+        <div class="popup-card">
+          <h4>${SVG_ICONS.genericPoint} Pole</h4>
+          <div class="popup-row"><span>Pole ID:</span> <strong>${poleId}</strong></div>
+          ${props.feederName ? `<div class="popup-row"><span>Feeder:</span> <strong>${props.feederName}</strong></div>` : ''}
+          ${sequenceMatch ? `<div class="popup-row"><span>Sequence:</span> <strong>${parseInt(sequenceMatch[1], 10)}</strong></div>` : ''}
+          <div class="popup-row"><span>Type:</span> <strong>${props.recommendedPoleType || role}</strong></div>
+          <div class="popup-note">Preliminary geometry-based recommendation — not a structural design.</div>
+        </div>
+      `);
+      marker.addTo(this.layers[style.layer]);
+    }
   }
 
   renderParcels(geoJson: FeatureCollection, fillOpacity = 0.25): void {

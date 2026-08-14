@@ -5,11 +5,23 @@ const LAYER_TOGGLES: { key: LayerName; label: string }[] = [
   { key: 'wtgs', label: 'Wind turbines' },
   { key: 'substations', label: 'Substations' },
   { key: 'towers', label: 'Evacuation towers' },
-  { key: 'referenceLines', label: 'Reference lines' },
-  { key: 'routes', label: 'Feeder routes' },
-  { key: 'poles', label: 'Poles' },
-  { key: 'parcels', label: 'Parcels' },
-  { key: 'restricted', label: 'Restricted zones' }
+  { key: 'routes', label: 'Feeder routes' }
+];
+
+// Roads/HT-lines and parcels are soft, crossable-with-penalty constraints; restricted zones
+// are hard exclusions the router must never enter. Kept as separate toggles/styles per
+// docs/whats-next.md §7.4 rather than one generic "constraints" layer.
+const CONSTRAINT_TOGGLES: { key: LayerName; label: string; hint: string }[] = [
+  { key: 'referenceLines', label: 'Roads / HT-lines', hint: 'Soft — crossable with penalty' },
+  { key: 'parcels', label: 'Parcels', hint: 'Soft — crossable with penalty' },
+  { key: 'restricted', label: 'Restricted zones', hint: 'Hard exclusion' }
+];
+
+const POLE_TOGGLES: { key: LayerName; label: string }[] = [
+  { key: 'polesTerminal', label: 'Terminal / dead-end' },
+  { key: 'polesAngle', label: 'Angle / tension' },
+  { key: 'polesIntermediate', label: 'Tangent / suspension' },
+  { key: 'polesJunction', label: 'Junction' }
 ];
 
 export function LayersPane() {
@@ -28,6 +40,27 @@ export function LayersPane() {
       <Card>
         <CardTitle>Map Layer Controls</CardTitle>
         {LAYER_TOGGLES.map((item) => (
+          <div key={item.key} className="flex items-center justify-between py-1.5 border-b border-border last:border-b-0">
+            <span className="text-xs text-text">{item.label}</span>
+            <Switch checked={layerVisibility[item.key]} onCheckedChange={() => toggleLayer(item.key)} />
+          </div>
+        ))}
+      </Card>
+      <Card>
+        <CardTitle>Constraints</CardTitle>
+        {CONSTRAINT_TOGGLES.map((item) => (
+          <div key={item.key} className="flex items-center justify-between py-1.5 border-b border-border last:border-b-0">
+            <div>
+              <span className="text-xs text-text block">{item.label}</span>
+              <span className="text-[10.5px] text-textFaint">{item.hint}</span>
+            </div>
+            <Switch checked={layerVisibility[item.key]} onCheckedChange={() => toggleLayer(item.key)} />
+          </div>
+        ))}
+      </Card>
+      <Card>
+        <CardTitle>Pole Classes</CardTitle>
+        {POLE_TOGGLES.map((item) => (
           <div key={item.key} className="flex items-center justify-between py-1.5 border-b border-border last:border-b-0">
             <span className="text-xs text-text">{item.label}</span>
             <Switch checked={layerVisibility[item.key]} onCheckedChange={() => toggleLayer(item.key)} />

@@ -2,7 +2,8 @@ import { create } from 'zustand';
 
 export type LayerName =
   | 'wtgs' | 'substations' | 'towers' | 'referenceLines'
-  | 'routes' | 'poles' | 'parcels' | 'restricted' | 'imported';
+  | 'routes' | 'polesTerminal' | 'polesAngle' | 'polesIntermediate' | 'polesJunction'
+  | 'parcels' | 'restricted' | 'imported';
 
 export type SidebarTab = 'assets' | 'optimize' | 'layers' | 'bom' | 'audit';
 
@@ -63,7 +64,9 @@ export const useUiStore = create<UiState>((set) => ({
 
   layerVisibility: {
     wtgs: true, substations: true, towers: true, referenceLines: true,
-    routes: true, poles: true, parcels: true, restricted: false, imported: true
+    routes: true,
+    polesTerminal: true, polesAngle: true, polesIntermediate: true, polesJunction: true,
+    parcels: true, restricted: false, imported: true
   },
   toggleLayer: (layer) =>
     set((s) => ({ layerVisibility: { ...s.layerVisibility, [layer]: !s.layerVisibility[layer] } })),
