@@ -125,6 +125,30 @@ class SecurityBoundaryTest {
                 .andExpect(status().isCreated());
     }
 
+    // --- account administration is administrator-only ---------------------
+
+    @Test
+    void adminUserRoutesRejectAnonymousCallers() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/users"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void adminUserRoutesRejectNonAdministrators() throws Exception {
+        mockMvc.perform(get("/api/v1/admin/users").header("Authorization", bearer(UserRole.ROLE_ENGINEER)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void aViewerCannotProvisionAccounts() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/users")
+                        .header("Authorization", bearer(UserRole.ROLE_VIEWER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"username":"newcomer","email":"n@example.com","password":"a-good-password","role":"ROLE_ADMIN"}"""))
+                .andExpect(status().isForbidden());
+    }
+
     // --- what must stay reachable ----------------------------------------
 
     @Test

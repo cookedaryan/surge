@@ -1,20 +1,30 @@
-import { useUiStore, type SidebarTab } from '../lib/store';
+import { useAuthStore, useUiStore, type SidebarTab } from '../lib/store';
 
-const TABS: { id: SidebarTab; title: string; path: string }[] = [
+const TABS: { id: SidebarTab; title: string; path: string; adminOnly?: boolean }[] = [
   { id: 'assets', title: 'Assets', path: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z' },
   { id: 'optimize', title: 'Optimization', path: 'M13 2 4 14h6l-1 8 9-12h-6l1-8z' },
   { id: 'layers', title: 'Layers', path: 'M12 2l9 5-9 5-9-5 9-5zM3 12l9 5 9-5M3 17l9 5 9-5' },
   { id: 'bom', title: 'BOM', path: 'M9 2h6l1 4H8l1-4zM6 6h12l1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L6 6z' },
-  { id: 'audit', title: 'Audit', path: 'M9 11H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h4m0-10V7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-9m0-10v12' }
+  { id: 'audit', title: 'Audit', path: 'M9 11H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h4m0-10V7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-9m0-10v12' },
+  {
+    id: 'admin',
+    title: 'Users',
+    adminOnly: true,
+    path: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'
+  }
 ];
 
 export function RailNav() {
   const activeSidebarTab = useUiStore((s) => s.activeSidebarTab);
   const setActiveSidebarTab = useUiStore((s) => s.setActiveSidebarTab);
+  const role = useAuthStore((s) => s.role);
+
+  // Hiding the tab is presentation only — the endpoints enforce the same rule server-side.
+  const visibleTabs = TABS.filter((tab) => !tab.adminOnly || role === 'ROLE_ADMIN');
 
   return (
     <nav className="w-[50px] flex-none bg-panel border-r border-border flex flex-col items-center pt-2.5 gap-0.5">
-      {TABS.map((tab) => (
+      {visibleTabs.map((tab) => (
         <button
           key={tab.id}
           title={tab.title}

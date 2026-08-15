@@ -4,6 +4,9 @@ import com.power.surge.domain.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import com.power.surge.domain.UserRole;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,4 +16,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(String email);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
+
+    List<User> findAllByOrderByUsernameAsc();
+
+    /** Used to refuse any change that would leave nobody able to administer the system. */
+    long countByRoleAndEnabledTrue(UserRole role);
 }

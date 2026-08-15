@@ -49,6 +49,19 @@ public class ApiExceptionHandler {
         return errorResponse(HttpStatus.BAD_REQUEST, "Database constraint error: " + msg, Map.of());
     }
 
+    /**
+     * Method-level authorization failures (e.g. {@code @PreAuthorize}) surface as exceptions inside
+     * the dispatcher, so without this they fall through to the catch-all below and are reported as
+     * 500 Internal Server Error — telling the caller the server is broken when in fact the request
+     * was understood and refused.
+     */
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiErrorResponse> handleAccessDenied(
+            org.springframework.security.access.AccessDeniedException exception
+    ) {
+        return errorResponse(HttpStatus.FORBIDDEN, "You do not have permission to perform this action.", Map.of());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGenericException(
             Exception exception

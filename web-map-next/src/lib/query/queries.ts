@@ -57,6 +57,11 @@ export function useAuditLogs() {
   return useQuery({ queryKey: ['auditLogs'], queryFn: api.getAuditLogs });
 }
 
+/** Administrator-only; the endpoint 403s for anyone else, so do not fetch it for them. */
+export function useAdminUsers(enabled: boolean) {
+  return useQuery({ queryKey: ['adminUsers'], queryFn: api.listUsers, enabled });
+}
+
 export function useScenarioComparison(projectId: string | null, enabled: boolean) {
   return useQuery({
     queryKey: ['scenarioComparison', projectId],

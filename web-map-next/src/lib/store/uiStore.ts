@@ -5,7 +5,7 @@ export type LayerName =
   | 'routes' | 'polesTerminal' | 'polesAngle' | 'polesIntermediate' | 'polesJunction'
   | 'parcels' | 'restricted' | 'imported';
 
-export type SidebarTab = 'assets' | 'optimize' | 'layers' | 'bom' | 'audit';
+export type SidebarTab = 'assets' | 'optimize' | 'layers' | 'bom' | 'audit' | 'admin';
 
 interface UiState {
   activeSidebarTab: SidebarTab;

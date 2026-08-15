@@ -10,6 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -33,6 +34,13 @@ public class User {
     @Column(name = "role", nullable = false, length = 32)
     private UserRole role;
 
+    /**
+     * A suspended account keeps its history and its name resolvable in the audit log, but cannot
+     * sign in. Preferred over deletion for exactly that reason.
+     */
+    @Column(name = "enabled", nullable = false)
+    private boolean enabled = true;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -44,6 +52,7 @@ public class User {
         this.email = email;
         this.passwordHash = passwordHash;
         this.role = role != null ? role : UserRole.ROLE_ENGINEER;
+        this.enabled = true;
         this.createdAt = Instant.now();
     }
 
@@ -69,6 +78,18 @@ public class User {
 
     public UserRole getRole() {
         return role;
+    }
+
+    public void setRole(UserRole role) {
+        this.role = Objects.requireNonNull(role, "Role is required.");
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 
     public Instant getCreatedAt() {

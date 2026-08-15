@@ -15,6 +15,18 @@ export interface AuthResponse {
   role: string;
 }
 
+export type UserRole = 'ROLE_ADMIN' | 'ROLE_ENGINEER' | 'ROLE_VIEWER';
+
+/** An account as returned by the admin API. Carries no password material. */
+export interface AdminUser {
+  id: string;
+  username: string;
+  email: string;
+  role: UserRole;
+  enabled: boolean;
+  createdAt: string;
+}
+
 export interface Job {
   id: string;
   status?: string;

@@ -94,6 +94,15 @@ public class AuthService {
             throw new IllegalArgumentException("Invalid username or password.");
         }
 
+        // Checked after the password so a suspended account is not distinguishable from a wrong
+        // password by response timing or message alone, and recorded so a locked-out colleague's
+        // attempts are visible rather than mysterious.
+        if (!user.isEnabled()) {
+            auditLogService.recordAudit(user.getUsername(), "USER_LOGIN_DENIED", "USER",
+                    user.getId().toString(), "Sign-in refused: account is suspended");
+            throw new IllegalArgumentException("This account has been suspended. Contact an administrator.");
+        }
+
         auditLogService.recordAudit(user.getUsername(), "USER_LOGIN", "USER", user.getId().toString(), "Successful user authentication");
 
         String token = tokenProvider.generateToken(user.getId(), user.getUsername(), user.getRole());

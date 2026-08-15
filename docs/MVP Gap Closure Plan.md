@@ -267,7 +267,7 @@ green, frontend typecheck and build clean.
 > the same to build and preserve a usable audit trail. Tier 2 is now three phases:
 >
 > - **Phase 1 — authentication (✅ done, see §3.3)**
-> - **Phase 2 — admin panel:** manage users, reset passwords, assign roles
+> - **Phase 2 — admin panel (✅ done, see §3.4)**
 > - **Phase 3 — audit coverage:** `recordAudit` is currently called from only two
 >   places in the whole codebase (`USER_LOGIN`, `USER_REGISTERED`), so the log knows
 >   who signed in and nothing about what they did. Instrumenting project create/delete,
@@ -389,6 +389,70 @@ never-overwrite contract. Suite: 167 Java tests green, frontend build clean.
 **Known gap:** roles are enforced only for registration. `ROLE_VIEWER` still has
 write access everywhere else — deliberate for now, and the natural companion to the
 Phase 2 admin panel.
+
+### 3.4 Phase 2 outcome — admin panel (done 2026-08-15)
+
+**API** — `/api/v1/admin/users`, with a class-level `@PreAuthorize("hasRole('ADMIN')")`
+so a route added later is restricted by default rather than by remembering to
+annotate it:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/admin/users` | List accounts |
+| `POST` | `/admin/users` | Provision an account |
+| `PATCH` | `/admin/users/{id}` | Change role and/or suspension state |
+| `POST` | `/admin/users/{id}/password` | Set a new password |
+
+`PATCH` treats `null` fields as "leave unchanged", so role and suspension can be
+changed independently. Password reset is a separate route so it is audited as its
+own distinct event.
+
+**Suspension rather than deletion.** Migration `V11` adds `users.enabled`. Deleting
+an account would leave its audit-log entries naming someone who can no longer be
+looked up; suspending keeps the history interpretable while blocking sign-in
+immediately. `AuthService.login` rejects a disabled account *after* the password
+check, so a suspended account is not distinguishable from a wrong password, and
+records a `USER_LOGIN_DENIED` event so a locked-out colleague's attempts are visible.
+
+**Two lockout invariants**, enforced in the service rather than the UI because the
+UI is not the only possible caller:
+
+- an administrator cannot suspend or demote *their own* account; and
+- the last enabled administrator cannot be suspended or demoted.
+
+Recovering from zero administrators would need direct database access — exactly what
+this panel exists to avoid.
+
+**A real bug this surfaced.** Method-level authorization failures were being reported
+as **500 Internal Server Error**: `@PreAuthorize` throws inside the dispatcher, and
+`ApiExceptionHandler`'s catch-all `@ExceptionHandler(Exception.class)` swallowed it
+before Spring Security could translate it. Every `@PreAuthorize` in the codebase was
+affected, including the Phase 1 annotation on `register` (masked there only because a
+filter-level rule denied it first). Added an explicit `AccessDeniedException` handler
+returning 403.
+
+**Session restore.** The auth store inferred "signed in" from a token existing in
+storage, but username and role lived only in memory — so after a reload an
+administrator came back with no role and silently lost the admin tab. The app now
+resolves the account from `/auth/me` on load, which revalidates the token at the same
+time and takes the role from the server rather than trusting local storage.
+
+**Verified against the running stack:** create → sign in as the new account → suspend
+→ sign-in refused (400) → reset password → reinstate → sign in with the new password
+(200) while the old one is refused (400). Self-suspend and self-demote are refused
+with readable messages and the account is left untouched; a non-administrator gets 403
+from every route. Driving a suspension from the UI updated the database, blocked that
+user's next sign-in, and wrote `USER_SUSPENDED` against **the acting administrator**,
+which is the "who did what" the panel was for.
+
+**Tests:** `UserAdminServiceTest` (12) covers creation, duplicate rejection, both
+lockout invariants, audit-on-change, no-audit-when-unchanged, and that a reset stores
+a hash and never logs the password. `SecurityBoundaryTest` grew 3 cases for the new
+routes. Suite: 182 Java tests green, frontend build clean.
+
+**Note:** a malformed UUID in any path still returns 500 via the catch-all rather than
+400. Pre-existing across every `{id}` route, not introduced here — worth a small
+`MethodArgumentTypeMismatchException` handler when convenient.
 
 ---
 
