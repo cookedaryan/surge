@@ -63,6 +63,12 @@ jobs:
   docker:
     name: Container builds
     runs-on: ubuntu-latest
+    env:
+      # compose refuses to interpolate without this, by design — a deployment that forgets the
+      # signing key should fail loudly rather than start and fall back to something guessable.
+      # A build never runs the application, so a throwaway value is the right thing here; the
+      # guard still holds for anyone actually starting the stack.
+      APP_JWT_SECRET: ci-build-only-value-never-used-to-sign-anything
     steps:
       - uses: actions/checkout@v4
       - run: docker compose build
