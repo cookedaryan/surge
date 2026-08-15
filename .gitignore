@@ -103,3 +103,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Playwright artefacts
+web-map-next/test-results/
+web-map-next/playwright-report/

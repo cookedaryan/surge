@@ -633,7 +633,10 @@ job's route set).
 
 ---
 
-## 5. Tier 4 — Release-readiness gaps
+## 5. Tier 4 — Release-readiness gaps ✅ DONE (2026-08-15)
+
+> **Completed.** All three items landed; see §5.4 for the outcome, including a real bug
+> the new tests caught.
 
 These don't block a working demo but block calling it done per the
 project's own "Definition of Sunday/MVP done" checklists.
@@ -669,6 +672,64 @@ project's own "Definition of Sunday/MVP done" checklists.
 
 **Estimated effort:** 1–1.5 days total across all three.
 
+### 5.4 Outcome (done 2026-08-15)
+
+**Frontend test runner — 23 tests.** Vitest + React Testing Library + jsdom, wired into
+the CI frontend job before the build. jsdom implements neither `ResizeObserver` nor
+`DOMRect`, and Radix primitives call both on mount, so the setup file stubs them —
+without that, any component containing a `Select` or `Slider` throws before a single
+assertion runs.
+
+Coverage went to the logic that manual testing cannot reach:
+
+- `listenJobProgress` (10) — the fetch-based SSE client. Frame reassembly across
+  arbitrary chunk boundaries, several frames in one chunk, CRLF, malformed JSON,
+  terminal-once semantics, bearer token present and *not* in the query string, and
+  sign-out on 401.
+- `client` (6) — token attachment, 401 clearing the session, and 403 deliberately *not*
+  clearing it, since "signed in but not allowed" is not a reason to sign someone out.
+- `OptimizationPane` (7) — the run-gating rules, including the case worth guarding:
+  95 turbines imported and none optimisable, which looks like a populated project and
+  an unexplained failure without a specific message.
+
+**A real bug these caught.** The unsubscribe test failed on first run: after `stop()`,
+already-buffered frames were still parsed and dispatched, because the loop only checked
+its exit flag *after* processing. Aborting the request does not help — the bytes are
+already in hand. `handleFrame` now returns early when finished. This was a genuine
+defect in code written earlier in this plan, found by the test rather than by review.
+
+**Java contract test — `OptimisationContractTest` (7).** Proves the two claims
+`whats-next.md` §6 asks for: every imported constraint kind reaches the optimiser with
+the right routing mode (restricted areas hard and carrying no `cost_weight`, everything
+else soft and carrying one), evacuation routes are excluded as reference data rather
+than obstacles, and returned routes and poles are filed against the job that produced
+them — with a failed run persisting neither. Mutation-checked: flipping restricted areas
+to `soft` fails the suite.
+
+**Browser end-to-end — 5 specs, Playwright.** Run against the live stack and observed
+passing, including a real 60-second optimisation: sign-in loads real projects rather
+than inventing one, a project runs an optimisation and explains the result, the BOM
+strip is actually in the viewport (it once rendered behind the Leaflet canvas — no unit
+test would notice), account administration is offered only to administrators with
+self-suspend disabled, and the audit log shows real work rather than only sign-ins.
+
+They are excluded from `npm test` and not in CI, because they need PostGIS, the backend
+and the optimiser running; a unit run must not pass merely because a service was
+unreachable. The spec skips itself with a clear message when the app is not reachable.
+See `web-map-next/src/test/e2e/README.md`.
+
+**Totals:** 194 Java, 509 Python, 23 frontend unit, 5 browser E2E.
+
+**Known gaps, deliberately left:**
+
+- The contract test uses mocked repositories. Verifying rows actually land in PostGIS
+  needs a real database — H2 cannot create the `text[]` column on `generated_poles` —
+  so Testcontainers is the proper closure.
+- Report download is not asserted end to end; browser download handling is flaky enough
+  across drivers that the CSV/PDF endpoints are better covered by the backend suite.
+- The E2E specs are not in CI. Running them there needs the compose stack in the
+  workflow, which is a deliberate follow-up rather than an oversight.
+
 ---
 
 ## 6. Explicitly out of scope for this pass
@@ -693,9 +754,13 @@ forward while Tiers 1–4 are open:
 1. ~~**Tier 1** (scenarios real)~~ — **done 2026-08-15**, see §2.4.
 2. ~~**Tier 3** (BOM losses + ROW area fixes)~~ — **done 2026-08-15**, see §4.3.
 3. ~~**Tier 2** (authorization)~~ — **done 2026-08-15**, see §3.3–§3.5.
-4. **Tier 4** (tests) — do incrementally alongside 1–3 rather than as one
-   final push; each new behavior in Tiers 1–3 should ship with the test that
-   proves it, per this repo's own CI gates.
+4. ~~**Tier 4** (tests)~~ — **done 2026-08-15**, see §5.4.
+
+**All four tiers are complete.** Remaining follow-ups, each recorded in its own section
+rather than left implicit: persist `rowWidthM` on the job (§4.3), converge the two
+right-of-way area implementations (§4.3), enforce `ROLE_VIEWER` beyond registration
+(§3.3), paginate the audit log (§3.5), and close the integration-test gap with
+Testcontainers plus the compose stack in CI (§5.4).
 
 ## 8. Definition of done for this plan
 

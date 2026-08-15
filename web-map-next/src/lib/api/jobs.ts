@@ -74,6 +74,11 @@ export function listenJobProgress(
   };
 
   const handleFrame = (frame: string) => {
+    // Unsubscribing must stop delivery immediately. Aborting the request is not sufficient on its
+    // own: bytes already buffered would still be parsed and dispatched before the loop next checks
+    // its exit condition, so a caller that has torn down would keep receiving callbacks.
+    if (finished) return;
+
     // An SSE frame is a block of "field: value" lines. Only the data payload matters here; the
     // event name is always "progress" and reconnection hints are unused for a short-lived job.
     const data = frame
