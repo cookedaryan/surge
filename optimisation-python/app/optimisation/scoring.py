@@ -3,6 +3,7 @@
 import hashlib
 import json
 import math
+from dataclasses import replace
 
 from app.costing.models import CandidateCostAssessment
 from app.optimisation.engineering_metric_models import CandidateEngineeringMetrics
@@ -248,76 +249,77 @@ def evaluate_cohort(
         seen_fps.add(fp)
 
     is_cost_aware = scoring_config.policy_mode == ScoringPolicyMode.COST_AWARE
-    if is_cost_aware:
-        if cost_assessments is None or cost_aware_config is None:
-            raise ValueError(
-                "cost_assessments and cost_aware_config must be provided for "
-                "COST_AWARE mode"
-            )
+    if is_cost_aware and cost_aware_config is None:
+        raise ValueError("cost_aware_config must be provided for COST_AWARE mode")
 
     assessments = [extract_candidate_assessment(w) for w in wrappers]
 
-    economic_context_id = None
-    candidate_costs = {}
+    economic_context_id: str | None = None
+    candidate_costs: dict[str, float] = {}
+    complete_cost_assessments: dict[str, CandidateCostAssessment] = {}
 
     if is_cost_aware:
-        assert cost_assessments is not None
-        eco_contexts = set()
-        for a in assessments:
-            sid = a.scenario_id
-            ca = cost_assessments.get(sid)
-            if not ca or not ca.capex_available or not ca.opex_available or not ca.cost:
-                # Add disqualification to the frozen object
-                new_disqs = list(a.disqualifications) + [
-                    Disqualification(
-                        code=DisqualificationCode.INCOMPLETE_LIFECYCLE_COST,
-                        message="Lifecycle cost assessment is missing or incomplete",
-                    )
-                ]
-                a = CandidateAssessment(
-                    scenario_id=a.scenario_id,
+        economic_contexts: set[str] = set()
+        for index, (wrapper, assessment) in enumerate(
+            zip(wrappers, assessments, strict=True)
+        ):
+            scenario_id = assessment.scenario_id
+            cost_assessment = wrapper.cost_assessment
+            if cost_assessment is None and cost_assessments is not None:
+                cost_assessment = cost_assessments.get(scenario_id)
+            if cost_assessment is None or cost_assessment.cost is None:
+                assessments[index] = replace(
+                    assessment,
                     eligible=False,
-                    disqualifications=tuple(new_disqs),
-                    metrics=a.metrics,
-                )
-            else:
-                eco_id = compute_economic_context_id(ca)
-                eco_contexts.add(eco_id)
-                candidate_costs[sid] = float(ca.cost.lifecycle_cost)
-
-        if len(eco_contexts) > 1:
-            raise ValueError(
-                "All eligible candidates must share the same economic_context_id "
-                "in COST_AWARE mode"
-            )
-        if eco_contexts:
-            economic_context_id = eco_contexts.pop()
-
-    if is_cost_aware:
-        assert cost_assessments is not None
-        for i, a in enumerate(assessments):
-            sid = a.scenario_id
-            ca = cost_assessments.get(sid)
-            if not ca or not ca.capex_available or not ca.opex_available or not ca.cost:
-                new_disqs = list(a.disqualifications)
-                if not any(
-                    d.code == DisqualificationCode.INCOMPLETE_LIFECYCLE_COST
-                    for d in new_disqs
-                ):
-                    new_disqs.append(
+                    disqualifications=assessment.disqualifications
+                    + (
                         Disqualification(
                             code=DisqualificationCode.INCOMPLETE_LIFECYCLE_COST,
                             message=(
                                 "Lifecycle cost assessment is missing or incomplete"
                             ),
-                        )
-                    )
-                assessments[i] = CandidateAssessment(
-                    scenario_id=a.scenario_id,
-                    eligible=False,
-                    disqualifications=tuple(new_disqs),
-                    metrics=a.metrics,
+                        ),
+                    ),
                 )
+                continue
+
+            if cost_assessment.scenario_id != scenario_id:
+                raise ValueError(
+                    "Cost assessment scenario_id must match the evaluated scenario"
+                )
+            if cost_assessment.cost.scenario_id != scenario_id:
+                raise ValueError(
+                    "Lifecycle cost scenario_id must match the evaluated scenario"
+                )
+            complete_cost_assessments[scenario_id] = cost_assessment
+            candidate_costs[scenario_id] = float(
+                cost_assessment.cost.lifecycle_cost
+            )
+            if assessment.eligible:
+                economic_contexts.add(
+                    compute_economic_context_id(cost_assessment)
+                )
+
+        if len(economic_contexts) == 1:
+            economic_context_id = next(iter(economic_contexts))
+        elif len(economic_contexts) > 1:
+            mismatch = Disqualification(
+                code=DisqualificationCode.ECONOMIC_CONTEXT_MISMATCH,
+                message=(
+                    "Lifecycle costs use different economic contexts and cannot "
+                    "be compared"
+                ),
+            )
+            assessments = [
+                replace(
+                    assessment,
+                    eligible=False,
+                    disqualifications=assessment.disqualifications + (mismatch,),
+                )
+                if assessment.eligible
+                else assessment
+                for assessment in assessments
+            ]
 
     eligible_assessments = [a for a in assessments if a.eligible]
 
@@ -327,19 +329,13 @@ def evaluate_cohort(
     min_cost: float | None = None
     max_cost: float | None = None
     if is_cost_aware and eligible_assessments:
-        costs = [
-            candidate_costs[a.scenario_id]
-            for a in eligible_assessments
-            if a.scenario_id in candidate_costs
-        ]
-        if costs:
-            min_cost = min(costs)
-            max_cost = max(costs)
+        costs = [candidate_costs[a.scenario_id] for a in eligible_assessments]
+        min_cost = min(costs)
+        max_cost = max(costs)
 
     evaluations: list[CandidateEvaluation] = []
 
     lowest_cost_sid = None
-    best_cost_val = float("inf")
 
     for a in assessments:
         if not a.eligible:
@@ -407,24 +403,20 @@ def evaluate_cohort(
 
         if is_cost_aware:
             assert cost_aware_config is not None
-            l_cost = candidate_costs.get(a.scenario_id)
-            if l_cost is not None and max_cost is not None and min_cost is not None:
-                if l_cost < best_cost_val:
-                    best_cost_val = l_cost
-                    lowest_cost_sid = a.scenario_id
+            assert min_cost is not None and max_cost is not None
+            l_cost = candidate_costs[a.scenario_id]
+            if max_cost == min_cost:
+                economic_score = 0.0
+            else:
+                economic_score = (max_cost - l_cost) / (max_cost - min_cost)
+                economic_score = max(0.0, min(1.0, economic_score))
 
-                if max_cost == min_cost:
-                    economic_score = 0.0
-                else:
-                    economic_score = (max_cost - l_cost) / (max_cost - min_cost)
-                    economic_score = max(0.0, min(1.0, economic_score))
-
-                final_score = math.fsum(
-                    (
-                        cost_aware_config.engineering_weight * eng_total,
-                        cost_aware_config.lifecycle_cost_weight * economic_score,
-                    )
+            final_score = math.fsum(
+                (
+                    cost_aware_config.engineering_weight * eng_total,
+                    cost_aware_config.lifecycle_cost_weight * economic_score,
                 )
+            )
 
         evaluations.append(
             CandidateEvaluation(
@@ -453,10 +445,11 @@ def evaluate_cohort(
 
         if is_cost_aware:
             assert e.final_benefit_score is not None
+            assert e.lifecycle_cost is not None
             return (
                 -round(e.final_benefit_score, SCORE_COMPARISON_DECIMALS),
                 -round(e.total_benefit_score, SCORE_COMPARISON_DECIMALS),
-                round(e.lifecycle_cost or float("inf"), SCORE_COMPARISON_DECIMALS),
+                round(e.lifecycle_cost, SCORE_COMPARISON_DECIMALS),
                 e.assessment.metrics.total_route_length_m,
                 e.assessment.metrics.total_active_loss_mw,
                 0.0,
@@ -527,21 +520,10 @@ def evaluate_cohort(
                 ),
             ).assessment.scenario_id
 
-    ranked_evals = []
-    for rank, e in enumerate(eligible_evals, start=1):
-        ranked_evals.append(
-            CandidateEvaluation(
-                assessment=e.assessment,
-                metric_scores=e.metric_scores,
-                group_scores=e.group_scores,
-                engineering_benefit_score=e.engineering_benefit_score,
-                economic_benefit_score=e.economic_benefit_score,
-                final_benefit_score=e.final_benefit_score,
-                total_benefit_score=e.total_benefit_score,
-                lifecycle_cost=e.lifecycle_cost,
-                rank=rank,
-            )
-        )
+    ranked_evals = [
+        replace(evaluation, rank=rank)
+        for rank, evaluation in enumerate(eligible_evals, start=1)
+    ]
     ranked_evals.extend(ineligible_evals)
 
     policy_name = scoring_config.policy_mode.value
@@ -761,9 +743,11 @@ def evaluate_cohort(
                     )
                 )
 
-            if is_cost_aware and cost_assessments:
-                b_ca = cost_assessments.get(baseline_eval.assessment.scenario_id)
-                w_ca = cost_assessments.get(winner_id)
+            if is_cost_aware:
+                b_ca = complete_cost_assessments.get(
+                    baseline_eval.assessment.scenario_id
+                )
+                w_ca = complete_cost_assessments.get(winner_id)
 
                 if b_ca and b_ca.cost and w_ca and w_ca.cost:
                     b_capex = float(b_ca.cost.total_capex)

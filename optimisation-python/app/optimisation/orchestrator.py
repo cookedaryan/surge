@@ -393,6 +393,7 @@ def optimise_project(
             EngineeringEvaluatedScenario(
                 electrical=es,
                 engineering_assessment=engineering_assessments[es.scenario.scenario_id],
+                cost_assessment=cost_assessments.get(es.scenario.scenario_id),
             )
             for es in evaluated_scenarios
         ]
@@ -400,7 +401,6 @@ def optimise_project(
             recommendation = evaluate_cohort(
                 wrappers=tuple(engineering_evaluated_scenarios),
                 scoring_config=config.scoring,
-                cost_assessments=cost_assessments if config.cost_aware else None,
                 cost_aware_config=config.cost_aware,
             )
         except Exception as e:

@@ -6,6 +6,7 @@ from enum import StrEnum
 from numbers import Real
 from typing import Literal
 
+from app.costing.models import CandidateCostAssessment
 from app.electrical.load_flow.models import LoadFlowNetworkResult
 from app.optimisation.engineering_metric_models import (
     CandidateEngineeringAssessment,
@@ -26,16 +27,17 @@ class CostAwareRecommendationConfig:
     lifecycle_cost_weight: float
 
     def __post_init__(self) -> None:
-        if not math.isfinite(self.engineering_weight) or self.engineering_weight < 0:
-            raise ValueError("engineering_weight must be a finite, non-negative number")
-        if (
-            not math.isfinite(self.lifecycle_cost_weight)
-            or self.lifecycle_cost_weight < 0
+        weights = (self.engineering_weight, self.lifecycle_cost_weight)
+        if any(
+            isinstance(weight, bool) or not isinstance(weight, Real)
+            for weight in weights
         ):
-            raise ValueError(
-                "lifecycle_cost_weight must be a finite, non-negative number"
-            )
-        total = math.fsum((self.engineering_weight, self.lifecycle_cost_weight))
+            raise ValueError("Cost-aware weights must be numbers, not booleans")
+        if any(not math.isfinite(weight) for weight in weights):
+            raise ValueError("Cost-aware weights must be finite")
+        if any(weight < 0 for weight in weights):
+            raise ValueError("Cost-aware weights must be non-negative")
+        total = math.fsum(weights)
         if not math.isclose(total, 1.0, rel_tol=1e-9, abs_tol=1e-9):
             raise ValueError(f"cost-aware weights must sum to 1.0, got {total}")
 
@@ -163,14 +165,28 @@ class ElectricallyEvaluatedScenario:
 class EngineeringEvaluatedScenario:
     electrical: ElectricallyEvaluatedScenario
     engineering_assessment: CandidateEngineeringAssessment
+    cost_assessment: CandidateCostAssessment | None = None
 
     def __post_init__(self) -> None:
-        if (
-            self.electrical.scenario.scenario_id
-            != self.engineering_assessment.scenario_id
-        ):
+        scenario_id = self.electrical.scenario.scenario_id
+        if scenario_id != self.engineering_assessment.scenario_id:
             raise ValueError(
                 "Evaluated scenario_id must match engineering_assessment scenario_id"
+            )
+        if (
+            self.cost_assessment is not None
+            and scenario_id != self.cost_assessment.scenario_id
+        ):
+            raise ValueError(
+                "Evaluated scenario_id must match cost_assessment scenario_id"
+            )
+        if (
+            self.cost_assessment is not None
+            and self.cost_assessment.cost is not None
+            and scenario_id != self.cost_assessment.cost.scenario_id
+        ):
+            raise ValueError(
+                "Evaluated scenario_id must match lifecycle cost scenario_id"
             )
 
 

@@ -18,15 +18,25 @@ Test matrix
 14  Unified group scoring and effective metric weights
 15  Unified tie-breaking prefers electrical contribution
 16  Invalid group and subweight configurations are rejected
+17  Cost-aware ties prefer engineering strength before lifecycle cost
+18  Missing lifecycle costs disqualify only the affected candidate
+19  Economic context mismatches disqualify the incomparable cohort
+20  Zero lifecycle cost remains a valid deterministic tie-breaker
+21  Evaluated scenarios reject mismatched cost assessments
+22  Legacy cost-assessment mappings remain supported
 """
 
+import datetime
 import math
+from dataclasses import replace
+from decimal import Decimal
 from typing import cast
 
 import pytest
 
 from app.algorithms.pole_placement import CollectorPoleResult
 from app.algorithms.wtg_grouping import GroupingObjective
+from app.costing.models import CandidateCostAssessment, CandidateLifecycleCost
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import (
     LoadFlowBusResult,
@@ -37,6 +47,8 @@ from app.electrical.load_flow.models import (
     LoadFlowViolationCode,
 )
 from app.optimisation.engineering_metric_models import (
+    CandidateEngineeringAssessment,
+    CandidateEngineeringMetrics,
     EngineeringMetricFailure,
     EngineeringMetricFailureCode,
 )
@@ -48,9 +60,8 @@ from app.optimisation.scenario_models import (
 )
 from app.optimisation.scoring import evaluate_cohort
 from app.optimisation.scoring_models import (
-    CandidateEngineeringAssessment,
-    CandidateEngineeringMetrics,
     CandidateScoringConfig,
+    CostAwareRecommendationConfig,
     DisqualificationCode,
     ElectricallyEvaluatedScenario,
     ElectricalScoringWeights,
@@ -295,6 +306,45 @@ def make_wrapper(
             electrical_context_id=electrical_context_id,
         ),
         engineering_assessment=assessment,
+    )
+
+
+def make_cost_assessment(
+    scenario_id: str,
+    lifecycle_cost: str,
+    *,
+    catalogue_version: str = "1.0",
+) -> CandidateCostAssessment:
+    amount = Decimal(lifecycle_cost)
+    basis_date = datetime.date(2026, 1, 1)
+    cost = CandidateLifecycleCost(
+        scenario_id=scenario_id,
+        conductor_capex=amount,
+        pole_capex=Decimal(0),
+        land_capex=Decimal(0),
+        total_capex=amount,
+        annual_loss_energy_mwh=Decimal(0),
+        annual_loss_cost=Decimal(0),
+        present_value_factor=Decimal(0),
+        present_value_opex=Decimal(0),
+        lifecycle_cost=amount,
+        line_items=(),
+        currency="USD",
+        catalogue_id="CAT-1",
+        catalogue_version=catalogue_version,
+        catalogue_price_basis_date=basis_date,
+        energy_price_basis_date=basis_date,
+        cost_model_version="1.0",
+    )
+    return CandidateCostAssessment(
+        scenario_id=scenario_id,
+        cost=cost,
+        failures=(),
+        conductor_capex_amount=amount,
+        pole_capex_amount=Decimal(0),
+        land_capex_amount=Decimal(0),
+        total_capex_amount=amount,
+        present_value_opex_amount=Decimal(0),
     )
 
 
@@ -717,6 +767,205 @@ def test_unified_tie_breaking_prefers_electrical_contribution() -> None:
     assert first == repeated
     assert first.recommended_scenario_id == "SCN-001"
     assert first.evaluations[0].total_benefit_score == pytest.approx(0.5)
+
+
+def test_cost_aware_tie_prefers_engineering_strength(
+    base_scoring_config: CandidateScoringConfig,
+) -> None:
+    scoring_config = replace(
+        base_scoring_config,
+        policy_mode=ScoringPolicyMode.COST_AWARE,
+    )
+    cost_config = CostAwareRecommendationConfig(
+        engineering_weight=0.5,
+        lifecycle_cost_weight=0.5,
+    )
+    engineering_best = replace(
+        make_wrapper(
+            make_scenario("SCN-001", 50_000.0),
+            make_load_flow_result(loss=0.8, loading=40.0, min_v=0.98, max_v=1.02),
+        ),
+        cost_assessment=make_cost_assessment("SCN-001", "200.00"),
+    )
+    lowest_cost = replace(
+        make_wrapper(
+            make_scenario("SCN-002", 60_000.0),
+            make_load_flow_result(loss=1.0, loading=50.0, min_v=0.96, max_v=1.04),
+        ),
+        cost_assessment=make_cost_assessment("SCN-002", "100.00"),
+    )
+
+    recommendation = evaluate_cohort(
+        (lowest_cost, engineering_best),
+        scoring_config,
+        cost_aware_config=cost_config,
+    )
+
+    assert recommendation.recommended_scenario_id == "SCN-001"
+    assert recommendation.engineering_best_scenario_id == "SCN-001"
+    assert recommendation.lowest_cost_scenario_id == "SCN-002"
+    assert recommendation.economic_context_id is not None
+    assert recommendation.evaluations[0].final_benefit_score == pytest.approx(0.5)
+    assert recommendation.evaluations[1].final_benefit_score == pytest.approx(0.5)
+
+
+def test_cost_aware_missing_cost_disqualifies_affected_candidate(
+    base_scoring_config: CandidateScoringConfig,
+) -> None:
+    scoring_config = replace(
+        base_scoring_config,
+        policy_mode=ScoringPolicyMode.COST_AWARE,
+    )
+    cost_config = CostAwareRecommendationConfig(0.6, 0.4)
+    complete = replace(
+        make_wrapper(make_scenario("SCN-001", 50_000.0), make_load_flow_result()),
+        cost_assessment=make_cost_assessment("SCN-001", "100.00"),
+    )
+    incomplete = make_wrapper(
+        make_scenario("SCN-002", 40_000.0),
+        make_load_flow_result(loss=0.5),
+    )
+
+    recommendation = evaluate_cohort(
+        (incomplete, complete),
+        scoring_config,
+        cost_aware_config=cost_config,
+    )
+
+    assert recommendation.recommended_scenario_id == "SCN-001"
+    evaluations = {
+        evaluation.assessment.scenario_id: evaluation
+        for evaluation in recommendation.evaluations
+    }
+    assert evaluations["SCN-002"].assessment.disqualifications[-1].code == (
+        DisqualificationCode.INCOMPLETE_LIFECYCLE_COST
+    )
+
+
+def test_cost_aware_context_mismatch_disqualifies_incomparable_cohort(
+    base_scoring_config: CandidateScoringConfig,
+) -> None:
+    scoring_config = replace(
+        base_scoring_config,
+        policy_mode=ScoringPolicyMode.COST_AWARE,
+    )
+    cost_config = CostAwareRecommendationConfig(0.6, 0.4)
+    first = replace(
+        make_wrapper(make_scenario("SCN-001", 50_000.0), make_load_flow_result()),
+        cost_assessment=make_cost_assessment(
+            "SCN-001",
+            "100.00",
+            catalogue_version="1.0",
+        ),
+    )
+    second = replace(
+        make_wrapper(make_scenario("SCN-002", 60_000.0), make_load_flow_result()),
+        cost_assessment=make_cost_assessment(
+            "SCN-002",
+            "90.00",
+            catalogue_version="2.0",
+        ),
+    )
+
+    recommendation = evaluate_cohort(
+        (first, second), scoring_config, cost_aware_config=cost_config
+    )
+    repeated = evaluate_cohort(
+        (second, first), scoring_config, cost_aware_config=cost_config
+    )
+
+    assert recommendation == repeated
+    assert (
+        recommendation.status
+        == OptimizationRecommendationStatus.NO_FEASIBLE_CANDIDATE
+    )
+    assert recommendation.economic_context_id is None
+    assert all(
+        evaluation.assessment.disqualifications[-1].code
+        == DisqualificationCode.ECONOMIC_CONTEXT_MISMATCH
+        for evaluation in recommendation.evaluations
+    )
+
+
+def test_zero_lifecycle_cost_is_valid_tie_breaker(
+    base_scoring_config: CandidateScoringConfig,
+) -> None:
+    scoring_config = replace(
+        base_scoring_config,
+        policy_mode=ScoringPolicyMode.COST_AWARE,
+    )
+    cost_config = CostAwareRecommendationConfig(1.0, 0.0)
+    zero_cost = replace(
+        make_wrapper(make_scenario("SCN-002", 50_000.0), make_load_flow_result()),
+        cost_assessment=make_cost_assessment("SCN-002", "0.00"),
+    )
+    positive_cost = replace(
+        make_wrapper(make_scenario("SCN-001", 50_000.0), make_load_flow_result()),
+        cost_assessment=make_cost_assessment("SCN-001", "1.00"),
+    )
+
+    recommendation = evaluate_cohort(
+        (positive_cost, zero_cost),
+        scoring_config,
+        cost_aware_config=cost_config,
+    )
+
+    assert recommendation.recommended_scenario_id == "SCN-002"
+    assert recommendation.lowest_cost_scenario_id == "SCN-002"
+
+
+def test_evaluated_scenario_rejects_mismatched_cost_assessment() -> None:
+    wrapper = make_wrapper(
+        make_scenario("SCN-001", 50_000.0),
+        make_load_flow_result(),
+    )
+
+    with pytest.raises(ValueError, match="cost_assessment scenario_id"):
+        replace(
+            wrapper,
+            cost_assessment=make_cost_assessment("SCN-002", "100.00"),
+        )
+
+    assessment = make_cost_assessment("SCN-001", "100.00")
+    assert assessment.cost is not None
+    with pytest.raises(ValueError, match="lifecycle cost scenario_id"):
+        replace(
+            wrapper,
+            cost_assessment=replace(
+                assessment,
+                cost=replace(assessment.cost, scenario_id="SCN-002"),
+            ),
+        )
+
+
+def test_cost_aware_legacy_cost_mapping_remains_supported(
+    base_scoring_config: CandidateScoringConfig,
+) -> None:
+    scoring_config = replace(
+        base_scoring_config,
+        policy_mode=ScoringPolicyMode.COST_AWARE,
+    )
+    wrapper = make_wrapper(
+        make_scenario("SCN-001", 50_000.0),
+        make_load_flow_result(),
+    )
+
+    recommendation = evaluate_cohort(
+        (wrapper,),
+        scoring_config,
+        cost_assessments={
+            "SCN-001": make_cost_assessment("SCN-001", "100.00")
+        },
+        cost_aware_config=CostAwareRecommendationConfig(0.6, 0.4),
+    )
+
+    assert recommendation.recommended_scenario_id == "SCN-001"
+    assert recommendation.evaluations[0].lifecycle_cost == 100.0
+
+
+def test_cost_aware_config_rejects_boolean_weights() -> None:
+    with pytest.raises(ValueError, match="numbers, not booleans"):
+        CostAwareRecommendationConfig(True, 0.0)
 
 
 @pytest.mark.parametrize(
