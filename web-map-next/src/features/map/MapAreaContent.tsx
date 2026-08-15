@@ -3,7 +3,6 @@ import type { RefObject } from 'react';
 import { useUiStore } from '../../lib/store';
 import { useProjectData } from './useProjectData';
 import { MapCanvas, type MapCanvasHandle } from './MapCanvas';
-import { Legend } from './Legend';
 import { BomStrip } from '../bom/BomStrip';
 import { ElevationDrawer } from './ElevationDrawer';
 
@@ -52,7 +51,6 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
         }
         routeColorOverride={routeColorOverride}
       />
-      <Legend />
       <BomStrip />
       <ElevationDrawer routes={data.routes} />
     </>

@@ -65,6 +65,53 @@ export async function uploadFile<T>(url: string, fileBlob: File | Blob): Promise
   return (await response.json()) as T;
 }
 
+/**
+ * Downloads a file from an authenticated endpoint.
+ *
+ * `window.open` and plain anchors cannot carry an Authorization header, so once the API required
+ * a token every export silently became a 401 the user only saw as "nothing happened". The bytes
+ * are fetched with credentials attached and handed to the browser as an object URL instead.
+ *
+ * The server's Content-Disposition filename is used when present so downloads keep their
+ * meaningful names rather than the endpoint path.
+ */
+export async function downloadFile(url: string, fallbackFilename: string): Promise<void> {
+  const token = getToken();
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+
+  if (response.status === 401) {
+    notifyUnauthorized();
+    throw new Error('Your session has expired. Please sign in again.');
+  }
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(detail || `Export failed (HTTP ${response.status})`);
+  }
+
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = filenameFrom(response) ?? fallbackFilename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    // Revoking immediately can cancel the download in some browsers; give it a tick to start.
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 10_000);
+  }
+}
+
+function filenameFrom(response: Response): string | null {
+  const header = response.headers.get('content-disposition');
+  if (!header) return null;
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 export function emptyGeoJson(): import('./types').FeatureCollection {
   return { type: 'FeatureCollection', features: [] };
 }

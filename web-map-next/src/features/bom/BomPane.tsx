@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Card, CardTitle, Button } from '../../components/ui';
 import { useUiStore } from '../../lib/store';
 import { useProjectData } from '../map/useProjectData';
@@ -9,14 +10,26 @@ export function BomPane() {
   const showToast = useUiStore((s) => s.showToast);
   const { bom } = useProjectData(currentProjectId, currentJobId);
 
-  function downloadCsv() {
+  const [exporting, setExporting] = useState<'csv' | 'pdf' | null>(null);
+
+  async function runExport(kind: 'csv' | 'pdf', action: () => Promise<void>) {
     if (!currentProjectId) return showToast('Select a project first.');
-    window.open(api.getBomCsvUrl(currentProjectId, currentJobId), '_blank');
+    setExporting(kind);
+    try {
+      await action();
+    } catch (err) {
+      // A failed export used to be indistinguishable from a slow one: the click opened a blank
+      // tab, the request was rejected, and nothing was ever said.
+      showToast(`Export failed: ${(err as Error).message}`, 'error');
+    } finally {
+      setExporting(null);
+    }
   }
-  function downloadPdf() {
-    if (!currentProjectId) return showToast('Select a project first.');
-    window.open(api.getPdfReportUrl(currentProjectId), '_blank');
-  }
+
+  const downloadCsv = () =>
+    runExport('csv', () => api.downloadBomCsv(currentProjectId as string, currentJobId));
+  const downloadPdf = () =>
+    runExport('pdf', () => api.downloadPdfReport(currentProjectId as string));
 
   const lengthKm = bom ? (bom.totalNetworkLengthMeters / 1000).toFixed(2) : '0.00';
   const cost = bom?.totalEstimatedCost?.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) ?? '$0.00';
@@ -44,8 +57,12 @@ export function BomPane() {
         </div>
       </div>
       <div className="flex gap-2">
-        <Button size="sm" onClick={downloadCsv} className="flex-1 justify-center">Export CSV</Button>
-        <Button size="sm" onClick={downloadPdf} className="flex-1 justify-center">Export PDF</Button>
+        <Button size="sm" onClick={downloadCsv} disabled={exporting !== null} className="flex-1 justify-center">
+          {exporting === 'csv' ? 'Exporting…' : 'Export CSV'}
+        </Button>
+        <Button size="sm" onClick={downloadPdf} disabled={exporting !== null} className="flex-1 justify-center">
+          {exporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
+        </Button>
       </div>
     </Card>
   );
