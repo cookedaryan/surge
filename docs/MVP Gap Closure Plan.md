@@ -613,7 +613,20 @@ Python but never persisted, so the report uses the documented 18 m default. Rath
 bury that behind a number, the CSV export now states the corridor width and the basis
 of the calculation. Persisting `rowWidthM` on the job is the proper follow-up.
 
-**Verified:** 187 Java tests and 487 Python tests green; a live run of the reference
+**Two implementations of the same quantity — worth consolidating.** While this was in
+flight, PY-028 (lifecycle cost model) landed and made the Python corridor width a
+parameter defaulting to the same 18 m, adding `ParcelEngineeringExposure` with
+`parcel_id` and `row_intersection_area_m2`. That is the per-parcel figure the plan
+originally wanted from Python. It is *not* exposed over the API — it feeds candidate
+scoring and lifecycle costing internally — so the PostGIS query remains the only route
+to the BOM report and the two do not currently contradict each other in any output.
+They are still two measurements of one physical quantity, computed in different places
+by different libraries, and should converge on one source of truth before either is
+treated as authoritative. Consuming the Python figure once it is exposed is the
+cleaner end state.
+
+**Verified:** 187 Java tests and 509 Python tests green (on the merged tree, including
+PY-028); a live run of the reference
 project shows 324.18 kW losses and 11,475 m² of corridor overlap for the job's actual
 routes (the figure differs from the 18,884 m² above because that measured a different
 job's route set).
