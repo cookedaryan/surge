@@ -1,39 +1,75 @@
 # Route Scoring Architecture
 
-## Purpose
-The route scoring engine (`app/algorithms/route_scoring.py`) provides preliminary multi-criteria spatial and constructability scoring for engineering network alternatives. It evaluates candidate networks against predefined criteria, normalizes their performance metrics, and determines an overall ranking based on configurable weights.
+**Ticket:** SURGE-PY-012 (Legacy) & SURGE-PY-027 (Canonical Unified)  
+**Module:** `optimisation-python/app/algorithms/route_scoring.py` & `app/optimisation/scoring.py`  
+**Status:** Canonical Unified Scoring Active
 
-This module was delivered under SURGE-PY-012. It is now a **legacy/preliminary compatibility scorer**. The canonical SURGE-PY-027 recommendation boundary is `app.optimisation.scoring`, which unifies spatial and electrical metrics into a single multi-objective score.
+---
 
-See [Multi-Objective Candidate Scoring](Multi-Objective%20Candidate%20Scoring.md) for the canonical scoring engine.
+## Architectural Evolution
 
-## Candidate Scope
-Currently, the module strictly scores `NetworkCandidateMetrics`. It expects to compare complete alternative networks representing the same engineering decision under the same `comparison_group_id`. It does not support mixed-scope evaluation (e.g., scoring a single route segment against a full feeder) because that produces meaningless relative rankings.
+> [!note] Evolutionary Status
+> - **SURGE-PY-012 (`app/algorithms/route_scoring.py`)** was the initial standalone spatial and constructability scoring engine designed to evaluate alternative network layouts based solely on route length, traversal penalties, parcel counts, road crossings, and pole counts.
+> - **SURGE-PY-027 (`app/optimisation/scoring.py`)** is the modern, canonical multi-objective scoring engine. It unifies the spatial constructability criteria of PY-012 with Pandapower AC electrical metrics (PY-015) using canonical metrics (PY-026) and 25-year lifecycle costing (PY-028/029).
+> 
+> For complete specifications of the production scoring engine, see [[Multi-Objective Candidate Scoring]].
 
-## Normalization & Relativity
-The engine uses **deterministic min-max normalization**, with the following consequences for explainability:
-- **Relative Scores**: Normalized values are inherently relative to the cohort of candidates being evaluated.
-- **Sensitivity**: Adding or removing a feasible candidate can change the normalized score for every candidate in the group.
-- **Incomparable Cohorts**: Scores computed across different jobs or different comparison groups are mathematically incomparable.
-- **Single Candidate Cohorts**: If only one feasible candidate is provided, its min and max bounds are identical, meaning all criteria are treated as constants, and its total normalized score will inherently evaluate to `0.0` regardless of the weights applied.
-- **Bounded Range**: Total scores are tightly bounded within `[0.0, 1.0]`.
+---
 
-To ensure full auditability, the exact `NormalizationRange` used to bind the cohort is returned alongside the raw metrics inside the output model. 
+## Principles of Cohort-Based Min-Max Scoring
 
-## Deduplication Aggregation
-Metrics such as ROW footprint area, environmental area overlap, and cadastral parcel hits are inherently non-additive across route segments (e.g., overlapping corridors or parcels that touch multiple feeders). The route scorer expects the caller to have already resolved identity deduplication prior to invoking `evaluate_network_candidates`. 
+Both the preliminary and canonical scoring engines share foundational mathematical principles regarding multi-criteria decision analysis:
 
-> **Note on poles:** SURGE-PY-023 adds a network-level endpoint merge pass. The
-> compatibility field remains named `generated_pole_record_count`, but a caller
-> scoring output from the pole-placement pipeline should populate it from the
-> deduplicated `CollectorPoleResult.total_poles`, which represents distinct
-> physical structures. Callers constructing `NetworkCandidateMetrics` directly
-> remain responsible for supplying a deduplicated value.
+### 1. Cohort Relativity
+Normalized scores are inherently relative to the specific cohort of candidates evaluated in a single optimization run. 
+- Scores computed in separate optimization runs or across different wind farm sites cannot be compared directly.
+- Adding or removing a candidate shifts the cohort min/max boundaries and recalculated scores.
 
-## Constraint Failures
-Candidates that trigger exclusionary constraints are recorded via `hard_violation_ids`. 
-If a candidate has one or more hard violations:
-- It is immediately marked `feasible = False`.
-- It is excluded from the cohort normalization boundaries, ensuring extreme violation quantities do not compress the scale for feasible candidates.
-- It receives an empty normalized criteria set and a `None` total score.
-- The raw metrics and `rejection_reasons` are preserved in the result for diagnostics.
+### 2. Normalization Bounds & Benefit Direction
+To normalize diverse physical quantities (metres of cable, count of parcels, megawatts of loss) into a dimensionless score in $[0.0, 1.0]$:
+
+$$\text{benefit}(x) = \frac{\max_{\text{cohort}}(x) - x}{\max_{\text{cohort}}(x) - \min_{\text{cohort}}(x)} \quad (\text{for "lower is better"} \text{ metrics})$$
+
+### 3. Constant Range Invariant
+If all eligible candidates in a cohort achieve identical performance on a metric ($\max = \min$), the normalized benefit is set to `0.0`. Weights are never artificially shifted between metrics, ensuring deterministic behavior.
+
+### 4. Identity Deduplication of Non-Additive Spatial Metrics
+Metrics such as Right-of-Way (ROW) corridor footprint ($m^2$), cadastral parcel intersections, and environmental buffer crossings are **non-additive** across individual route segments. For example, two parallel feeder routes sharing a single road crossing must count as 1 road crossing event, not 2. Deduplication must be resolved at the network level prior to cohort scoring.
+
+### 5. Exclusionary Hard Violations
+Candidates that intersect hard restricted zones or fail electrical limits are flagged as infeasible (`feasible = False`):
+- Infeasible candidates are excluded from cohort min/max normalization bounds to prevent skewing the scale for valid designs.
+- Infeasible candidates receive a `None` score and cannot be selected as the recommended design.
+- Diagnostic violation codes are preserved for user explainability.
+
+---
+
+## Legacy Scorer Model (`app/algorithms/route_scoring.py`)
+
+The standalone PY-012 scorer evaluates `NetworkCandidateMetrics`:
+
+```python
+@dataclass(frozen=True)
+class NetworkCandidateMetrics:
+    candidate_id: str
+    total_length_m: float
+    total_traversal_cost: float
+    affected_parcel_count: int
+    road_crossing_count: int
+    soft_constraint_overlap_length_m: float
+    environmental_area_overlap_m2: float
+    generated_pole_record_count: int
+    hard_violation_ids: tuple[str, ...] = ()
+```
+
+*(This module is maintained in `app/algorithms/` for algorithmic regression testing; production orchestration invokes `app/optimisation/scoring.py`).*
+
+---
+
+## Related Notes
+
+- [[Multi-Objective Candidate Scoring]]
+- [[Canonical Candidate Engineering Metrics]]
+- [[Candidate PNC Scenario Generation]]
+- [[Surge MVP Ticket Plan]]
+- [[Overview & Layout]]

@@ -1,76 +1,108 @@
 # Electrical Feeder Screening
 
-> [!note] Implementation status: Standalone — SURGE-PY-013
-> The deterministic screening engine is implemented and tested under `app/electrical`. It is not invoked by `OptimisationService`, returned by `/api/v1/optimise`, or persisted by Java.
+**Ticket:** SURGE-PY-013  
+**Module:** `optimisation-python/app/electrical/` (`feeder_validation.py`, `voltage_drop.py`, `models.py`, `errors.py`)  
+**Status:** Standalone Analytical Engine (Implemented & Tested)
+
+---
 
 ## Purpose
 
-Electrical feeder screening answers a preliminary question: at one configured operating point, does the proposed radial collector network exceed its conductor ampacity, cumulative voltage-deviation, or substation-capacity limits?
+The **Electrical Feeder Screening Engine** provides a fast, deterministic, analytical proxy to answer an initial sizing question:
+> *“Under a configured steady-state operating point, does the proposed radial collector topology exceed conductor thermal ampacity, cumulative linear voltage deviation, or total substation capacity limits?”*
 
-It is a fast analytical proxy intended to reject obviously unsuitable layouts and provide deterministic metrics for later candidate scoring. It is not a nonlinear power-flow solution or final engineering approval.
+It serves as a preliminary analytical filter to reject structurally flawed or grossly overloaded layouts prior to running full nonlinear simulations.
 
-## Components
+> [!important] Analytical Proxy vs. Pandapower AC Load Flow
+> Feeder screening is a **linear balanced analytical proxy** (using constant nominal voltage and series impedance). It does **not** replace the full nonlinear Newton-Raphson power flow engine provided by Pandapower in [[AC Load Flow Validation|SURGE-PY-015]]. Production optimization workflows use Pandapower for authoritative candidate validation.
 
-- `models.py` defines immutable conductor/configuration inputs and segment, turbine, feeder, violation, and network results.
-- `voltage_drop.py` contains pure balanced three-phase current, series-impedance, and linear voltage-change calculations.
-- `feeder_validation.py` reconciles project, topology, and route inputs; roots each tree at the substation; aggregates downstream power; and builds the result hierarchy.
+---
 
-Keeping primitives separate from network orchestration makes formula assumptions directly testable and prevents graph/GIS validation from being hidden inside numerical helpers.
+## Architectural Components
 
-## Input Contract
+```text
+app/electrical/
+├── models.py              # Domain models: ConductorSpecification, FeederElectricalConfig,
+│                          # ElectricalViolation, ScreeningFeederResult, ScreeningNetworkResult
+├── voltage_drop.py        # Pure mathematical primitives for 3-phase current and voltage drop
+├── feeder_validation.py   # Tree traversal, power aggregation, and violation detection
+└── errors.py              # Electrical domain exception definitions
+```
 
-`validate_collector_network(topology, routing, project, config)` requires:
+Keeping analytical formulas in `voltage_drop.py` strictly isolated from graph traversal in `feeder_validation.py` ensures mathematical rigor and direct unit-testability without GIS dependencies.
 
-- One projected CRS whose first two axes are measured in metres.
-- Positive finite WTG capacities and, when supplied, a positive finite substation capacity.
-- At least one feeder, with unique feeder IDs.
-- One connected undirected tree per feeder containing the project substation exactly once.
-- Every project WTG assigned to exactly one feeder, with no unknown topology nodes.
-- `node_ids` and `mst_edges` that exactly describe the corresponding graph.
-- Exactly one refined physical route for each feeder/edge pair and no extra routes.
-- Valid finite LineStrings whose lengths match `refined_length_m` and whose endpoints match the declared project nodes.
-- A routing aggregate whose `total_refined_length_m` equals the sum of its routes.
+---
 
-Contract failures raise `ValueError`; they are not electrical violations because no trustworthy electrical result can be calculated from inconsistent inputs.
+## Mathematical Formulation
 
-## Calculation Flow
+### 1. Balanced Three-Phase Current
+At nominal line-to-line voltage $V_{LL}$ (e.g., 33 kV) and operating power factor $\cos\phi$:
 
-1. Multiply each installed WTG capacity by `operating_factor` to obtain screened active power.
-2. Root every feeder tree at the substation.
-3. Traverse child nodes before parents and sum downstream operating power on every edge.
-4. Calculate nominal-voltage balanced three-phase current:
+$$I = \frac{P}{\sqrt{3} \cdot V_{LL} \cdot \cos\phi}$$
 
-   $$I = \frac{P}{\sqrt{3}V_{LL}\operatorname{pf}}$$
+where $P$ is the aggregated active power downstream of the evaluated cable segment (MW) and $I$ is nominal current in kA.
 
-5. Convert conductor resistance/reactance per kilometre to segment impedance using refined route length.
-6. Calculate linear voltage change:
+### 2. Segment Impedance
+Conductor resistance $R$ and inductive reactance $X$ are computed from per-kilometre specifications and refined route length $L_{\text{km}}$:
 
-   $$\Delta V = \sqrt{3}I(R\cos\phi \pm X\sin\phi)$$
+$$R = r_{\text{ohm\_per\_km}} \cdot L_{\text{km}}, \quad X = x_{\text{ohm\_per\_km}} \cdot L_{\text{km}}$$
 
-   The plus sign represents lagging power factor and the minus sign represents leading power factor. Positive change is a voltage drop; negative change is a rise.
-7. Accumulate segment changes from the substation to every WTG and compare the absolute percentage deviation with the configured limit.
-8. Return segment/turbine telemetry, feeder/network maxima, validity flags, and deterministic violations.
+### 3. Linear Voltage Change ($\Delta V$)
+Voltage change across each segment is calculated using the standard balanced approximation:
 
-`operating_factor` is applied consistently to segment downstream power, turbine and feeder active-power results, and the substation-capacity check. Installed capacity remains the basis for validating the topology's declared `total_capacity_mw`.
+$$\Delta V = \sqrt{3} \cdot I \cdot (R \cos\phi \pm X \sin\phi)$$
 
-## Violations
+- **Lagging Power Factor ($+$)**: Voltage drop along the line.
+- **Leading Power Factor ($-$)**: Voltage rise along the line.
 
-- `AMPACITY_EXCEEDED`: nominal-voltage segment current exceeds conductor ampacity.
-- `VOLTAGE_LIMIT_EXCEEDED`: a WTG's absolute cumulative voltage deviation exceeds the configured percentage.
-- `SUBSTATION_CAPACITY_EXCEEDED`: total operating WTG power exceeds the supplied substation MW capacity.
+### 4. Cumulative Voltage Deviation
+Segment voltage drops are accumulated along the radial tree from the substation bus ($V_0 = V_{\text{nominal}}$) to each wind turbine generator ($V_{\text{wtg}} = V_0 - \sum \Delta V$). The percentage voltage deviation is checked against statutory limits:
 
-Limit violations are returned rather than raised so a later candidate-scoring stage can reject or penalize an otherwise structurally valid network.
+$$\Delta V_{\%} = \left| \frac{V_0 - V_{\text{wtg}}}{V_0} \right| \times 100$$
 
-## Engineering Boundary
+---
 
-The proxy assumes balanced steady-state operation, fixed nominal voltage for current calculation, one feeder-wide power factor, and series impedance proportional to route length. It does not calculate conductor losses when aggregating downstream power, voltage-dependent current, shunt admittance, phase imbalance, transformers or taps, reactive-power variation, fault levels, protection coordination, thermal derating, harmonics, or reliability.
+## Tree Traversal & Validation Flow
 
-Pandapower integration remains required for the full load-flow requirement. Results from this module must be labelled preliminary screening values.
+```mermaid
+flowchart TD
+    A[Inputs: Radial MST, Refined Routes, Project Spatial Data, Electrical Config] --> B[Contract Validation<br/>Check CRS, single substation, unique node assignments]
+    B --> C[Post-Order Tree Traversal<br/>Root tree at Substation; traverse children to root]
+    C --> D[Aggregate Downstream Power<br/>P_segment = sum P_wtg downstream]
+    D --> E[Compute Nominal Current I<br/>Compare against Conductor Ampacity]
+    E --> F[Accumulate Segment Voltage Drops<br/>Substation → Turbine paths]
+    F --> G[Evaluate Violations & Limits]
+    G --> H[Return ScreeningNetworkResult<br/>Telemetry + Violations]
+```
+
+### Deterministic Violations
+
+Violations are returned as structured domain records rather than raising Python exceptions, allowing scoring algorithms to evaluate or reject candidates gracefully:
+
+| Violation Code | Condition | Severity |
+|---|---|---|
+| `AMPACITY_EXCEEDED` | Nominal segment current $I > I_{\text{rated}}$ (thermal limit exceeded). | Disqualifying |
+| `VOLTAGE_LIMIT_EXCEEDED` | Cumulative turbine $\Delta V_{\%} > \text{max\_voltage\_drop\_pct}$ (e.g. $> 5\%$). | Disqualifying |
+| `SUBSTATION_CAPACITY_EXCEEDED` | Total active generation $\sum P_{\text{wtg}} > P_{\text{substation\_capacity}}$. | Disqualifying |
+
+---
+
+## Input Contract & Integrity Rules
+
+`validate_collector_network(topology, routing, project, config)` enforces strict structural requirements:
+- **Projected Metric CRS**: Graph and route geometries must be in a projected metre-based coordinate system.
+- **Tree Topology**: Exactly one connected tree per feeder containing the central substation node.
+- **Bi-directional Integrity**: Refined physical routes must exist for every declared MST edge with matching endpoint coordinates.
+- **Disjoint Partitioning**: Every turbine must belong to exactly one feeder with no orphan or duplicate assignments.
+
+Input contract violations raise `ValueError` because no reliable electrical calculations can be executed on malformed network topologies.
+
+---
 
 ## Related Notes
 
-- [[Python Engine]]
+- [[AC Load Flow Validation]]
+- [[Canonical Candidate Engineering Metrics]]
+- [[Multi-Objective Candidate Scoring]]
 - [[Overview & Layout]]
-- [[Feeder Planning]]
-- [[Routing]]
-- [[Testing Status]]
+- [[Surge MVP Ticket Plan]]

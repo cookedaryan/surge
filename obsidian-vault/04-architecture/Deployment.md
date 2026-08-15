@@ -1,42 +1,146 @@
-# Deployment Architecture
+# Deployment & DevOps Architecture
 
-## Current Status
+> [!success] Implementation Status: Implemented
+> SURGE is fully containerized using Docker Compose with a 4-tier service architecture comprising the PostGIS database, Java Spring Boot API, Python FastAPI optimization microservice, and an Nginx reverse-proxy container serving the built `web-map-next` React client. Continuous integration is automated via GitHub Actions (`.github/workflows/ci.yml`).
 
-The repository provides a local Docker Compose stack for PostGIS, the Java backend, and the Python optimizer. It does not currently provide a frontend container, reverse proxy, Kubernetes manifests, CI/CD workflow, cloud infrastructure, or production secret management.
+```mermaid
+graph TD
+    subgraph Host["Host Environment / Client Gateway"]
+        Port3000["Host Port 3000 (HTTP / Web Browser)"]
+        Port8080["Host Port 8080 (REST / API Gateway)"]
+        Port8000["Host Port 8000 (Optimizer Diagnostic)"]
+        Port5432["Host Port 5432 (PostgreSQL / GIS Tools)"]
+    end
 
-## Docker Compose Services
+    subgraph ComposeStack["Docker Compose Stack (surge-network)"]
+        subgraph FrontendTier["Frontend Tier (surge-web-map)"]
+            Nginx["Nginx Reverse Proxy & Static Server"]
+            SPA["Built web-map-next React Bundle"]
+        end
 
-| Service | Container role | Port | Dependencies |
-| --- | --- | --- | --- |
-| `db` | PostgreSQL 16 with PostGIS 3.4 | `5432` | Persistent named volume |
-| `backend` | Java 21 Spring Boot API | `8080` | Waits for the database health check |
-| `optimizer` | Python FastAPI service | `8000` | No Compose dependency declaration |
+        subgraph BackendTier["Backend Tier (surge-backend-java)"]
+            SpringApp["Spring Boot 3.3.2 (Java 21)"]
+            Actuator["Spring Boot Actuator Health Probe"]
+        end
 
-The backend receives `PYTHON_ENGINE_URL=http://optimizer:8000`. The Python container runs with `ENVIRONMENT=production`, which disables its Swagger and ReDoc pages. Database credentials have development defaults and must be overridden outside local development.
+        subgraph OptimizerTier["Optimization Tier (surge-optimizer-python)"]
+            FastApiApp["FastAPI Engine (Python 3.11 / Uvicorn)"]
+            HealthEndpoint["/api/v1/health Probe"]
+        end
 
-The web client is started separately with `npm run dev`. Because its API URL is currently hard-coded to localhost, a hosted deployment will require configurable frontend environment handling or a same-origin reverse proxy.
+        subgraph DatabaseTier["Database Tier (surge-postgis)"]
+            PostGisDb["PostgreSQL 16 + PostGIS 3.4"]
+            PgVolume[("surge_postgres_data Volume")]
+        end
+    end
 
-## Local Request Path
+    Port3000 --> Nginx
+    Port8080 --> SpringApp
+    Port8000 --> FastApiApp
+    Port5432 --> PostGisDb
 
-```text
-Browser/Vite -> localhost:8080 backend -> db:5432
-                                   \-> optimizer:8000
+    Nginx -- "Static HTML/JS/Assets" --> SPA
+    Nginx -- "location /api/ -> http://backend:8080" --> SpringApp
+    SpringApp -- "HTTP REST (http://optimizer:8000)" --> FastApiApp
+    SpringApp -- "JDBC (jdbc:postgresql://db:5432)" --> PostGisDb
+    PostGisDb --- PgVolume
 ```
 
-## Production Concerns Not Yet Implemented
+---
 
-- TLS termination and a public routing layer
-- Secret storage and credential rotation
-- Service-to-service authentication or network policies
-- Database backups, recovery testing, and migration rollout strategy
-- Worker/queue architecture for long-running jobs
-- Resource limits for CPU- and memory-intensive optimization
-- Structured logs, metrics, tracing, and alerting
-- CI checks and reproducible image publication
-- Horizontal scaling and Kubernetes manifests
+## Docker Compose Multi-Container Topology
+
+The application stack is orchestrated via `docker-compose.yml`:
+
+| Service Name | Image / Context | Port Mapping | Healthcheck Probe | Dependencies |
+| :--- | :--- | :--- | :--- | :--- |
+| `db` | `postgis/postgis:16-3.4` | `5432:5432` | `pg_isready -U postgres -d surgedb` (5s interval) | Persistent named volume `surge_postgres_data` |
+| `backend` | `./backend-java` (OpenJDK 21) | `8080:8080` | `wget -q http://localhost:8080/actuator/health` | `db` (healthy), `optimizer` (healthy) |
+| `optimizer` | `./optimisation-python` (Python 3.11) | `8000:8000` | Python urllib request to `/api/v1/health` | Stateless computation |
+| `frontend` | `./web-map-next` (Nginx Alpine) | `3000:80` | `wget -q http://127.0.0.1/` | `backend` (healthy) |
+
+---
+
+## Nginx Reverse Proxy Configuration (`nginx.conf`)
+
+The `frontend` container uses an optimized Nginx server configuration:
+
+1. **Same-Origin API Proxying**: All requests to `/api/` are proxied internally to `http://backend:8080`. This eliminates Cross-Origin Resource Sharing (CORS) complexity in production and avoids hardcoding `localhost:8080` in the client.
+2. **Single Page Application (SPA) Fallback**: Uses `try_files $uri $uri/ /index.html` to support client-side React routing.
+3. **Cache Invalidation Policy**:
+   - `index.html` is served with `Cache-Control: "no-cache"` so browser sessions immediately receive updated script bundle hashes upon redeployment.
+   - Hashed static assets in `/assets/` are cached aggressively with `Cache-Control: "public, immutable"` and `expires 1y`.
+
+```nginx
+server {
+    listen 80;
+    server_name localhost;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://backend:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 120s;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache";
+    }
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+---
+
+## Mandatory Environment & Secret Management
+
+The stack enforces secure environment configuration through Docker Compose parameter expansion:
+
+```yaml
+APP_JWT_SECRET: ${APP_JWT_SECRET:?APP_JWT_SECRET must be set in .env}
+```
+
+- **Fail-Fast Bootstrapping**: If `APP_JWT_SECRET` is omitted from the `.env` file, Docker Compose immediately halts with an error, preventing the application from starting with an insecure default.
+- **Key Constraints**: The secret must contain at least 32 UTF-8 bytes (256 bits) for HMAC-SHA256 signing, and must not match public repository defaults.
+
+---
+
+## Continuous Integration (GitHub Actions)
+
+Continuous integration is declared in `.github/workflows/ci.yml` and triggers on every push and pull request:
+
+```mermaid
+graph LR
+    Push[Push / Pull Request] --> CI[GitHub Actions Pipeline]
+    CI --> Job1[Java Backend Job<br/>Java 21 / Temurin<br/>mvnw verify]
+    CI --> Job2[Python Optimizer Job<br/>Python 3.11<br/>ruff, mypy, pytest]
+    CI --> Job3[Frontend Web Map Job<br/>Node 20<br/>vitest, tsc, vite build]
+    CI --> Job4[Docker Build Job<br/>Validate compose builds]
+```
+
+### Job Breakdown
+
+1. **`backend` (Java 21)**: Runs `./mvnw verify --batch-mode`, compiling 112+ source files and executing 209 unit and integration tests (including Flyway migrations and MockMvc security tests).
+2. **`optimiser` (Python 3.11)**: Installs `requirements.lock.txt`, verifies code formatting with `ruff check`, enforces strict static typing with `mypy app`, and executes ~489 `pytest` test cases.
+3. **`frontend` (Node 20)**: Installs locked dependencies via `npm ci`, runs 26 unit tests via `vitest`, verifies TypeScript types with `tsc --noEmit`, and compiles production bundles with `vite build`.
+4. **`docker`**: Tests multi-stage image builds for all containers via `docker compose build`.
+
+---
 
 ## Related Notes
 
-- [[System Overview]]
-- [[Backend]]
-- [[Python Engine]]
+- [[System Overview]] — System component overview.
+- [[Backend]] — Spring Boot configuration and runtime properties.
+- [[Frontend]] — React client build configuration and environment variables.
+- [[Authentication]] — JWT signing secret mechanics and security validation.

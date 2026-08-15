@@ -1,76 +1,186 @@
-# Variable-Span Pole Placement
+# Variable-Span Pole Placement & Network Deduplication
 
-> [!note] Implementation status: Recommended-network workflow integration implemented — SURGE-PY-010/PY-023/PY-024
-> `app/algorithms/pole_placement.py` provides geometry-based route placement, an explicit distinct-structure post-pass, and `place_poles_on_network()` for the winning PNC. `OptimisationWorkflowResult.pole_network` owns the canonical deduplicated domain result. DEM sag/clearance analysis and structural optimisation remain planned for later work.
+> [!success] Implementation Status: Fully Implemented (SURGE-PY-010 / PY-023 / PY-024)
+> `app/algorithms/pole_placement.py` implements geometry-based variable-span pole placement along refined physical routes (PY-010), network-level endpoint deduplication into distinct physical junction structures (PY-023), and end-to-end integration with the recommended PNC network workflow (PY-024).
 
-## SURGE-PY-010 Implementation
+---
 
-`place_poles_on_route(route, config)` accepts one projected `RefinedPhysicalRoute` from SURGE-PY-009 and a `PolePlacementConfig`. It returns a `PoleRouteResult` containing ordered `Pole` and `PoleSpan` objects. The geometry must be a valid, finite, non-degenerate LineString whose coordinates use the same metre-based projected CRS as the upstream route.
+## 1. Overview & Pipeline Position
 
-Key behaviours:
+In an overhead collector network ($33\text{ kV}$), conductors are supported by discrete pole structures. Pole placement converts continuous refined route centrelines into discrete structural assets and conductor spans:
 
-- **Mandatory structures**: route start/end (terminal) and interior LineString vertices with deflection ≥ `angle_pole_threshold_deg` (angle). Deflection is the angle between the incoming and outgoing forward vectors: 0° is straight, 90° is a right-angle turn, and 180° is a reversal. With a threshold of 180°, exact reversals still become angle poles.
-- **Independent sections**: mandatory positions divide a route into sections. Intermediate fill poles are calculated separately inside each section, so an angle pole is never displaced merely to improve the spacing of a neighbouring section.
-- **Span-count rule**: for a section longer than `min_span_m`, the first candidate is `max(1, round(section_length / target_span_m))`. Python's `round` uses ties-to-even. The count increases until the section's arc-length interval is no greater than `max_span_m`.
-- **Soft minimum**: `min_span_m` controls whether a section is subdivided; it is not enforced as a lower bound on every resulting span. A section at or below the minimum receives no fill pole. A whole short route can still contain more than two poles when it has mandatory angle vertices.
-- **Span measurement**: `distance_along_route_m` is arc length measured along the LineString. `PoleSpan.span_length_m` is instead the Euclidean chord between adjacent pole Points, so it can be shorter than their arc-length separation when the route bends between them.
-- **Deterministic IDs**: IDs use `{feeder_id}-P{sequence:03d}`. Direct single-route placement starts at one by default. `place_poles_on_routes()` maintains a separate cumulative sequence for each feeder, preventing collisions when several routes share a `feeder_id`.
-- **Batch result**: `place_poles_on_routes()` returns a `CollectorPoleResult` with one route result per input route, a route-local `PhysicalPole` view, and aggregate pole/span counts. Route order determines feeder-wide route-local sequences and must therefore be deterministic when those IDs matter.
-- **Network endpoint deduplication (SURGE-PY-023)**: `deduplicate_pole_endpoints()` returns a new `CollectorPoleResult` whose `physical_poles` view merges terminal records only when different routes declare the same topology node and their coordinates are within tolerance. Route-local poles/spans remain unchanged for traceability; `total_poles` becomes the distinct physical-structure count, while `total_spans` remains the route conductor-span count.
-- **Merged identity and role**: a shared endpoint becomes a `junction` structure with a deterministic hash-based ID plus sorted feeder, route/segment, and source-pole references. Its coordinate is a deterministic existing endpoint coordinate rather than an off-route centroid. PNC presentation adapters preserve each canonical `PNCSegment.segment_id` as the route reference rather than replacing it with an inferred node-pair label.
-- **Clustering rule**: strict pairwise membership is used. A candidate joins a cluster only when it is within tolerance of every existing member, so transitive A–B/B–C proximity cannot merge A and C when they exceed tolerance. Nearby mid-route poles and endpoints with different topology node IDs never merge.
+```text
+Refined LineString Geometry (PY-009)
+    ──> Route-Local Variable-Span Placement (PY-010)
+    ──> Batch Per-Feeder Sequencing (place_poles_on_routes)
+    ──> Network-Level Endpoint Deduplication (PY-023)
+    ──> PhysicalPole View & Lifecycle Costing (PY-024 / PY-028)
+```
 
-## How the Components Work Together
+```mermaid
+flowchart TD
+    subgraph RouteLocal["SURGE-PY-010: Route-Local Pole Placement"]
+        LINE["Refined LineString Geometry"]
+        MAND["1. Mandatory Structure Detection<br/>(Start/End Terminals + Angle Bends ≥ Threshold)"]
+        SECT["2. Independent Section Partitioning"]
+        FILL["3. Variable-Span Intermediate Filling<br/>(Target Span, Min Span, Hard Max Span)"]
+        SPANS["4. Conductor Chord Spans Calculation"]
+        LINE --> MAND --> SECT --> FILL --> SPANS
+    end
 
-1. SURGE-PY-009 produces projected `RefinedPhysicalRoute` objects after A* routing and geometry refinement.
-2. `PolePlacementConfig` supplies the preferred, soft-minimum, hard-maximum, and angle-threshold policies.
-3. `place_poles_on_route()` detects mandatory positions, fills each resulting section, interpolates exact Point geometries, classifies poles, and connects adjacent poles with `PoleSpan` records.
-4. `place_poles_on_routes()` applies that route-local operation to a batch and coordinates feeder-wide numbering.
-5. `place_poles_on_network()` converts the recommended PNC's actual routed segments while preserving their stable IDs.
-6. `deduplicate_pole_endpoints()` creates the distinct physical-structure view returned by the optimisation workflow before persistence, costing, or future scoring.
+    subgraph Deduplication["SURGE-PY-023: Network Endpoint Deduplication"]
+        RAW_POLES["Route-Local CollectorPoleResult"]
+        CLUST["Strict Pairwise Tolerance Clustering<br/>(Same topology node & dist ≤ 0.1 m)"]
+        JUNC["Classify Merged Endpoints as 'junction'<br/>(Stable SHA-256 Hash ID)"]
+        PHYS["Distinct PhysicalPole Catalog & Total Pole Count"]
+        RAW_POLES --> CLUST --> JUNC --> PHYS
+    end
 
-The route-local and batch APIs are deliberately independent of `CostSurface`. Pole placement consumes the refined geometry rather than GIS raster internals, which keeps the algorithm testable and allows later terrain, crossing, or policy stages to add mandatory locations without coupling span placement to A* implementation details.
+    subgraph Downstream["Downstream Consumers"]
+        COST["PY-028 Pole CAPEX<br/>(Terminal, Angle, Intermediate, Junction rates)"]
+        UI["Web UI Map Rendering<br/>(Distinct icons for 4 pole classes)"]
+    end
 
-## Current Integration Boundary
+    SPANS --> RAW_POLES
+    PHYS --> COST
+    PHYS --> UI
+```
 
-The rich optimisation path selects its recommended scenario before running pole
-placement. PY-024 then applies route-local placement and PY-023 deduplication to
-that exact `ProjectPNCNetwork` and attaches the result to
-`OptimisationWorkflowResult.pole_network`. Pole count remains an engineering
-metric and does not participate in candidate scoring.
+---
 
-Network-level endpoint deduplication is implemented as an explicit post-pass.
-It does not rewrite route-local pole IDs or spans. Downstream consumers must use
-the returned `physical_poles` view and deduplicated `total_poles`; PY-025 owns
-the formal public GeoJSON/API contract.
+## 2. Structure Classifications
 
-## Concepts
+SURGE recognizes 4 distinct physical pole classes:
 
-A **span** is the horizontal distance between adjacent supports. Span selection affects pole count, sag, conductor clearance, structural loads, access, and cost. A maximum span alone is not sufficient: terrain, conductor properties, wind/ice loading, line angle, crossings, and required clearance also matter.
+| Pole Class | Role in Network | Placement Criteria |
+| :--- | :--- | :--- |
+| `terminal` | Dead-end / Anchor structure | Placed at route start ($d = 0$) and route end ($d = L$). Anchors full line tension at WTG and substation interfaces. |
+| `angle` | Tension / Direction change | Placed at interior LineString vertices where line deflection $\theta_{\text{deflection}} \geq \theta_{\text{threshold}}$ (default $10.0^\circ$). |
+| `intermediate` | Suspension / Tangent pole | Evenly spaced fill structures along straight sections between mandatory poles to keep conductor sag within allowable limits. |
+| `junction` | Multi-circuit junction hub | Created when multiple route endpoints converge at the same physical topology node (e.g. substation bus or tee-off). Formed via PY-023 deduplication. |
 
-Common preliminary pole roles include:
+---
 
-- **Suspension/tangent**: supports a relatively straight run.
-- **Angle/tension**: resists unbalanced forces at direction changes.
-- **Terminal/dead-end**: anchors conductor at a feeder end.
-- **Crossing**: provides special clearance or reliability at roads and other infrastructure.
-- **Junction**: supports a modeled branch or shared-trunk connection.
+## 3. Placement Algorithm (SURGE-PY-010)
 
-## Planned Engineering Extensions
+### 3.1 Deflection Angle Calculation
+At each interior vertex $i$ of a route LineString with coordinates $(x_{i-1}, y_{i-1})$, $(x_i, y_i)$, and $(x_{i+1}, y_{i+1})$, the forward direction vectors are:
+$$
+\vec{v}_{\text{prev}} = (x_i - x_{i-1}, y_i - y_{i-1}), \quad \vec{v}_{\text{next}} = (x_{i+1} - x_i, y_{i+1} - y_i)
+$$
 
-1. Sample a DEM elevation profile along a routed LineString.
-2. Add mandatory crossing structures and engineering-specific junction classes beyond the geometry-only PY-023 merge role.
-3. Generate terrain-aware candidate support positions.
-4. Check conductor sag, ground clearance, structural loading, and applicable engineering standards.
-5. Select structural pole classes rather than only geometric terminal/angle/intermediate roles.
-6. Feed deduplicated quantities and future foundation classes into [[Cost Model]].
+The deflection angle $\theta_{\text{deflection}}$ is computed via the clamped vector dot product:
+$$
+\cos \theta = \frac{\vec{v}_{\text{prev}} \cdot \vec{v}_{\text{next}}}{\|\vec{v}_{\text{prev}}\| \|\vec{v}_{\text{next}}\|}
+$$
+$$
+\theta_{\text{deflection}} = \arccos(\text{clamp}(\cos \theta, -1.0, 1.0)) \times \frac{180^\circ}{\pi}
+$$
+- $0^\circ$: Straight continuation.
+- $90^\circ$: Right-angle turn.
+- $180^\circ$: Complete reversal.
 
-## Safety Boundary
+If $\theta_{\text{deflection}} \geq \text{angle\_pole\_threshold\_deg}$, vertex $i$ becomes a mandatory angle pole.
 
-Documentation values such as a 250 m maximum or a 15-degree angle rule are project requirements, not universal engineering standards. Production rules must reference the selected conductor, voltage, pole catalogue, governing standard, and approved structural calculations.
+### 3.2 Section Partitioning & Span Count Rules
+Mandatory pole positions (terminals and angles) divide the route into independent sections of arc-length $L_{\text{section}}$:
 
-## Related Notes
+1. **Soft Minimum Threshold (`min_span_m`)**: If $L_{\text{section}} \leq \text{min\_span\_m}$, no intermediate fill poles are added. (Mandatory angle poles are never removed).
+2. **Initial Span Count**:
+   $$
+   N_{\text{spans}} = \max\left(1, \text{round}\left(\frac{L_{\text{section}}}{S_{\text{target}}}\right)\right)
+   $$
+   where $S_{\text{target}}$ is `target_span_m` (e.g. $100\text{ m}$).
+3. **Hard Maximum Span Enforcement (`max_span_m`)**:
+   While $\frac{L_{\text{section}}}{N_{\text{spans}}} > S_{\max} + \epsilon$, increment $N_{\text{spans}} \leftarrow N_{\text{spans}} + 1$.
+4. **Intermediate Spacing**: Fill poles are placed at uniform intervals $d_k = d_{\text{start}} + k \times \frac{L_{\text{section}}}{N_{\text{spans}}}$ for $k \in \{1, \dots, N_{\text{spans}} - 1\}$.
 
-- [[Routing]]
-- [[Feeder Planning]]
-- [[Cost Model]]
+### 3.3 Chord Span Length
+For adjacent poles with 2D coordinates $P_i$ and $P_{i+1}$, the conductor span length is measured as the Euclidean chord distance:
+$$
+\text{span\_length\_m} = \|P_{i+1} - P_i\|_2
+$$
+This represents the actual physical straight span between crossarms, which may be slightly shorter than the centerline arc-length when minor sub-threshold bends occur between poles.
+
+---
+
+## 4. Network Endpoint Deduplication (SURGE-PY-023)
+
+In radial collector networks, multiple route segments terminate at shared facilities (such as the main collector substation or a shared junction node). Route-local placement generates independent terminal poles for each segment, which would artificially multiply physical structure counts and CAPEX if not deduplicated.
+
+`deduplicate_pole_endpoints()` executes a network-level post-pass:
+
+```mermaid
+flowchart LR
+    subgraph RouteLocal["Route-Local (Independent)"]
+        F1_END["Route F1 End: F1-P012 (Terminal at Substation)"]
+        F2_END["Route F2 End: F2-P015 (Terminal at Substation)"]
+        F3_END["Route F3 End: F3-P009 (Terminal at Substation)"]
+    end
+
+    subgraph Deduplicated["PY-023 Deduplicated Network View"]
+        JUNC["Single Physical Structure:<br/>ID: JUNCTION-a8f3b9c1d0e2<br/>Type: 'junction'<br/>Feeder IDs: (F1, F2, F3)<br/>Route IDs: (F1-S04, F2-S05, F3-S03)<br/>Source Poles: (F1-P012, F2-P015, F3-P009)"]
+    end
+
+    F1_END --> JUNC
+    F2_END --> JUNC
+    F3_END --> JUNC
+```
+
+### 4.1 Strict Pairwise Clustering Invariant
+A terminal pole record joins an endpoint cluster if and only if:
+1. It shares the exact same `topology_node_id` (e.g. `substation:SUB_MAIN`).
+2. Its route ID is distinct from existing cluster members.
+3. Its projected coordinate is within `coordinate_tolerance_m` (default $0.1\text{ m}$) of **every existing member** in the cluster (preventing chained drift).
+
+### 4.2 Merged Identity & Class Promotion
+- Any cluster containing $\geq 2$ route endpoints is promoted to `pole_type = "junction"`.
+- The pole ID is deterministically generated from a SHA-256 digest:
+  $$
+  \text{pole\_id} = \text{JUNCTION-} + \text{SHA256}(\text{repr}((\text{node\_id}, \text{feeder\_ids}, \text{route\_ids})))[:12]
+  $$
+- The physical coordinate is preserved from the deterministically sorted first member (avoiding off-route centroid drift).
+
+### 4.3 Separation of Spans and Structures
+- `total_spans`: Retains the total number of overhead conductor spans across all routes (needed for conductor stringing).
+- `total_poles`: Reports the true number of distinct physical structures (needed for foundation and structure CAPEX).
+
+---
+
+## 5. Domain Models
+
+```python
+@dataclass(frozen=True)
+class PolePlacementConfig:
+    target_span_m: float                # Preferred span (e.g. 100.0 m)
+    min_span_m: float                   # Subdivision threshold (e.g. 40.0 m)
+    max_span_m: float                   # Hard upper limit (e.g. 250.0 m)
+    angle_pole_threshold_deg: float = 10.0
+    coordinate_tolerance_m: float = 0.1
+
+@dataclass(frozen=True)
+class PhysicalPole:
+    pole_id: str
+    geometry: Point
+    pole_type: str                      # "terminal" | "angle" | "intermediate" | "junction"
+    feeder_ids: tuple[str, ...]
+    route_ids: tuple[str, ...]
+    source_pole_ids: tuple[str, ...]
+    topology_node_id: str | None
+
+@dataclass(frozen=True)
+class CollectorPoleResult:
+    routes: tuple[PoleRouteResult, ...]
+    total_poles: int                    # Distinct physical structures
+    total_spans: int                    # Total conductor spans
+    physical_poles: tuple[PhysicalPole, ...]
+```
+
+---
+
+## 6. Related Notes
+
+- [[Routing]] — Refined physical route geometry inputs.
+- [[Feeder Planning]] — Feeder architecture and network topology.
+- [[Cost Model]] — Exact Decimal pole CAPEX pricing by structure type.
+- [[Per-Feeder MST Topology]] — Topology graph node definitions.

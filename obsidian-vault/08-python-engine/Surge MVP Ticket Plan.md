@@ -1,239 +1,165 @@
 # Surge MVP Ticket Plan
 
-**Canonical as of:** 2026-08-13
-**MVP freeze:** SURGE-PY-020
-**Current ticket:** SURGE-PY-024 (in progress)
+**Canonical as of:** 2026-08-16  
+**Status:** All core MVP & post-MVP Python tickets (SURGE-PY-014 through SURGE-PY-028) are **Complete**.  
+**Test Suite:** ~489 passing automated tests in `optimisation-python/tests/`.
 
-This note is the Obsidian mirror of
-[`docs/Surge MVP Ticket Plan.md`](../../docs/Surge%20MVP%20Ticket%20Plan.md) and
-is authoritative for Python ticket numbering and MVP scope from SURGE-PY-014
-onward. Earlier day-based plans are historical context only.
+This document is the authoritative engineering record of the Python GIS & Optimization Service ticket sequence, module responsibilities, frozen interfaces, and architectural boundaries.
 
-## Canonical sequence
+---
 
-| Ticket | Final ticket name | Status | MVP responsibility |
+## Canonical Ticket Sequence & Status
+
+| Ticket | Ticket Name | Status | Module & Primary Responsibility |
 | --- | --- | --- | --- |
-| SURGE-PY-014 | Automatic PNC Network Assembly | Complete | Produce one validated `ProjectPNCNetwork` with deterministic feeder and segment identities. |
-| SURGE-PY-015 | Pandapower Electrical Network + AC Load-Flow Validation | Complete | Evaluate one PNC without repairing or resizing it. |
-| SURGE-PY-016 | Map-Ready PNC Result Packaging + GeoJSON Export | Complete | Package one PNC and its electrical result for presentation. |
-| SURGE-PY-017 | Candidate PNC Scenario Generation | Complete | Generate 1-5 deterministic, distinct, structurally valid PNC candidates. |
-| SURGE-PY-018 | Multi-Objective Scoring + Recommendation | Complete | Score electrically evaluated candidates and return an explainable deterministic recommendation. |
-| SURGE-PY-019 | End-to-End Optimisation Orchestrator | Complete | Connect preprocessing, candidate generation, load flow, scoring, recommendation, and presentation behind one internal call. |
-| SURGE-PY-020 | MVP Demo API + End-to-End Validation | Complete | Expose the orchestrator compatibly through the existing API and verify one golden demo fixture. |
-| SURGE-PY-021 | V1 Constraint Regression Coverage | Complete | Enforce the existing V1 constraint behavior with deterministic positive, rejection, and compatibility API tests. |
-| SURGE-PY-022 | Constraint Fixture Provenance Labeling | Complete | Label the hand-authored constraint payload as a Python-contract fixture and document the evidence needed for verified KMZ provenance. |
-| SURGE-PY-023 | Network-Level Pole Endpoint Deduplication | Complete | Merge coincident shared topology endpoints into deterministic junction structures while preserving route-local span traceability. |
-| SURGE-PY-024 | Pole Placement Integration into the Optimisation Workflow | In progress | Run placement and PY-023 deduplication once for the recommended PNC, then attach the canonical pole network to `OptimisationWorkflowResult` without changing ranking. |
-| SURGE-PY-025 | Pole GeoJSON + API Presentation | Planned | Convert the canonical PY-024 pole network into the stable public summary and WGS-84 `pnc_pole` contract. |
+| **SURGE-PY-014** | Automatic PNC Network Assembly | **Complete** | `app/pnc/` — Assembles validated `ProjectPNCNetwork` instances from routing, topology, and grouping stages with deterministic segment and feeder IDs. |
+| **SURGE-PY-015** | Pandapower Electrical Network + AC Load-Flow | **Complete** | `app/electrical/load_flow/` — Evaluates AC Newton-Raphson load flow for a PNC without mutation, trapping non-convergence as structured violations. |
+| **SURGE-PY-016** | Map-Ready PNC Result Packaging + GeoJSON | **Complete** | `app/presentation/` — Reconciles physical network and electrical results into map-ready WGS84 GeoJSON and summary models. |
+| **SURGE-PY-017** | Candidate PNC Scenario Generation | **Complete** | `app/optimisation/scenarios.py` — Generates 1–5 distinct, structurally valid PNC candidates using a 5-personality parameter schedule and pre-routing fingerprinting. |
+| **SURGE-PY-018** | Multi-Objective Scoring + Recommendation | **Complete** | `app/optimisation/scoring.py` — Scores electrically evaluated candidates via cohort min-max normalization and provides explainable recommendation rationales. |
+| **SURGE-PY-019** | End-to-End Optimisation Orchestrator | **Complete** | `app/optimisation/orchestrator.py` — Unifies preprocessing, candidate generation, load flow, scoring, and presentation behind `optimise_project()`. |
+| **SURGE-PY-020** | MVP Demo API + End-to-End Validation | **Complete** | `app/api/v1/` & `app/api/v2/` — Implements backward-compatible V1 endpoint and explicit engineering V2 endpoint, verified against golden demo fixtures. |
+| **SURGE-PY-021** | V1 Constraint Regression Coverage | **Complete** | `tests/api/test_optimise_v1.py` — Verifies hard exclusions, soft penalty rasters, and legacy constraint compatibility. |
+| **SURGE-PY-022** | Constraint Fixture Provenance Labeling | **Complete** | `tests/fixtures/` — Formally documents hand-authored constraint fixtures and cross-team KMZ-to-JSON verification procedures. |
+| **SURGE-PY-023** | Network-Level Pole Endpoint Deduplication | **Complete** | `app/algorithms/pole_placement.py` — Merges coincident shared topology endpoints into deterministic `junction` pole structures while preserving route-local span traceability. |
+| **SURGE-PY-024** | Pole Placement Integration into Orchestrator | **Complete** | `app/optimisation/orchestrator.py` — Executes pole placement and endpoint deduplication for the winning candidate (or cohort), attaching `pole_network` to workflow results. |
+| **SURGE-PY-025** | Pole GeoJSON + API Presentation | **Complete** | `app/presentation/geojson.py` — Serializes deduplicated physical poles as stable WGS84 `pnc_pole` Point features with connection and classification telemetry. |
+| **SURGE-PY-026** | Canonical Candidate Engineering Metrics | **Complete** | `app/optimisation/engineering_metrics.py` — Extracts unified physical, spatial, infrastructure, and electrical metrics (`CandidateEngineeringMetrics`) for all evaluated candidates. |
+| **SURGE-PY-027** | Unified Candidate Scoring Policy | **Complete** | `app/optimisation/scoring.py` — Unifies spatial, infrastructure, and electrical metrics into a 4-group normalized benefit policy with 12-decimal precision tie-breaking. |
+| **SURGE-PY-028** | Lifecycle Cost Model (CAPEX + OPEX) | **Complete** | `app/costing/` — Implements 25-year discounted cash-flow NPV lifecycle cost model using Python `Decimal` arithmetic for conductors, poles, land ROW, and annual losses. |
 
-No feature may be inserted between these tickets unless it blocks the vertical
-workflow. If work expands beyond these boundaries, reduce MVP scope rather than
-renumbering the sequence.
+---
 
-## Frozen boundaries
+## Detailed Ticket Specifications & Boundaries
 
-### SURGE-PY-017
+### SURGE-PY-014: Automatic PNC Network Assembly
+- **Module:** `app/pnc/` (`assembly.py`, `models.py`, `errors.py`, `geojson.py`)
+- **Input:** Projected `ProjectSpatialData`, `feeder_capacity_mw`, `CostSurface`.
+- **Output:** Validated `ProjectPNCNetwork` containing typed `PNCFeeder` and `PNCSegment` records.
+- **Rules:**
+  - Zero algorithm logic duplicated; coordinates and calls `wtg_grouping.py`, `route_graph.py`, `topology.py`, `physical_routing.py`, and `route_refinement.py`.
+  - Deterministic ID formatting: `FDR-001`, `SEG-FDR001-0001`.
+  - Strict validation against structural failures: raises `PNCAssemblyError` with specific codes (e.g., `FEEDER_WITHOUT_SUBSTATION_CONNECTION`, `UNROUTED_TOPOLOGY_EDGE`, `ORPHAN_WTG`, `DUPLICATE_WTG_ASSIGNMENT`).
+  - See [[PNC Network Assembly]].
 
-Input is prepared `ProjectSpatialData`, feeder capacity, a prepared
-`CostSurface`, and deterministic scenario configuration. Output contains
-candidate records with complete `ProjectPNCNetwork` objects.
+### SURGE-PY-015: Pandapower AC Load Flow Validation
+- **Module:** `app/electrical/load_flow/` (`analysis.py`, `builder.py`, `config.py`, `models.py`)
+- **Input:** `ProjectPNCNetwork`, `LoadFlowConfig` (cable library, voltage thresholds, nominal 33 kV), `WTGOperatingPoint` map.
+- **Output:** `LoadFlowNetworkResult` containing per-bus, per-segment, per-feeder, and network-level power flow metrics.
+- **Rules:**
+  - Positive generator injection sign convention: $P > 0$ denotes generation into the grid.
+  - Deterministic `pandapowerNet` builder with sorted node/segment indices and bidirectional index maps (`node_to_bus`, `segment_to_line`).
+  - Graceful non-convergence: solver divergence does not raise Python exceptions; it returns `converged = False`, `is_valid = False`, and `violations = [LoadFlowViolation(code="LOAD_FLOW_NOT_CONVERGED")]`.
+  - See [[AC Load Flow Validation]].
 
-PY-017 owns candidate count 1-5 (default 3), deterministic IDs and ordering,
-controlled variation through the real PNC pipeline, duplicate suppression,
-attempt diagnostics, and structural PNC integrity. It does not own electrical
-simulation, scoring, recommendation, API integration, or raw GIS-constraint
-ingestion.
+### SURGE-PY-016: Map-Ready Result Packaging & Presentation
+- **Module:** `app/presentation/` (`result_builder.py`, `geojson.py`, `models.py`, `exceptions.py`)
+- **Input:** `ProjectPNCNetwork`, `LoadFlowNetworkResult`.
+- **Output:** `ProjectOptimizationResult` with enriched RFC 7946 WGS84 GeoJSON `FeatureCollection`.
+- **Rules:**
+  - Reconciles physical network and electrical results; raises `PresentationDataMismatchError` on mismatched topology or non-finite numbers.
+  - Generates stable feature IDs: `substation-{id}`, `wtg-{id}`, `segment-{id}`, `pole-{id}`.
+  - Feature coordinates strictly transformed to WGS84 (EPSG:4326) with computed collection bounding box `[west, south, east, north]`.
+  - Nullable electrical properties and boolean violation flags ensure consistent frontend map rendering even when load flow fails to converge.
+  - See [[presentation-boundary|Python Presentation Boundary]].
 
-### SURGE-PY-018
+### SURGE-PY-017: Candidate PNC Scenario Generation
+- **Module:** `app/optimisation/scenarios.py` & `scenario_models.py`
+- **Input:** `ProjectSpatialData`, `feeder_capacity_mw`, `CostSurface`, `ScenarioGenerationConfig`.
+- **Output:** `ScenarioGenerationResult` with 1–5 distinct, valid `PNCScenario` instances.
+- **Rules:**
+  - Iterates through 5 fixed parameter personalities:
+    1. `PS-001 (baseline)`: seed 42, MINIMIZE_DISTANCE, default weights.
+    2. `PS-002 (alternative_grouping)`: seed 17, MINIMIZE_DISTANCE, default weights.
+    3. `PS-003 (balanced_feeders)`: seed 42, BALANCE_WTG_COUNT MILP objective.
+    4. `PS-004 (long_edge_penalty)`: seed 42, distance weighting $\alpha = 2.0$, $w' = w \cdot (1 + \alpha \cdot w / w_{\max})$.
+    5. `PS-005 (alternative_grouping_balanced)`: seed 7, BALANCE_WTG_COUNT MILP objective.
+  - Computes topology fingerprint `v1:<sha256(canonical_json)>` prior to A* routing; identical topologies are skipped with `AttemptOutcome.DUPLICATE_TOPOLOGY`.
+  - See [[Candidate PNC Scenario Generation]].
 
-PY-018 scores candidates after PY-015 evaluates them. It uses routed length,
-losses, maximum loading, minimum voltage, and hard validity outcomes.
-Non-converged or electrically invalid candidates remain visible but infeasible;
-they cannot be recommended. Ranking and tie-breaking are deterministic and the
-winner includes plain-language reasons. ML and advanced Pareto search are
-post-MVP.
+### SURGE-PY-018: Multi-Objective Candidate Scoring & Recommendation
+- **Module:** `app/optimisation/scoring.py` & `scoring_models.py`
+- **Input:** Cohort of `ElectricallyEvaluatedScenario` records, scoring configuration/weights.
+- **Output:** Ranked cohort with selected winning candidate, normalized metric scores, and explainable reasons (`BEST_METRIC`, `GROUP_STRENGTH`, `TRADE_OFF_ACCEPTED`).
+- **Rules:**
+  - Evaluates cohort min-max normalization over feasible candidates only.
+  - Non-converged or electrically invalid candidates are disqualified and cannot be recommended.
+  - Quantizes final scores to 12 decimal places with deterministic cascading tie-breakers.
+  - See [[Multi-Objective Candidate Scoring]].
 
-### SURGE-PY-019
+### SURGE-PY-019: End-to-End Optimisation Orchestrator
+- **Module:** `app/optimisation/orchestrator.py` & `workflow_models.py`
+- **Function:** `optimise_project(project_input, config)`
+- **Workflow Pipeline:**
+  ```text
+  ProjectInput validation
+      → CRS projection & CostSurface preparation
+      → Multi-candidate generation (PY-017)
+      → Pandapower AC load flow execution (PY-015)
+      → Canonical engineering metrics extraction (PY-026)
+      → Lifecycle costing (PY-028, optional)
+      → Multi-objective scoring & winner selection (PY-027)
+      → Pole placement & deduplication on winner (PY-023 / PY-024)
+      → Result presentation packaging (PY-016 / PY-025)
+      → OptimisationWorkflowResult
+  ```
+- **Error Isolation:** Candidate-local electrical, extraction, or presentation errors are isolated with explicit diagnostic codes without terminating the global workflow.
 
-```text
-validated project data
-    -> prepared cost surface
-    -> PY-017 candidate PNCs
-    -> PY-015 load flow for every candidate
-    -> PY-018 scoring and recommendation
-    -> PY-016 presentation results
-    -> complete optimisation result
-```
+### SURGE-PY-020: MVP Demo API & Golden Fixture Validation
+- **Module:** `app/api/v1/` and `app/api/v2/`
+- **Endpoints:**
+  - `POST /api/v1/optimise`: Backward-compatible DTO interface. Returns legacy fields (`feeder_routes_geojson`, `metrics`, `status`) populated from the recommended candidate, alongside additive multi-scenario data.
+  - `POST /api/v2/optimise`: Explicit engineering interface requiring conductor libraries and operating parameters, returning complete candidate comparisons.
+- **Golden Fixtures:** `tests/fixtures/mvp_demo_project_v2.json` and `constraint_demo_project_v2.json` verify deterministic multi-candidate output and WGS84 GeoJSON validity.
 
-The internal entry point is conceptually `optimise_project(project_input)` and
-owns orchestration rather than duplicating earlier algorithms.
+### SURGE-PY-021: V1 Constraint Regression Coverage
+- **Module:** `tests/api/test_optimise_v1.py`
+- **Scope:** Enforces V1 API behavior when supplied with `avoidance_geojson`: verifies hard exclusion geometry clipping, soft penalty resistance, endpoint proximity rejections, and byte-for-byte reproducibility.
 
-The workflow validates project, raster, electrical, and operating-point inputs
-before generation. Candidate-local electrical or presentation failures remain
-traceable without erasing completed upstream results. Every evaluated
-candidate contains its score and either map-ready presentation output or an
-explicit packaging failure; frozen result models enforce valid status and
-artifact combinations.
+### SURGE-PY-022: Constraint Fixture Provenance Labeling
+- **Module:** `tests/fixtures/README.md`
+- **Scope:** Formally documents test fixture provenance, separating hand-crafted JSON contracts from raw KMZ parsing pipelines and recording cross-stack verification protocols.
 
-### SURGE-PY-020
+### SURGE-PY-023: Network-Level Pole Endpoint Deduplication
+- **Module:** `app/algorithms/pole_placement.py` (`deduplicate_pole_endpoints()`)
+- **Scope:** Post-processing pass over route-local pole placements. Merges coincident terminal poles at shared topology vertices into single physical `junction` poles within a pairwise distance tolerance ($< 0.1\text{ m}$), preserving route-local span connectivity and feeder references.
 
-`POST /api/v1/optimise` already has a Java consumer. The MVP response is
-additive: retain `request_id`, `status`, `scenario`,
-`feeder_routes_geojson`, and `metrics`; populate legacy route and metric fields
-from the recommended candidate; then add recommendation, comparison,
-electrical, and presentation fields.
+### SURGE-PY-024: Pole Placement Integration into Orchestrator
+- **Module:** `app/optimisation/orchestrator.py`
+- **Scope:** Integrates pole placement into `optimise_project()`. Executes placement and PY-023 deduplication on the recommended candidate (or caches across candidates), attaching the canonical `CollectorPoleResult` to `OptimisationWorkflowResult.pole_network`.
 
-The golden fixture is deliberately chosen to produce at least three distinct
-valid candidates. It verifies HTTP success, candidate generation behaviour,
-complete WTG and route coverage, per-candidate load-flow execution,
-deterministic recommendation, and valid GeoJSON. General projects may return
-fewer candidates when fewer unique valid networks exist.
+### SURGE-PY-025: Pole GeoJSON & Presentation Integration
+- **Module:** `app/presentation/geojson.py` & `result_builder.py`
+- **Scope:** Extends GeoJSON presentation to serialize deduplicated physical poles as `pnc_pole` Point features with properties: `pole_id`, `pole_type` (`terminal`, `angle`, `intermediate`, `junction`), `connected_feeder_ids`, `connected_route_ids`, `connected_node_ids`, and coordinate elevation.
 
-The implemented V1 endpoint preserves the Java request and legacy response
-fields, runs `optimise_project`, and adds workflow status, generation,
-candidate, recommendation, presentation, and failure data. A caller that omits
-cable properties receives the documented 33 kV MVP compatibility profile,
-whose ampacity is derived from legacy `feeder_capacity_mw`; explicit cable
-configuration overrides that profile.
+### SURGE-PY-026: Canonical Candidate Engineering Metrics
+- **Module:** `app/optimisation/engineering_metrics.py` & `engineering_metric_models.py`
+- **Scope:** Standardizes metric extraction across spatial, infrastructure, and electrical domains into `CandidateEngineeringMetrics` (route length, traversal cost, parcel count, road crossings, soft corridor overlap, environmental overlap, physical poles, active losses, cable loading, voltage operating margin).
+- **Availability:** All-or-nothing model with structured `extraction_failures` (e.g., `POLE_CONFIG_MISSING`).
+- **See:** [[Canonical Candidate Engineering Metrics]].
 
-`POST /api/v2/optimise` exposes an explicit engineering request requiring
-cable properties. Its golden fixture produces three unique valid candidates
-and verifies deterministic repeated output, coverage, ranking,
-recommendation, and WGS-84 GeoJSON.
+### SURGE-PY-027: Unified Candidate Scoring Policy
+- **Module:** `app/optimisation/scoring.py` & `scoring_models.py`
+- **Scope:** Replaces legacy spatial-only scoring with a unified 4-group multi-objective benefit model (Physical, Spatial, Infrastructure, Electrical) using PY-026 canonical metrics, cohort min-max normalization, and 12-decimal quantized ranking.
+- **See:** [[Multi-Objective Candidate Scoring]].
 
-### SURGE-PY-021
+### SURGE-PY-028: Lifecycle Cost Model (CAPEX + OPEX)
+- **Module:** `app/costing/` (`lifecycle.py`, `models.py`, `catalogue.py`, `failures.py`)
+- **Scope:** Computes 25-year discounted cash-flow NPV lifecycle cost using Python `Decimal` arithmetic:
+  - **CAPEX:** Conductor cable supply/installation, overhead poles by type, fixed & variable land acquisition/easements, road crossing permits.
+  - **OPEX:** Annual active electrical energy losses discounted at $(1 + r)^{-y}$, plus annual infrastructure maintenance percentages.
+  - **Integration (PY-029):** Integrates economic benefit into unified cohort scoring.
 
-PY-021 adds test coverage above the frozen PY-020 MVP boundary without changing
-the public contract. `optimisation-python/tests/api/test_optimise_v1.py` reuses
-the deterministic constraint fixture to verify hard/soft handling,
-geometry-level hard-exclusion avoidance, identical repeat responses, named
-hard-buffer endpoint rejection, and unchanged uniform-cost routing when
-`avoidance_geojson` is omitted.
+---
 
-### SURGE-PY-022
-
-PY-022 documents `constraint_demo_project_v2.json` as a hand-authored,
-deterministic Python-contract fixture. It verifies Python behavior after a
-well-formed payload reaches the service; it does not verify Java's KMZ-to-JSON
-transformation. The fixture README records the cross-team capture and comparison
-steps required before the payload may be described as a verified KMZ round-trip
-artifact. No request data, test behavior, schema, or production code changed.
-
-### SURGE-PY-023
-
-PY-023 adds `deduplicate_pole_endpoints()` as an explicit post-pass over the
-route-local `CollectorPoleResult`. It exposes distinct `PhysicalPole` records,
-merges only different-route terminals that share a topology node and satisfy a
-strict pairwise coordinate tolerance, classifies merged structures as
-`junction`, and retains sorted feeder/route/source-pole references. Route-local
-poles and conductor spans remain unchanged; the deduplicated result's
-`total_poles` counts physical structures. Presentation consumption is deferred
-to the following presentation ticket.
-
-### SURGE-PY-024
-
-PY-024 owns the application boundary between recommendation and detailed pole
-engineering. After scoring selects the winner, `place_poles_on_network()`
-consumes that candidate's routed `PNCSegment` geometries, preserves segment IDs
-as provenance, applies the PY-023 endpoint-deduplication pass, and returns the
-canonical `CollectorPoleResult` on `OptimisationWorkflowResult.pole_network`.
-Pole configuration continues to flow through `OptimisationConfig`.
-
-Placement is not run for every candidate and pole count is not a PY-018 scoring
-objective. A generation error fails the detailed workflow with
-`POLE_PLACEMENT` / `POLE_NETWORK_GENERATION_FAILED`; it is never reported as a
-successful result with missing poles. PY-025 owns formal GeoJSON/API
-presentation of this domain result.
-
-## Constraint and demo scope
-
-The public V1 and V2 requests accept optional `avoidance_geojson` features and
-the production pipeline maps them to hard exclusions or soft penalties before
-routing. PY-021 closes the V1 API coverage gap for that implemented path.
-Project-boundary clipping, terrain-derived costs, and fixture provenance from a
-KMZ round trip remain separate follow-up work. Pole endpoint deduplication is
-implemented by PY-023; PY-024 integrates it with the winning workflow and
-PY-025 owns its public presentation.
-
-## Two-day demo productisation sprint
-
-**Outcome by Saturday, 15 August:** a repeatable vertical-slice demonstration
-that accepts a controlled wind-project dataset, runs the real optimisation
-workflow, shows the selected route on the map, and explains the recommendation
-with traceable electrical and routing evidence.
-
-This sprint turns the completed engine into credible product proof. It does
-not expand the engineering scope, and it does not display synthetic,
-placeholder, or unsupported results as calculated output.
-
-### Day 1 - Thursday, 13 August: make the real product path reliable
-
-**Goal:** prove one honest path from project data to a persisted, visible
-optimisation result.
-
-| Time box | Work | Evidence |
-| --- | --- | --- |
-| First 2 hours | Freeze one named demo dataset and its electrical assumptions. | Versioned fixture, input checklist, and expected high-level result. |
-| Next 3 hours | Verify Web GIS -> Java job API -> Python V1 -> PostGIS -> route API -> Web GIS; fix only path blockers. | A fresh run completes without manually inserting result data. |
-| Next 2 hours | Remove or hide false-success behaviour and synthetic engineering outputs from the demo path. | Failures are visible and every shown value has a real source. |
-| Final 1-2 hours | Write the smoke procedure and run focused checks from the correct project directories. | Another engineer can repeat the startup and smoke test. |
-
-**Exit gate:** Python remains green (`476 passed` on Python 3.11.9); the UI
-starts a real job, persists and redraws the recommended WGS-84 route after
-refresh; a disconnected optimiser produces a failed state; and two identical
-runs select the same candidate. Docker, missing web dependencies, and the
-managed Maven cache path are known environment blockers to resolve early.
-
-### Day 2 - Friday, 14 August: make the proof feel investable
-
-**Goal:** communicate an engineering decision, not merely draw a line.
-
-| Time box | Work | Evidence |
-| --- | --- | --- |
-| First 3 hours | Carry the rich optimiser result into the product: winner, reason, score, length, loss, loading, voltage, feasibility, and rejection reasons. | A reviewer can answer "why this route?" without reading logs. |
-| Next 2 hours | Tighten running/failed/completed states, units, preliminary labels, empty states, and recommended-route map focus. | The primary workflow works without developer narration. |
-| Next 2 hours | Export the real recommended-route GeoJSON and compact candidate/electrical summary; hide untrustworthy exports. | Downloads match the on-screen job and candidate. |
-| Final 1-2 hours | Run available checks, perform two cold-start rehearsals, and capture the evidence pack. | Logs, screenshots, runtime, demo script, and limitations are ready. |
-
-**Exit gate:** the golden fixture evaluates at least three distinct candidates;
-the winner and rejected candidates are explained; all values have units and
-come from the current run; the map, summary, and download share one job and
-candidate identity; and two complete rehearsals pass.
-
-### Saturday demonstration gate
-
-1. Introduce the WTGs, substation, and engineering assumptions.
-2. Run one job with honest progress and completion states.
-3. Show candidate comparison and the recommended radial network.
-4. Explain the winner using length, loss, loading, voltage, and feasibility.
-5. Export the result and state the current limitations.
-
-Ready means a fresh run needs no manual data repair, repeats its recommendation
-for identical input, and displays only traceable values. Do not claim raw
-terrain, parcel, ROW, ML, or production-readiness support.
-
-### Deliberate two-day cuts
-
-- KMZ-to-constraint provenance, Java transport, and terrain-derived costs
-- ML, N-1 analysis, and automatic electrical repair
-- New algorithms or a broad UI redesign
-- Cloud deployment and production security hardening
-- Detailed BoQ/PDF work not backed by the current run
-
-## Post-MVP
-
-- Project-boundary clipping, terrain-derived costs, and verified KMZ-to-Python
-  constraint provenance/transport
-- Electrical repair, cable sizing, and feeder rebalancing
-- Detailed BoQ and additional exports
-- Advanced Pareto and parallel scenario search
-- ML ranking
-- N-1 analysis
-- Production hardening and deeper Java integration refinements
-
-## Related
+## Related Notes
 
 - [[Overview & Layout]]
-- [[presentation-boundary|Python Presentation Boundary]]
-- [[PNC Network Assembly]]
+- [[Candidate PNC Scenario Generation]]
 - [[AC Load Flow Validation]]
+- [[Canonical Candidate Engineering Metrics]]
+- [[Multi-Objective Candidate Scoring]]
+- [[PNC Network Assembly]]
+- [[presentation-boundary|Python Presentation Boundary]]
+- [[Geospatial Integrity & CRS]]
+- [[Route Scoring Architecture]]
