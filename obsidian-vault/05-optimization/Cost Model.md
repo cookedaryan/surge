@@ -1,7 +1,11 @@
 # Lifecycle Cost Objective Model
 
-> [!warning] Implementation status: Planned
-> `cost_function.py` contains only a module description. Stored route cost values can be aggregated by Java, but Python does not calculate them.
+> [!success] Implementation status: Implemented
+> `app/costing/lifecycle.py` computes lifecycle cost dynamically within the Python Orchestrator using exact `Decimal` arithmetic.
+
+The API currently accepts an inline, versioned engineering catalogue. Catalogue
+IDs remain part of result provenance, but ID-only lookup is not exposed until a
+configured persistent catalogue store exists.
 
 ## Purpose
 
@@ -15,10 +19,10 @@ $$
 
 ## Intended Components
 
-- Pole and foundation cost based on type, count, terrain, and access
-- Conductor cost based on installed route length and conductor selection
-- ROW compensation based on actual corridor-parcel intersection area and parcel rate
-- Lifetime energy-loss cost based on electrical losses, operating profile, energy price, analysis period, and discount rate
+- **Pole CAPEX**: Pole and foundation cost based on type (terminal, angle, intermediate, junction) and count.
+- **Conductor CAPEX**: Conductor cost based on installed route length and conductor selection.
+- **Land CAPEX**: ROW compensation based on actual corridor-parcel intersection area and parcel rate.
+- **Loss OPEX**: Lifetime energy-loss cost based on electrical losses, operating profile, energy price, analysis period, and discount rate.
 
 ## Why Keep Raw Metrics?
 
@@ -32,6 +36,13 @@ Each candidate should retain raw length, pole count, affected area, losses, and 
 - whether environmental impacts are money values, separate constraints, or normalized penalties
 - treatment of shared corridors and common infrastructure
 - source and version of every cost catalogue
+
+## Evaluation Rules
+
+- Catalogue CAPEX and energy-price OPEX must use the same three-letter currency.
+- Area-based land pricing uses the request's configured total ROW width (18 m by default), not a route-centreline approximation.
+- A known empty parcel exposure produces zero land CAPEX. Failed spatial analysis produces `LAND_EXPOSURE_UNAVAILABLE` and no land or total CAPEX.
+- Candidate responses retain successfully evaluated cost components and provenance when another component fails; lifecycle cost is published only when every component is available.
 
 ## Related Notes
 

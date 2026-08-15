@@ -1,8 +1,17 @@
-import dataclasses
+import datetime
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from decimal import Decimal
 
 from app.algorithms.pole_placement import PolePlacementConfig
+from app.costing.models import (
+    ConductorCostItem,
+    EngineeringCostCatalogue,
+    LandCostPolicy,
+    LandPricingBasis,
+    LifecycleCostConfig,
+    PoleCostItem,
+)
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import WTGOperatingPoint
 from app.gis.constraints import ingest_avoidance_constraints
@@ -12,19 +21,32 @@ from app.gis.preprocessing import (
     validate_project_routing_endpoints,
 )
 from app.optimisation.scenario_models import ScenarioGenerationConfig
-from app.optimisation.scoring_models import CandidateScoringConfig
+from app.optimisation.scoring_models import (
+    CandidateScoringConfig,
+    CostAwareRecommendationConfig,
+    ElectricalScoringWeights,
+    ScoringPolicyMode,
+    SpatialScoringWeights,
+)
 from app.optimisation.workflow_models import (
+    CostingConfig,
     OptimisationConfig,
     OptimisationInputError,
     OptimisationWorkflowResult,
     ProjectInput,
 )
 from app.schemas.v2.optimise import (
+    CandidateCostSummary,
     CandidateSummary,
+    CostFailureSummary,
+    CostLineItemSummary,
+    EngineeringMetricsSummary,
     FailuresSummary,
     GenerationSummary,
+    GroupScoreSummary,
     OptimiseProjectRequest,
     OptimiseProjectResponse,
+    RecommendationReasonSummary,
     RecommendationSummary,
 )
 
@@ -101,15 +123,12 @@ def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocatio
                 f"WTG {turbine.turbine_id} is missing capacity_mw"
             )
         active_power_mw = turbine.capacity_mw * op_config.operating_factor
-        # Simplified: Active power factor math.
-        # pf = P / S => S = P / pf => Q = sqrt(S^2 - P^2)
         if active_power_mw > 0 and op_config.power_factor < 1.0:
             apparent_power = active_power_mw / op_config.power_factor
             reactive_magnitude = (apparent_power**2 - active_power_mw**2) ** 0.5
         else:
             reactive_magnitude = 0.0
 
-        # Generation sign convention: lagging operation injects positive Q.
         reactive_power_mvar = (
             reactive_magnitude
             if op_config.power_factor_mode == "lagging"
@@ -154,7 +173,6 @@ def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocatio
         raise OptimisationInputError(str(exc)) from exc
 
     # 5. Build scenario and scoring configuration
-    # Note: base_seed is omitted from public API to avoid misinterpretation
     scenario_config = ScenarioGenerationConfig(
         project_id=request.project_id,
         candidate_count=request.scenario_config.candidate_count,
@@ -162,12 +180,62 @@ def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocatio
     )
 
     try:
-        scoring_config = CandidateScoringConfig(
-            route_length_weight=request.scoring_weights.route_length_weight,
-            electrical_loss_weight=request.scoring_weights.electrical_loss_weight,
-            cable_loading_weight=request.scoring_weights.cable_loading_weight,
-            voltage_margin_weight=request.scoring_weights.voltage_margin_weight,
-        )
+        if request.engineering_scoring_weights is not None:
+            ew = request.engineering_scoring_weights
+            scoring_config = CandidateScoringConfig(
+                policy_mode=ScoringPolicyMode.UNIFIED_ENGINEERING,
+                physical_weight=ew.physical_weight,
+                spatial_weight=ew.spatial_weight,
+                infrastructure_weight=ew.infrastructure_weight,
+                electrical_weight=ew.electrical_weight,
+                spatial_subweights=SpatialScoringWeights(
+                    traversal_cost=ew.spatial_subweights.traversal_cost,
+                    affected_parcels=ew.spatial_subweights.affected_parcels,
+                    road_crossings=ew.spatial_subweights.road_crossings,
+                    soft_overlap_length=ew.spatial_subweights.soft_overlap_length,
+                ),
+                electrical_subweights=ElectricalScoringWeights(
+                    active_loss=ew.electrical_subweights.active_loss,
+                    cable_loading=ew.electrical_subweights.cable_loading,
+                    voltage_margin=ew.electrical_subweights.voltage_margin,
+                ),
+            )
+        else:
+            lw = request.scoring_weights
+            elec_weight = (
+                lw.electrical_loss_weight
+                + lw.cable_loading_weight
+                + lw.voltage_margin_weight
+            )
+
+            e_loss_sub = (
+                lw.electrical_loss_weight / elec_weight if elec_weight > 0 else 0.0
+            )
+            e_cable_sub = (
+                lw.cable_loading_weight / elec_weight if elec_weight > 0 else 0.0
+            )
+            e_volt_sub = (
+                lw.voltage_margin_weight / elec_weight if elec_weight > 0 else 0.0
+            )
+
+            scoring_config = CandidateScoringConfig(
+                policy_mode=ScoringPolicyMode.LEGACY_COMPATIBILITY,
+                physical_weight=lw.route_length_weight,
+                spatial_weight=0.0,
+                infrastructure_weight=0.0,
+                electrical_weight=elec_weight,
+                spatial_subweights=SpatialScoringWeights(
+                    traversal_cost=0.0,
+                    affected_parcels=0.0,
+                    road_crossings=0.0,
+                    soft_overlap_length=0.0,
+                ),
+                electrical_subweights=ElectricalScoringWeights(
+                    active_loss=e_loss_sub,
+                    cable_loading=e_cable_sub,
+                    voltage_margin=e_volt_sub,
+                ),
+            )
     except ValueError as exc:
         raise OptimisationInputError(str(exc)) from exc
 
@@ -202,18 +270,86 @@ def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocatio
         feeder_capacity_mw=feeder_capacity_mw,
         operating_points=tuple(operating_points),
         constraint_layers=constraint_application.layers,
+        row_width_m=request.routing_config.row_width_m,
     )
+
+    pole_cfg = None
+    if request.pole_config is not None:
+        pole_cfg = PolePlacementConfig(
+            target_span_m=request.pole_config.target_span_m,
+            min_span_m=request.pole_config.min_span_m,
+            max_span_m=request.pole_config.max_span_m,
+            angle_pole_threshold_deg=request.pole_config.angle_pole_threshold_deg,
+        )
+
+    costing_cfg = None
+    if request.costing_config is not None:
+        cat_req = request.costing_config.catalogue
+        try:
+            catalogue = EngineeringCostCatalogue(
+                catalogue_id=cat_req.catalogue_id,
+                version=cat_req.version,
+                currency=cat_req.currency,
+                price_basis_date=datetime.date.fromisoformat(cat_req.price_basis_date),
+                conductor_items=tuple(
+                    ConductorCostItem(
+                        cable_type_id=c.cable_type_id,
+                        installed_cost_per_km_per_parallel_circuit=Decimal(
+                            str(c.installed_cost_per_km_per_parallel_circuit)
+                        ),
+                    )
+                    for c in cat_req.conductor_items
+                ),
+                pole_items=tuple(
+                    PoleCostItem(
+                        pole_type=p.pole_type,
+                        installed_cost_each=Decimal(str(p.installed_cost_each)),
+                    )
+                    for p in cat_req.pole_items
+                ),
+                land_policy=LandCostPolicy(
+                    fixed_cost_per_affected_parcel=Decimal(
+                        str(cat_req.land_policy.fixed_cost_per_affected_parcel)
+                    ),
+                    variable_basis=LandPricingBasis(cat_req.land_policy.variable_basis),
+                    variable_rate=Decimal(str(cat_req.land_policy.variable_rate)),
+                ),
+            )
+
+            life_req = request.costing_config.lifecycle
+            lifecycle = LifecycleCostConfig(
+                currency=life_req.currency,
+                energy_price_basis_date=datetime.date.fromisoformat(
+                    life_req.energy_price_basis_date
+                ),
+                analysis_period_years=life_req.analysis_period_years,
+                discount_rate=Decimal(str(life_req.discount_rate)),
+                annual_operating_hours=life_req.annual_operating_hours,
+                loss_load_factor=Decimal(str(life_req.loss_load_factor)),
+                energy_price_per_mwh=Decimal(str(life_req.energy_price_per_mwh)),
+            )
+            costing_cfg = CostingConfig(catalogue=catalogue, lifecycle=lifecycle)
+        except Exception as exc:
+            raise OptimisationInputError(f"Costing configuration error: {exc}") from exc
+
+    cost_aware_cfg = None
+    if request.cost_aware_config is not None:
+        cost_aware_cfg = CostAwareRecommendationConfig(
+            engineering_weight=request.cost_aware_config.engineering_weight,
+            lifecycle_cost_weight=request.cost_aware_config.lifecycle_cost_weight,
+        )
+        scoring_config = replace(
+            scoring_config,
+            policy_mode=ScoringPolicyMode.COST_AWARE,
+        )
 
     config = OptimisationConfig(
         scenario=scenario_config,
         electrical=load_flow_config,
         scoring=scoring_config,
-        pole=PolePlacementConfig(
-            target_span_m=request.pole_config.target_span_m,
-            min_span_m=request.pole_config.min_span_m,
-            max_span_m=request.pole_config.max_span_m,
-            angle_pole_threshold_deg=request.pole_config.angle_pole_threshold_deg,
-        ),
+        pole=pole_cfg,
+        costing=costing_cfg,
+        cost_aware=cost_aware_cfg,
     )
 
     return WorkflowInvocation(project_input=project_input, config=config)
@@ -237,6 +373,127 @@ def to_api_response(
     candidates = []
     for c in workflow_result.candidates:
         eval_result = c.evaluation
+
+        raw_metrics = None
+        engineering_metrics = None
+        group_scores = None
+        if eval_result and eval_result.assessment.metrics:
+            m = eval_result.assessment.metrics
+            raw_metrics = {
+                "total_route_length_m": m.total_route_length_m,
+                "total_active_loss_mw": m.total_active_loss_mw,
+                "maximum_loading_percent": m.maximum_loading_percent,
+                "voltage_margin_pu": m.voltage_margin_pu,
+            }
+            engineering_metrics = EngineeringMetricsSummary(
+                total_route_length_m=m.total_route_length_m,
+                total_traversal_cost=m.total_traversal_cost,
+                affected_parcel_count=m.affected_parcel_count,
+                road_crossing_count=m.road_crossing_count,
+                soft_constraint_overlap_length_m=m.soft_constraint_overlap_length_m,
+                environmental_overlap_m2=m.environmental_overlap_m2,
+                physical_pole_count=m.physical_pole_count,
+                total_active_loss_mw=m.total_active_loss_mw,
+                maximum_loading_percent=m.maximum_loading_percent,
+                voltage_margin_pu=m.voltage_margin_pu,
+            )
+        if eval_result and eval_result.group_scores:
+            group_scores = [
+                GroupScoreSummary(
+                    group=g.group.value,
+                    group_score=g.group_score,
+                    group_weight=g.group_weight,
+                    weighted_score=g.weighted_score,
+                )
+                for g in eval_result.group_scores
+            ]
+
+        cost_summary = None
+        if c.cost_assessment:
+            ca = c.cost_assessment
+            complete_cost = ca.cost
+            cost_summary = CandidateCostSummary(
+                conductor_capex=(
+                    float(ca.conductor_capex_amount)
+                    if ca.conductor_capex_amount is not None
+                    else None
+                ),
+                pole_capex=(
+                    float(ca.pole_capex_amount)
+                    if ca.pole_capex_amount is not None
+                    else None
+                ),
+                land_capex=(
+                    float(ca.land_capex_amount)
+                    if ca.land_capex_amount is not None
+                    else None
+                ),
+                total_capex=(
+                    float(ca.total_capex_amount)
+                    if ca.total_capex_amount is not None
+                    else None
+                ),
+                annual_loss_energy_mwh=(
+                    float(ca.annual_loss_energy_mwh)
+                    if ca.annual_loss_energy_mwh is not None
+                    else None
+                ),
+                annual_loss_cost=(
+                    float(ca.annual_loss_cost_amount)
+                    if ca.annual_loss_cost_amount is not None
+                    else None
+                ),
+                present_value_factor=(
+                    float(ca.present_value_factor)
+                    if ca.present_value_factor is not None
+                    else None
+                ),
+                present_value_opex=(
+                    float(ca.present_value_opex_amount)
+                    if ca.present_value_opex_amount is not None
+                    else None
+                ),
+                lifecycle_cost=(
+                    float(complete_cost.lifecycle_cost) if complete_cost else None
+                ),
+                line_items=[
+                    CostLineItemSummary(
+                        category=li.category,
+                        item_id=li.item_id,
+                        quantity=float(li.quantity),
+                        unit=li.unit,
+                        unit_rate=float(li.unit_rate),
+                        amount=float(li.amount),
+                    )
+                    for li in ca.line_items
+                ],
+                currency=ca.currency,
+                catalogue_id=ca.catalogue_id,
+                catalogue_version=ca.catalogue_version,
+                catalogue_price_basis_date=(
+                    ca.catalogue_price_basis_date.isoformat()
+                    if ca.catalogue_price_basis_date
+                    else None
+                ),
+                energy_price_basis_date=(
+                    ca.energy_price_basis_date.isoformat()
+                    if ca.energy_price_basis_date
+                    else None
+                ),
+                cost_model_version=ca.cost_model_version,
+                failures=[
+                    CostFailureSummary(
+                        code=f.code.value,
+                        component=f.component,
+                        message=f.message,
+                        item_id=f.item_id,
+                        segment_id=f.segment_id,
+                        pole_id=f.pole_id,
+                    )
+                    for f in ca.failures
+                ],
+            )
+
         candidates.append(
             CandidateSummary(
                 scenario_id=c.scenario.scenario_id,
@@ -248,12 +505,22 @@ def to_api_response(
                 else ("INVALID" if c.load_flow_result else None),
                 eligible=eval_result.assessment.eligible if eval_result else None,
                 rank=eval_result.rank if eval_result else None,
+                engineering_benefit_score=eval_result.engineering_benefit_score
+                if eval_result
+                else None,
+                economic_benefit_score=eval_result.economic_benefit_score
+                if eval_result
+                else None,
+                final_benefit_score=eval_result.final_benefit_score
+                if eval_result
+                else None,
                 total_benefit_score=eval_result.total_benefit_score
                 if eval_result
                 else None,
-                raw_metrics=dataclasses.asdict(eval_result.assessment.metrics)
-                if eval_result and eval_result.assessment.metrics
-                else None,
+                raw_metrics=raw_metrics,
+                engineering_metrics=engineering_metrics,
+                cost=cost_summary,
+                group_scores=group_scores,
                 disqualifications=[
                     d.message for d in eval_result.assessment.disqualifications
                 ]
@@ -272,13 +539,27 @@ def to_api_response(
     if workflow_result.recommendation:
         recommendation = RecommendationSummary(
             recommended_scenario_id=workflow_result.recommendation.recommended_scenario_id,
+            engineering_best_scenario_id=workflow_result.recommendation.engineering_best_scenario_id,
+            lowest_cost_scenario_id=workflow_result.recommendation.lowest_cost_scenario_id,
+            policy=workflow_result.recommendation.policy,
+            economic_context_id=workflow_result.recommendation.economic_context_id,
             normalization_ranges={
                 r.metric.value: {"minimum": r.minimum, "maximum": r.maximum}
                 for r in workflow_result.recommendation.normalization_ranges
             },
             reasons=[r.message for r in workflow_result.recommendation.reasons],
+            reason_details=[
+                RecommendationReasonSummary(
+                    code=r.code.value,
+                    message=r.message,
+                    metric=r.metric.value if r.metric else None,
+                    candidate_value=r.candidate_value,
+                    comparison_value=r.comparison_value,
+                )
+                for r in workflow_result.recommendation.reasons
+            ],
             baseline_comparisons={
-                c.metric.value: c.absolute_delta
+                c.metric_name: c.absolute_delta
                 for c in workflow_result.recommendation.baseline_comparisons
             },
         )

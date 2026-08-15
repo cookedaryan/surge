@@ -21,6 +21,7 @@ class RoutingConfigRequest(ApiModel):
     padding_m: float = Field(default=1000.0, ge=0.0, le=5000.0)
     avoidance_buffer_m: float = Field(default=10.0, ge=0.0, le=500.0)
     avoidance_cost_weight: float = Field(default=20.0, gt=0.0, le=1_000_000.0)
+    row_width_m: float = Field(default=18.0, gt=0.0, le=500.0)
 
 
 class PoleConfigRequest(ApiModel):
@@ -83,10 +84,10 @@ class ScenarioConfigRequest(ApiModel):
 
 
 class ScoringWeightsRequest(ApiModel):
-    route_length_weight: float = Field(default=0.4, ge=0.0, le=1.0)
-    electrical_loss_weight: float = Field(default=0.25, ge=0.0, le=1.0)
-    cable_loading_weight: float = Field(default=0.20, ge=0.0, le=1.0)
-    voltage_margin_weight: float = Field(default=0.15, ge=0.0, le=1.0)
+    route_length_weight: float = Field(default=0.4, ge=0.0, le=1.0, strict=True)
+    electrical_loss_weight: float = Field(default=0.25, ge=0.0, le=1.0, strict=True)
+    cable_loading_weight: float = Field(default=0.20, ge=0.0, le=1.0, strict=True)
+    voltage_margin_weight: float = Field(default=0.15, ge=0.0, le=1.0, strict=True)
 
     @model_validator(mode="after")
     def validate_weight_total(self) -> Self:
@@ -103,6 +104,139 @@ class ScoringWeightsRequest(ApiModel):
         return self
 
 
+class SpatialScoringWeightsRequest(ApiModel):
+    traversal_cost: float = Field(default=0.4, ge=0.0, le=1.0, strict=True)
+    affected_parcels: float = Field(default=0.3, ge=0.0, le=1.0, strict=True)
+    road_crossings: float = Field(default=0.2, ge=0.0, le=1.0, strict=True)
+    soft_overlap_length: float = Field(default=0.1, ge=0.0, le=1.0, strict=True)
+
+
+class ElectricalScoringWeightsRequest(ApiModel):
+    active_loss: float = Field(default=0.45, ge=0.0, le=1.0, strict=True)
+    cable_loading: float = Field(default=0.35, ge=0.0, le=1.0, strict=True)
+    voltage_margin: float = Field(default=0.20, ge=0.0, le=1.0, strict=True)
+
+
+class EngineeringScoringWeightsRequest(ApiModel):
+    physical_weight: float = Field(default=0.3, ge=0.0, le=1.0, strict=True)
+    spatial_weight: float = Field(default=0.3, ge=0.0, le=1.0, strict=True)
+    infrastructure_weight: float = Field(default=0.15, ge=0.0, le=1.0, strict=True)
+    electrical_weight: float = Field(default=0.25, ge=0.0, le=1.0, strict=True)
+
+    spatial_subweights: SpatialScoringWeightsRequest = Field(
+        default_factory=SpatialScoringWeightsRequest
+    )
+    electrical_subweights: ElectricalScoringWeightsRequest = Field(
+        default_factory=ElectricalScoringWeightsRequest
+    )
+
+    @model_validator(mode="after")
+    def validate_weight_total(self) -> Self:
+        total = math.fsum(
+            (
+                self.physical_weight,
+                self.spatial_weight,
+                self.infrastructure_weight,
+                self.electrical_weight,
+            )
+        )
+        if not math.isclose(total, 1.0, rel_tol=1e-9, abs_tol=1e-9):
+            raise ValueError(f"group weights must sum to 1.0, got {total}")
+
+        self._validate_subweights(
+            self.spatial_weight,
+            (
+                self.spatial_subweights.traversal_cost,
+                self.spatial_subweights.affected_parcels,
+                self.spatial_subweights.road_crossings,
+                self.spatial_subweights.soft_overlap_length,
+            ),
+            "spatial",
+        )
+        self._validate_subweights(
+            self.electrical_weight,
+            (
+                self.electrical_subweights.active_loss,
+                self.electrical_subweights.cable_loading,
+                self.electrical_subweights.voltage_margin,
+            ),
+            "electrical",
+        )
+        return self
+
+    @staticmethod
+    def _validate_subweights(
+        group_weight: float, subweights: tuple[float, ...], group_name: str
+    ) -> None:
+        total = math.fsum(subweights)
+        if group_weight > 0.0:
+            if not math.isclose(total, 1.0, rel_tol=1e-9, abs_tol=1e-9):
+                raise ValueError(
+                    f"active {group_name} subweights must sum to 1.0, got {total}"
+                )
+        elif any(weight != 0.0 for weight in subweights):
+            raise ValueError(
+                f"inactive {group_name} group must have exactly 0.0 subweights"
+            )
+
+
+class CostAwareRecommendationConfigRequest(ApiModel):
+    engineering_weight: float = Field(default=0.7, ge=0.0, le=1.0, strict=True)
+    lifecycle_cost_weight: float = Field(default=0.3, ge=0.0, le=1.0, strict=True)
+
+    @model_validator(mode="after")
+    def validate_weight_total(self) -> Self:
+        total = math.fsum((self.engineering_weight, self.lifecycle_cost_weight))
+        if not math.isclose(total, 1.0, rel_tol=1e-9, abs_tol=1e-9):
+            raise ValueError(f"cost-aware weights must sum to 1.0, got {total}")
+        return self
+
+
+class ConductorCostItemRequest(ApiModel):
+    cable_type_id: str = Field(min_length=1)
+    installed_cost_per_km_per_parallel_circuit: float = Field(ge=0.0)
+
+
+class PoleCostItemRequest(ApiModel):
+    pole_type: Literal["terminal", "angle", "intermediate", "junction"]
+    installed_cost_each: float = Field(ge=0.0)
+
+
+class LandCostPolicyRequest(ApiModel):
+    fixed_cost_per_affected_parcel: float = Field(ge=0.0)
+    variable_basis: Literal[
+        "NONE",
+        "ROUTE_OVERLAP_LENGTH_M",
+        "ROW_INTERSECTION_AREA_M2",
+    ]
+    variable_rate: float = Field(ge=0.0)
+
+
+class EngineeringCostCatalogueRequest(ApiModel):
+    catalogue_id: str = Field(min_length=1)
+    version: str = Field(min_length=1)
+    currency: str = Field(min_length=3, max_length=3)
+    price_basis_date: str
+    conductor_items: list[ConductorCostItemRequest]
+    pole_items: list[PoleCostItemRequest]
+    land_policy: LandCostPolicyRequest
+
+
+class LifecycleCostConfigRequest(ApiModel):
+    currency: str = Field(min_length=3, max_length=3)
+    energy_price_basis_date: str
+    analysis_period_years: int = Field(ge=1)
+    discount_rate: float = Field(ge=0.0, lt=1.0)
+    annual_operating_hours: int = Field(ge=0, le=8760)
+    loss_load_factor: float = Field(ge=0.0, le=1.0)
+    energy_price_per_mwh: float = Field(ge=0.0)
+
+
+class CostingConfigRequest(ApiModel):
+    catalogue: EngineeringCostCatalogueRequest
+    lifecycle: LifecycleCostConfigRequest
+
+
 class OptimiseProjectRequest(ApiModel):
     request_id: str = Field(min_length=1)
     project_id: str = Field(min_length=1)
@@ -112,7 +246,7 @@ class OptimiseProjectRequest(ApiModel):
     avoidance_geojson: GeoJSON | None = None
 
     routing_config: RoutingConfigRequest = Field(default_factory=RoutingConfigRequest)
-    pole_config: PoleConfigRequest = Field(default_factory=PoleConfigRequest)
+    pole_config: PoleConfigRequest | None = None
     operating_point_config: OperatingPointConfig = Field(
         default_factory=OperatingPointConfig
     )
@@ -123,12 +257,102 @@ class OptimiseProjectRequest(ApiModel):
     scoring_weights: ScoringWeightsRequest = Field(
         default_factory=ScoringWeightsRequest
     )
+    engineering_scoring_weights: EngineeringScoringWeightsRequest | None = None
+    costing_config: CostingConfigRequest | None = None
+    cost_aware_config: CostAwareRecommendationConfigRequest | None = None
+
+    @model_validator(mode="after")
+    def validate_policy_and_pole_config(self) -> Self:
+        explicit_legacy = "scoring_weights" in self.model_fields_set
+        explicit_unified = self.engineering_scoring_weights is not None
+
+        if explicit_legacy and explicit_unified:
+            raise ValueError(
+                "Cannot explicitly supply both scoring_weights "
+                "and engineering_scoring_weights"
+            )
+
+        if explicit_unified and self.pole_config is None:
+            raise ValueError(
+                "pole_config is required when using engineering_scoring_weights"
+            )
+
+        if self.cost_aware_config is not None and self.costing_config is None:
+            raise ValueError("costing_config is required when using cost_aware_config")
+
+        return self
 
 
 class GenerationSummary(ApiModel):
     requested_candidate_count: int
     accepted_candidate_count: int
     attempts: int
+
+
+class EngineeringMetricsSummary(ApiModel):
+    total_route_length_m: float
+    total_traversal_cost: float
+    affected_parcel_count: int
+    road_crossing_count: int
+    soft_constraint_overlap_length_m: float
+    environmental_overlap_m2: float
+    physical_pole_count: int
+    total_active_loss_mw: float
+    maximum_loading_percent: float
+    voltage_margin_pu: float
+
+
+class GroupScoreSummary(ApiModel):
+    group: str
+    group_score: float
+    group_weight: float
+    weighted_score: float
+
+
+class RecommendationReasonSummary(ApiModel):
+    code: str
+    message: str
+    metric: str | None = None
+    candidate_value: float | None = None
+    comparison_value: float | None = None
+
+
+class CostLineItemSummary(ApiModel):
+    category: str
+    item_id: str
+    quantity: float
+    unit: str
+    unit_rate: float
+    amount: float
+
+
+class CostFailureSummary(ApiModel):
+    code: str
+    component: str
+    message: str
+    item_id: str | None = None
+    segment_id: str | None = None
+    pole_id: str | None = None
+
+
+class CandidateCostSummary(ApiModel):
+    conductor_capex: float | None = None
+    pole_capex: float | None = None
+    land_capex: float | None = None
+    total_capex: float | None = None
+    annual_loss_energy_mwh: float | None = None
+    annual_loss_cost: float | None = None
+    present_value_factor: float | None = None
+    present_value_opex: float | None = None
+    lifecycle_cost: float | None = None
+    line_items: list[CostLineItemSummary] | None = None
+    currency: str | None = None
+    catalogue_id: str | None = None
+    catalogue_version: str | None = None
+    catalogue_price_basis_date: str | None = None
+    energy_price_basis_date: str | None = None
+    cost_model_version: str | None = None
+    failures: list[CostFailureSummary] = Field(default_factory=list)
 
 
 class CandidateSummary(ApiModel):
@@ -139,16 +363,27 @@ class CandidateSummary(ApiModel):
     electrical_status: Literal["VALID", "INVALID"] | None = None
     eligible: bool | None = None
     rank: int | None = None
+    engineering_benefit_score: float | None = None
+    economic_benefit_score: float | None = None
+    final_benefit_score: float | None = None
     total_benefit_score: float | None = None
     raw_metrics: dict[str, float] | None = None
+    engineering_metrics: EngineeringMetricsSummary | None = None
+    cost: CandidateCostSummary | None = None
+    group_scores: list[GroupScoreSummary] | None = None
     disqualifications: list[str] | None = None
     execution_failure: dict[str, Any] | None = None
 
 
 class RecommendationSummary(ApiModel):
-    recommended_scenario_id: str | None
+    recommended_scenario_id: str | None = None
+    engineering_best_scenario_id: str | None = None
+    lowest_cost_scenario_id: str | None = None
+    policy: str | None = None
+    economic_context_id: str | None = None
     normalization_ranges: dict[str, dict[str, float]]
     reasons: list[str]
+    reason_details: list[RecommendationReasonSummary]
     baseline_comparisons: dict[str, float]
 
 

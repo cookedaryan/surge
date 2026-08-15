@@ -8,7 +8,10 @@ from fastapi.testclient import TestClient
 
 from app.electrical.errors import CandidateElectricalEvaluationError
 from app.main import app
-from app.schemas.v2.optimise import OptimiseProjectResponse
+from app.schemas.v2.optimise import (
+    EngineeringScoringWeightsRequest,
+    OptimiseProjectResponse,
+)
 
 client = TestClient(app)
 
@@ -21,6 +24,48 @@ def mvp_v2_payload() -> JsonObject:
     fixture_path = FIXTURES_DIR / "mvp_demo_project_v2.json"
     with open(fixture_path) as f:
         return cast(JsonObject, json.load(f))
+
+
+def _costing_config(*, include_conductor: bool = True) -> JsonObject:
+    conductor_items = (
+        [
+            {
+                "cable_type_id": "66kV_800mm2",
+                "installed_cost_per_km_per_parallel_circuit": 100_000.0,
+            }
+        ]
+        if include_conductor
+        else []
+    )
+    return {
+        "catalogue": {
+            "catalogue_id": "CAT-TEST",
+            "version": "1.0",
+            "currency": "USD",
+            "price_basis_date": "2026-01-01",
+            "conductor_items": conductor_items,
+            "pole_items": [
+                {"pole_type": "terminal", "installed_cost_each": 5_000.0},
+                {"pole_type": "angle", "installed_cost_each": 6_000.0},
+                {"pole_type": "intermediate", "installed_cost_each": 3_000.0},
+                {"pole_type": "junction", "installed_cost_each": 7_000.0},
+            ],
+            "land_policy": {
+                "fixed_cost_per_affected_parcel": 0.0,
+                "variable_basis": "NONE",
+                "variable_rate": 0.0,
+            },
+        },
+        "lifecycle": {
+            "currency": "USD",
+            "energy_price_basis_date": "2026-01-01",
+            "analysis_period_years": 25,
+            "discount_rate": 0.08,
+            "annual_operating_hours": 8_760,
+            "loss_load_factor": 0.3,
+            "energy_price_per_mwh": 50.0,
+        },
+    }
 
 
 def test_v2_optimise_endpoint_success(mvp_v2_payload: JsonObject) -> None:
@@ -44,6 +89,13 @@ def test_v2_optimise_endpoint_success(mvp_v2_payload: JsonObject) -> None:
     assert len(validated.candidates) == validated.generation.accepted_candidate_count
     assert all(c.electrical_status == "VALID" for c in validated.candidates)
     assert all(c.eligible is True for c in validated.candidates)
+    assert all(c.engineering_metrics is not None for c in validated.candidates)
+    assert all(c.group_scores is not None for c in validated.candidates)
+    assert all(
+        c.engineering_metrics is not None
+        and c.engineering_metrics.environmental_overlap_m2 >= 0.0
+        for c in validated.candidates
+    )
     assert len({c.topology_fingerprint for c in validated.candidates}) == 3
     assert sorted(c.rank for c in validated.candidates if c.rank is not None) == [
         1,
@@ -95,6 +147,108 @@ def test_v2_optimise_endpoint_success(mvp_v2_payload: JsonObject) -> None:
     repeated = client.post("/api/v2/optimise", json=mvp_v2_payload)
     assert repeated.status_code == 200
     assert repeated.json() == data
+
+
+def test_v2_accepts_unified_policy_with_inactive_groups(
+    mvp_v2_payload: JsonObject,
+) -> None:
+    payload = copy.deepcopy(mvp_v2_payload)
+    payload.pop("scoring_weights")
+    payload["engineering_scoring_weights"] = {
+        "physical_weight": 1.0,
+        "spatial_weight": 0.0,
+        "infrastructure_weight": 0.0,
+        "electrical_weight": 0.0,
+        "spatial_subweights": {
+            "traversal_cost": 0.0,
+            "affected_parcels": 0.0,
+            "road_crossings": 0.0,
+            "soft_overlap_length": 0.0,
+        },
+        "electrical_subweights": {
+            "active_loss": 0.0,
+            "cable_loading": 0.0,
+            "voltage_margin": 0.0,
+        },
+    }
+
+    response = client.post("/api/v2/optimise", json=payload)
+
+    assert response.status_code == 200, response.text
+    result = OptimiseProjectResponse.model_validate(response.json())
+    assert result.status == "SUCCESS"
+    assert result.recommendation is not None
+    assert all(
+        candidate.group_scores is not None and len(candidate.group_scores) == 4
+        for candidate in result.candidates
+    )
+
+
+def test_v2_returns_partial_cost_components_with_failure_details(
+    mvp_v2_payload: JsonObject,
+) -> None:
+    payload = copy.deepcopy(mvp_v2_payload)
+    payload["costing_config"] = _costing_config(include_conductor=False)
+
+    response = client.post("/api/v2/optimise", json=payload)
+
+    assert response.status_code == 200, response.text
+    result = OptimiseProjectResponse.model_validate(response.json())
+    for candidate in result.candidates:
+        assert candidate.cost is not None
+        assert candidate.cost.conductor_capex is None
+        assert candidate.cost.pole_capex is not None
+        assert candidate.cost.land_capex == 0.0
+        assert candidate.cost.total_capex is None
+        assert candidate.cost.present_value_opex is not None
+        assert candidate.cost.lifecycle_cost is None
+        assert candidate.cost.currency == "USD"
+        assert any(
+            failure.code == "CABLE_COST_NOT_FOUND"
+            for failure in candidate.cost.failures
+        )
+
+
+def test_v2_rejects_mixed_costing_currencies(
+    mvp_v2_payload: JsonObject,
+) -> None:
+    payload = copy.deepcopy(mvp_v2_payload)
+    payload["costing_config"] = _costing_config()
+    payload["costing_config"]["lifecycle"]["currency"] = "EUR"
+
+    response = client.post("/api/v2/optimise", json=payload)
+
+    assert response.status_code == 422
+    assert "currency must match" in response.text
+
+
+def test_v2_rejects_unresolvable_catalogue_reference(
+    mvp_v2_payload: JsonObject,
+) -> None:
+    payload = copy.deepcopy(mvp_v2_payload)
+    payload["costing_config"] = _costing_config()
+    payload["costing_config"]["catalogue"] = "CAT-TEST"
+
+    response = client.post("/api/v2/optimise", json=payload)
+
+    assert response.status_code == 422
+
+
+def test_unified_policy_rejects_nonzero_subweights_for_inactive_group() -> None:
+    with pytest.raises(ValueError, match="inactive spatial group"):
+        EngineeringScoringWeightsRequest.model_validate(
+            {
+                "physical_weight": 1.0,
+                "spatial_weight": 0.0,
+                "infrastructure_weight": 0.0,
+                "electrical_weight": 0.0,
+                "electrical_subweights": {
+                    "active_loss": 0.0,
+                    "cable_loading": 0.0,
+                    "voltage_margin": 0.0,
+                },
+            },
+        )
 
 
 def test_v2_constraint_fixture_reports_soft_impacts() -> None:

@@ -220,13 +220,16 @@ def test_extracts_complete_metrics_with_unique_counts_and_hard_evidence(
     assert assessment.metrics.affected_parcel_count == 1
     assert assessment.metrics.road_crossing_count == 1
     assert assessment.metrics.soft_constraint_overlap_length_m == pytest.approx(40.0)
-    assert assessment.metrics.environmental_overlap_m2 == pytest.approx(0.2)
+    assert assessment.metrics.environmental_overlap_m2 == pytest.approx(360.0)
     assert assessment.metrics.physical_pole_count == 5
     assert assessment.metrics.total_active_loss_mw == pytest.approx(0.2)
     assert assessment.metrics.maximum_loading_percent == pytest.approx(62.0)
     assert assessment.metrics.voltage_margin_pu == pytest.approx(0.03)
     assert assessment.pole_result is not None
     assert assessment.pole_result.total_poles == 5
+    assert assessment.parcel_exposures[0].row_intersection_area_m2 == pytest.approx(
+        360.0
+    )
 
 
 def test_missing_pole_config_makes_complete_metrics_unavailable(
