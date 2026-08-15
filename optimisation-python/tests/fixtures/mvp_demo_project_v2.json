@@ -92,5 +92,11 @@
     "electrical_loss_weight": 0.25,
     "cable_loading_weight": 0.2,
     "voltage_margin_weight": 0.15
+  },
+  "pole_config": {
+    "target_span_m": 80.0,
+    "min_span_m": 30.0,
+    "max_span_m": 100.0,
+    "angle_pole_threshold_deg": 10.0
   }
 }

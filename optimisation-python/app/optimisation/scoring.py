@@ -1,19 +1,21 @@
 """Multi-objective scoring and recommendation pipeline."""
 
+import hashlib
+import json
 import math
-from typing import Literal
 
-from app.electrical.load_flow.config import LoadFlowConfig
-from app.optimisation.engineering_metrics import calculate_voltage_margin
+from app.costing.models import CandidateCostAssessment
+from app.optimisation.engineering_metric_models import CandidateEngineeringMetrics
 from app.optimisation.scenario_models import ScenarioStrategy
 from app.optimisation.scoring_models import (
     CandidateAssessment,
     CandidateEvaluation,
-    CandidateMetrics,
     CandidateScoringConfig,
+    CostAwareRecommendationConfig,
     Disqualification,
     DisqualificationCode,
-    ElectricallyEvaluatedScenario,
+    EngineeringEvaluatedScenario,
+    GroupScore,
     MetricComparison,
     MetricScore,
     NormalizationRange,
@@ -21,268 +23,323 @@ from app.optimisation.scoring_models import (
     OptimizationRecommendationStatus,
     RecommendationReason,
     RecommendationReasonCode,
+    ScoringGroup,
     ScoringMetric,
+    ScoringPolicyMode,
 )
 
-
-def _format_relative_delta(val: float | None) -> str:
-    if val is None:
-        return "N/A"
-    if val > 0:
-        return f"+{val:.1f}%"
-    return f"{val:.1f}%"
+SCORE_COMPARISON_DECIMALS = 12
 
 
-def _format_absolute_delta(val: float) -> str:
-    if val > 0:
-        return f"+{val:.3g}"
-    return f"{val:.3g}"
+def compute_economic_context_id(assessment: CandidateCostAssessment) -> str:
+    cost = assessment.cost
+    if cost is None:
+        raise ValueError("A complete lifecycle cost is required")
+    state = {
+        "currency": cost.currency,
+        "catalogue_id": cost.catalogue_id,
+        "catalogue_version": cost.catalogue_version,
+        "catalogue_price_basis_date": cost.catalogue_price_basis_date.isoformat(),
+        "energy_price_basis_date": cost.energy_price_basis_date.isoformat(),
+        "cost_model_version": cost.cost_model_version,
+    }
+    serialized = json.dumps(state, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def extract_candidate_assessment(
-    wrapper: ElectricallyEvaluatedScenario,
-    load_flow_config: LoadFlowConfig,
+    wrapper: EngineeringEvaluatedScenario,
 ) -> CandidateAssessment:
-    """Extract metrics and determine basic eligibility for a single candidate."""
-    scenario_id = wrapper.scenario.scenario_id
-    res = wrapper.load_flow_result
-
-    if not res.converged:
-        return CandidateAssessment(
-            scenario_id=scenario_id,
-            eligible=False,
-            disqualifications=(
-                Disqualification(
-                    code=DisqualificationCode.LOAD_FLOW_NOT_CONVERGED,
-                    message="Load flow did not converge",
-                ),
-            ),
-            metrics=None,
-        )
-
+    scenario = wrapper.electrical.scenario
+    result = wrapper.electrical.load_flow_result
+    engineering = wrapper.engineering_assessment
     disqualifications: list[Disqualification] = []
-
-    # Reconcile result shape against the candidate network
-    n = wrapper.scenario.network
-    bus_count = len(res.buses)
-    seg_count = len(res.segments)
-    fdr_count = len(res.feeders)
-    # The load flow model contains WTGs + 1 substation bus.
-    expected_buses = n.wtg_count + 1
-    if (
-        bus_count != expected_buses
-        or seg_count != n.segment_count
-        or fdr_count != n.feeder_count
-    ):
+    if not result.converged:
         disqualifications.append(
             Disqualification(
-                code=DisqualificationCode.TOPOLOGY_MISMATCH,
-                message=(
-                    f"Result shape (buses={bus_count}, segments={seg_count}, "
-                    f"feeders={fdr_count}) does not match network "
-                    f"(wtgs+1={expected_buses}, segments={n.segment_count}, "
-                    f"feeders={n.feeder_count})"
-                ),
+                code=DisqualificationCode.LOAD_FLOW_NOT_CONVERGED,
+                message="Load flow did not converge",
             )
         )
-
-    # Collect all electrical violations mapped as disqualifications
-    if not res.is_valid or len(res.violations) > 0:
-        underlying_codes = tuple(sorted({v.code for v in res.violations}))
+    elif not result.is_valid or result.violations:
         disqualifications.append(
             Disqualification(
                 code=DisqualificationCode.ELECTRICAL_VIOLATION,
                 message="Candidate contains electrical violations or is marked invalid",
-                underlying_violations=underlying_codes,
+                underlying_violations=tuple(
+                    sorted({violation.code for violation in result.violations})
+                ),
             )
         )
 
-    # Check for missing metrics
-    required_metrics = [
-        wrapper.scenario.network.total_route_length_m,
-        res.total_active_loss_mw,
-        res.maximum_loading_percent,
-        res.minimum_voltage_pu,
-        res.maximum_voltage_pu,
-    ]
-    if any(val is None for val in required_metrics):
+    network = scenario.network
+    if (
+        len(result.buses) != network.wtg_count + 1
+        or len(result.segments) != network.segment_count
+        or len(result.feeders) != network.feeder_count
+    ):
         disqualifications.append(
             Disqualification(
-                code=DisqualificationCode.ELECTRICAL_METRICS_MISSING,
-                message="Required load flow metrics are missing",
+                code=DisqualificationCode.TOPOLOGY_MISMATCH,
+                message="Load-flow result shape does not match the candidate network",
             )
         )
-    elif any(not math.isfinite(val) for val in required_metrics):  # type: ignore
+
+    if not engineering.engineering_metrics_available:
         disqualifications.append(
             Disqualification(
-                code=DisqualificationCode.RESULT_NOT_FINITE,
-                message="Required load flow metrics are not finite",
+                code=DisqualificationCode.ENGINEERING_METRICS_UNAVAILABLE,
+                message="Canonical engineering metrics could not be extracted",
+                underlying_violations=tuple(
+                    failure.code for failure in engineering.extraction_failures
+                ),
             )
         )
-
-    if disqualifications:
-        return CandidateAssessment(
-            scenario_id=scenario_id,
-            eligible=False,
-            disqualifications=tuple(disqualifications),
-            metrics=None,
+    if engineering.hard_violation_ids:
+        disqualifications.append(
+            Disqualification(
+                code=DisqualificationCode.HARD_SPATIAL_VIOLATION,
+                message="Candidate intersects hard avoidance constraints",
+                underlying_violations=engineering.hard_violation_ids,
+            )
         )
-
-    min_v = res.minimum_voltage_pu
-    max_v = res.maximum_voltage_pu
-    assert min_v is not None and max_v is not None
-
-    voltage_margin_pu = calculate_voltage_margin(
-        min_v,
-        max_v,
-        load_flow_config.min_voltage_pu,
-        load_flow_config.max_voltage_pu,
-    )
-
-    # total_route_length_m is guaranteed finite from PY-017
-    # others are guaranteed non-None and finite by the checks above
-    metrics = CandidateMetrics(
-        total_route_length_m=wrapper.scenario.network.total_route_length_m,
-        total_active_loss_mw=res.total_active_loss_mw,  # type: ignore
-        maximum_loading_percent=res.maximum_loading_percent,  # type: ignore
-        voltage_margin_pu=voltage_margin_pu,
-    )
-
     return CandidateAssessment(
-        scenario_id=scenario_id,
-        eligible=True,
-        disqualifications=(),
-        metrics=metrics,
+        scenario_id=engineering.scenario_id,
+        eligible=not disqualifications,
+        disqualifications=tuple(disqualifications),
+        metrics=engineering.metrics,
     )
+
+
+def _get_raw(metrics: CandidateEngineeringMetrics, metric: ScoringMetric) -> float:
+    if metric == ScoringMetric.ROUTE_LENGTH:
+        return metrics.total_route_length_m
+    if metric == ScoringMetric.TRAVERSAL_COST:
+        return metrics.total_traversal_cost
+    if metric == ScoringMetric.AFFECTED_PARCEL_COUNT:
+        return float(metrics.affected_parcel_count)
+    if metric == ScoringMetric.ROAD_CROSSING_COUNT:
+        return float(metrics.road_crossing_count)
+    if metric == ScoringMetric.SOFT_CONSTRAINT_OVERLAP_LENGTH:
+        return metrics.soft_constraint_overlap_length_m
+    if metric == ScoringMetric.PHYSICAL_POLE_COUNT:
+        return float(metrics.physical_pole_count)
+    if metric == ScoringMetric.ACTIVE_LOSS:
+        return metrics.total_active_loss_mw
+    if metric == ScoringMetric.CABLE_LOADING:
+        return metrics.maximum_loading_percent
+    if metric == ScoringMetric.VOLTAGE_MARGIN:
+        return metrics.voltage_margin_pu
+    raise ValueError(f"Unknown metric {metric}")
 
 
 def compute_normalization_ranges(
     eligible_assessments: list[CandidateAssessment],
 ) -> tuple[NormalizationRange, ...]:
-    """Compute min/max bounds for all scoring metrics across the eligible cohort."""
     if not eligible_assessments:
         return ()
-
-    def extract_val(metrics: CandidateMetrics, metric: ScoringMetric) -> float:
-        if metric == ScoringMetric.ROUTE_LENGTH:
-            return metrics.total_route_length_m
-        if metric == ScoringMetric.ACTIVE_LOSS:
-            return metrics.total_active_loss_mw
-        if metric == ScoringMetric.CABLE_LOADING:
-            return metrics.maximum_loading_percent
-        if metric == ScoringMetric.VOLTAGE_MARGIN:
-            return metrics.voltage_margin_pu
-        raise ValueError(f"Unknown metric {metric}")
-
-    ranges = []
+    ranges: list[NormalizationRange] = []
     for metric in ScoringMetric:
-        vals = [
-            extract_val(a.metrics, metric)  # type: ignore
-            for a in eligible_assessments
-        ]
-        min_v = min(vals)
-        max_v = max(vals)
+        values = []
+        for assessment in eligible_assessments:
+            if assessment.metrics is None:
+                raise ValueError("Eligible candidate is missing engineering metrics")
+            values.append(_get_raw(assessment.metrics, metric))
+        minimum = min(values)
+        maximum = max(values)
         ranges.append(
             NormalizationRange(
                 metric=metric,
-                minimum=min_v,
-                maximum=max_v,
-                constant=min_v == max_v,
+                minimum=minimum,
+                maximum=maximum,
+                constant=minimum == maximum,
             )
         )
     return tuple(ranges)
 
 
-def normalize_metric_benefit(
-    raw_value: float,
-    norm_range: NormalizationRange,
-) -> float:
-    """Normalize such that 1.0 is the best benefit and 0.0 is the worst."""
+def normalize_metric_benefit(raw_value: float, norm_range: NormalizationRange) -> float:
     if norm_range.constant:
         return 0.0
-
-    if norm_range.metric in (
-        ScoringMetric.ROUTE_LENGTH,
-        ScoringMetric.ACTIVE_LOSS,
-        ScoringMetric.CABLE_LOADING,
-    ):
-        # Lower is better
-        norm = (norm_range.maximum - raw_value) / (
-            norm_range.maximum - norm_range.minimum
-        )
-    elif norm_range.metric == ScoringMetric.VOLTAGE_MARGIN:
-        # Higher is better
-        norm = (raw_value - norm_range.minimum) / (
+    if norm_range.metric == ScoringMetric.VOLTAGE_MARGIN:
+        normalized = (raw_value - norm_range.minimum) / (
             norm_range.maximum - norm_range.minimum
         )
     else:
-        raise ValueError(f"Unknown metric {norm_range.metric}")
+        normalized = (norm_range.maximum - raw_value) / (
+            norm_range.maximum - norm_range.minimum
+        )
+    return max(0.0, min(1.0, normalized))
 
-    return max(0.0, min(1.0, norm))
+
+def _get_metric_group(metric: ScoringMetric) -> ScoringGroup:
+    if metric == ScoringMetric.ROUTE_LENGTH:
+        return ScoringGroup.PHYSICAL
+    if metric in {
+        ScoringMetric.TRAVERSAL_COST,
+        ScoringMetric.AFFECTED_PARCEL_COUNT,
+        ScoringMetric.ROAD_CROSSING_COUNT,
+        ScoringMetric.SOFT_CONSTRAINT_OVERLAP_LENGTH,
+    }:
+        return ScoringGroup.SPATIAL
+    if metric == ScoringMetric.PHYSICAL_POLE_COUNT:
+        return ScoringGroup.INFRASTRUCTURE
+    return ScoringGroup.ELECTRICAL
+
+
+def _get_group_weight(group: ScoringGroup, config: CandidateScoringConfig) -> float:
+    if group == ScoringGroup.PHYSICAL:
+        return config.physical_weight
+    if group == ScoringGroup.SPATIAL:
+        return config.spatial_weight
+    if group == ScoringGroup.INFRASTRUCTURE:
+        return config.infrastructure_weight
+    return config.electrical_weight
+
+
+def _get_metric_subweight(
+    metric: ScoringMetric,
+    config: CandidateScoringConfig,
+) -> float:
+    if metric in {ScoringMetric.ROUTE_LENGTH, ScoringMetric.PHYSICAL_POLE_COUNT}:
+        return 1.0
+    spatial = config.spatial_subweights
+    electrical = config.electrical_subweights
+    return {
+        ScoringMetric.TRAVERSAL_COST: spatial.traversal_cost,
+        ScoringMetric.AFFECTED_PARCEL_COUNT: spatial.affected_parcels,
+        ScoringMetric.ROAD_CROSSING_COUNT: spatial.road_crossings,
+        ScoringMetric.SOFT_CONSTRAINT_OVERLAP_LENGTH: spatial.soft_overlap_length,
+        ScoringMetric.ACTIVE_LOSS: electrical.active_loss,
+        ScoringMetric.CABLE_LOADING: electrical.cable_loading,
+        ScoringMetric.VOLTAGE_MARGIN: electrical.voltage_margin,
+    }[metric]
 
 
 def evaluate_cohort(
-    wrappers: tuple[ElectricallyEvaluatedScenario, ...],
+    wrappers: tuple[EngineeringEvaluatedScenario, ...],
     scoring_config: CandidateScoringConfig,
-    load_flow_config: LoadFlowConfig,
+    cost_assessments: dict[str, CandidateCostAssessment] | None = None,
+    cost_aware_config: CostAwareRecommendationConfig | None = None,
 ) -> OptimizationRecommendation:
-    """Evaluate, score, and rank a set of electrically evaluated PNC scenarios."""
+    """Evaluate, score, and rank a set of completely evaluated PNC scenarios."""
     if not wrappers:
         raise ValueError("Must provide at least one candidate for scoring")
 
-    comp_group_id = wrappers[0].scenario.comparison_group_id
-    elec_context_id = wrappers[0].electrical_context_id
+    comp_group_id = wrappers[0].electrical.scenario.comparison_group_id
+    elec_context_id = wrappers[0].electrical.electrical_context_id
     seen_ids = set()
     seen_fps = set()
 
     for w in wrappers:
-        if w.scenario.comparison_group_id != comp_group_id:
+        if w.electrical.scenario.comparison_group_id != comp_group_id:
             raise ValueError("All candidates must share the same comparison_group_id")
-        if w.electrical_context_id != elec_context_id:
+        if w.electrical.electrical_context_id != elec_context_id:
             raise ValueError("All candidates must share the same electrical_context_id")
 
-        sid = w.scenario.scenario_id
+        sid = w.electrical.scenario.scenario_id
         if sid in seen_ids:
             raise ValueError(f"Duplicate scenario_id: {sid}")
         seen_ids.add(sid)
 
-        fp = w.scenario.topology_fingerprint
+        fp = w.electrical.scenario.topology_fingerprint
         if fp in seen_fps:
             raise ValueError(f"Duplicate topology_fingerprint: {fp}")
         seen_fps.add(fp)
 
-    # 1. Eligibility Extraction
-    assessments = [extract_candidate_assessment(w, load_flow_config) for w in wrappers]
+    is_cost_aware = scoring_config.policy_mode == ScoringPolicyMode.COST_AWARE
+    if is_cost_aware:
+        if cost_assessments is None or cost_aware_config is None:
+            raise ValueError(
+                "cost_assessments and cost_aware_config must be provided for "
+                "COST_AWARE mode"
+            )
+
+    assessments = [extract_candidate_assessment(w) for w in wrappers]
+
+    economic_context_id = None
+    candidate_costs = {}
+
+    if is_cost_aware:
+        assert cost_assessments is not None
+        eco_contexts = set()
+        for a in assessments:
+            sid = a.scenario_id
+            ca = cost_assessments.get(sid)
+            if not ca or not ca.capex_available or not ca.opex_available or not ca.cost:
+                # Add disqualification to the frozen object
+                new_disqs = list(a.disqualifications) + [
+                    Disqualification(
+                        code=DisqualificationCode.INCOMPLETE_LIFECYCLE_COST,
+                        message="Lifecycle cost assessment is missing or incomplete",
+                    )
+                ]
+                a = CandidateAssessment(
+                    scenario_id=a.scenario_id,
+                    eligible=False,
+                    disqualifications=tuple(new_disqs),
+                    metrics=a.metrics,
+                )
+            else:
+                eco_id = compute_economic_context_id(ca)
+                eco_contexts.add(eco_id)
+                candidate_costs[sid] = float(ca.cost.lifecycle_cost)
+
+        if len(eco_contexts) > 1:
+            raise ValueError(
+                "All eligible candidates must share the same economic_context_id "
+                "in COST_AWARE mode"
+            )
+        if eco_contexts:
+            economic_context_id = eco_contexts.pop()
+
+    if is_cost_aware:
+        assert cost_assessments is not None
+        for i, a in enumerate(assessments):
+            sid = a.scenario_id
+            ca = cost_assessments.get(sid)
+            if not ca or not ca.capex_available or not ca.opex_available or not ca.cost:
+                new_disqs = list(a.disqualifications)
+                if not any(
+                    d.code == DisqualificationCode.INCOMPLETE_LIFECYCLE_COST
+                    for d in new_disqs
+                ):
+                    new_disqs.append(
+                        Disqualification(
+                            code=DisqualificationCode.INCOMPLETE_LIFECYCLE_COST,
+                            message=(
+                                "Lifecycle cost assessment is missing or incomplete"
+                            ),
+                        )
+                    )
+                assessments[i] = CandidateAssessment(
+                    scenario_id=a.scenario_id,
+                    eligible=False,
+                    disqualifications=tuple(new_disqs),
+                    metrics=a.metrics,
+                )
+
     eligible_assessments = [a for a in assessments if a.eligible]
 
-    # 2. Normalization Bounds
     ranges_tuple = compute_normalization_ranges(eligible_assessments)
     ranges_dict = {r.metric: r for r in ranges_tuple}
 
-    # 3. Scoring
+    min_cost: float | None = None
+    max_cost: float | None = None
+    if is_cost_aware and eligible_assessments:
+        costs = [
+            candidate_costs[a.scenario_id]
+            for a in eligible_assessments
+            if a.scenario_id in candidate_costs
+        ]
+        if costs:
+            min_cost = min(costs)
+            max_cost = max(costs)
+
     evaluations: list[CandidateEvaluation] = []
 
-    def get_weight(metric: ScoringMetric) -> float:
-        if metric == ScoringMetric.ROUTE_LENGTH:
-            return scoring_config.route_length_weight
-        if metric == ScoringMetric.ACTIVE_LOSS:
-            return scoring_config.electrical_loss_weight
-        if metric == ScoringMetric.CABLE_LOADING:
-            return scoring_config.cable_loading_weight
-        if metric == ScoringMetric.VOLTAGE_MARGIN:
-            return scoring_config.voltage_margin_weight
-        raise ValueError(f"Unknown metric {metric}")
-
-    def get_raw(m: CandidateMetrics, metric: ScoringMetric) -> float:
-        if metric == ScoringMetric.ROUTE_LENGTH:
-            return m.total_route_length_m
-        if metric == ScoringMetric.ACTIVE_LOSS:
-            return m.total_active_loss_mw
-        if metric == ScoringMetric.CABLE_LOADING:
-            return m.maximum_loading_percent
-        if metric == ScoringMetric.VOLTAGE_MARGIN:
-            return m.voltage_margin_pu
-        raise ValueError(f"Unknown metric {metric}")
+    lowest_cost_sid = None
+    best_cost_val = float("inf")
 
     for a in assessments:
         if not a.eligible:
@@ -290,7 +347,12 @@ def evaluate_cohort(
                 CandidateEvaluation(
                     assessment=a,
                     metric_scores=(),
+                    group_scores=(),
+                    engineering_benefit_score=None,
+                    economic_benefit_score=None,
+                    final_benefit_score=None,
                     total_benefit_score=None,
+                    lifecycle_cost=None,
                     rank=None,
                 )
             )
@@ -300,42 +362,123 @@ def evaluate_cohort(
         assert m is not None
 
         m_scores = []
+        g_scores_dict: dict[ScoringGroup, float] = {g: 0.0 for g in ScoringGroup}
         for metric in ScoringMetric:
-            raw = get_raw(m, metric)
+            raw = _get_raw(m, metric)
             norm = normalize_metric_benefit(raw, ranges_dict[metric])
-            weight = get_weight(metric)
+            group = _get_metric_group(metric)
+            group_weight = _get_group_weight(group, scoring_config)
+            subweight = _get_metric_subweight(metric, scoring_config)
+
+            effective_weight = group_weight * subweight
+            group_weighted_benefit = norm * subweight
+            weighted_benefit = norm * effective_weight
+
             m_scores.append(
                 MetricScore(
                     metric=metric,
                     raw_value=raw,
                     normalized_benefit=norm,
-                    weight=weight,
-                    weighted_benefit=norm * weight,
+                    weight=effective_weight,
+                    weighted_benefit=weighted_benefit,
+                )
+            )
+            g_scores_dict[group] += group_weighted_benefit
+
+        g_scores = []
+        for group in ScoringGroup:
+            g_score = g_scores_dict[group]
+            g_weight = _get_group_weight(group, scoring_config)
+            g_scores.append(
+                GroupScore(
+                    group=group,
+                    group_score=g_score,
+                    group_weight=g_weight,
+                    weighted_score=g_score * g_weight,
                 )
             )
 
-        total = math.fsum(ms.weighted_benefit for ms in m_scores)
-        total = max(0.0, min(1.0, total))
+        eng_total = math.fsum(gs.weighted_score for gs in g_scores)
+        eng_total = max(0.0, min(1.0, eng_total))
+
+        economic_score: float | None = None
+        final_score: float | None = None
+        l_cost: float | None = None
+
+        if is_cost_aware:
+            assert cost_aware_config is not None
+            l_cost = candidate_costs.get(a.scenario_id)
+            if l_cost is not None and max_cost is not None and min_cost is not None:
+                if l_cost < best_cost_val:
+                    best_cost_val = l_cost
+                    lowest_cost_sid = a.scenario_id
+
+                if max_cost == min_cost:
+                    economic_score = 0.0
+                else:
+                    economic_score = (max_cost - l_cost) / (max_cost - min_cost)
+                    economic_score = max(0.0, min(1.0, economic_score))
+
+                final_score = math.fsum(
+                    (
+                        cost_aware_config.engineering_weight * eng_total,
+                        cost_aware_config.lifecycle_cost_weight * economic_score,
+                    )
+                )
 
         evaluations.append(
             CandidateEvaluation(
                 assessment=a,
                 metric_scores=tuple(m_scores),
-                total_benefit_score=total,
+                group_scores=tuple(g_scores),
+                engineering_benefit_score=eng_total if is_cost_aware else None,
+                economic_benefit_score=economic_score if is_cost_aware else None,
+                final_benefit_score=final_score if is_cost_aware else None,
+                total_benefit_score=eng_total,
+                lifecycle_cost=l_cost,
                 rank=None,
             )
         )
 
-    # 4. Ranking
     eligible_evals = [e for e in evaluations if e.assessment.eligible]
     ineligible_evals = [e for e in evaluations if not e.assessment.eligible]
 
-    def sort_key(e: CandidateEvaluation) -> tuple[float, float, float, str]:
+    def sort_key(
+        e: CandidateEvaluation,
+    ) -> tuple[float, float, float, float, float, float, str]:
         assert e.total_benefit_score is not None
         assert e.assessment.metrics is not None
-        # Rank by total score desc, route length asc, loss asc, scenario id asc
+
+        g_dict = {gs.group: gs.weighted_score for gs in e.group_scores}
+
+        if is_cost_aware:
+            assert e.final_benefit_score is not None
+            return (
+                -round(e.final_benefit_score, SCORE_COMPARISON_DECIMALS),
+                -round(e.total_benefit_score, SCORE_COMPARISON_DECIMALS),
+                round(e.lifecycle_cost or float("inf"), SCORE_COMPARISON_DECIMALS),
+                e.assessment.metrics.total_route_length_m,
+                e.assessment.metrics.total_active_loss_mw,
+                0.0,
+                e.assessment.scenario_id,
+            )
+
+        if scoring_config.policy_mode == ScoringPolicyMode.LEGACY_COMPATIBILITY:
+            return (
+                -round(e.total_benefit_score, SCORE_COMPARISON_DECIMALS),
+                0.0,
+                0.0,
+                0.0,
+                e.assessment.metrics.total_route_length_m,
+                e.assessment.metrics.total_active_loss_mw,
+                e.assessment.scenario_id,
+            )
+
         return (
-            -e.total_benefit_score,
+            -round(e.total_benefit_score, SCORE_COMPARISON_DECIMALS),
+            -round(g_dict[ScoringGroup.ELECTRICAL], SCORE_COMPARISON_DECIMALS),
+            -round(g_dict[ScoringGroup.SPATIAL], SCORE_COMPARISON_DECIMALS),
+            -round(g_dict[ScoringGroup.INFRASTRUCTURE], SCORE_COMPARISON_DECIMALS),
             e.assessment.metrics.total_route_length_m,
             e.assessment.metrics.total_active_loss_mw,
             e.assessment.scenario_id,
@@ -344,23 +487,78 @@ def evaluate_cohort(
     eligible_evals.sort(key=sort_key)
     ineligible_evals.sort(key=lambda e: e.assessment.scenario_id)
 
+    engineering_best_sid = None
+    if eligible_evals:
+
+        def engineering_key(
+            evaluation: CandidateEvaluation,
+        ) -> tuple[float, float, float, float, float, float, str]:
+            score = evaluation.total_benefit_score
+            metrics = evaluation.assessment.metrics
+            assert score is not None and metrics is not None
+            groups = {
+                item.group: item.weighted_score for item in evaluation.group_scores
+            }
+            return (
+                -round(score, SCORE_COMPARISON_DECIMALS),
+                -round(groups[ScoringGroup.ELECTRICAL], SCORE_COMPARISON_DECIMALS),
+                -round(groups[ScoringGroup.SPATIAL], SCORE_COMPARISON_DECIMALS),
+                -round(
+                    groups[ScoringGroup.INFRASTRUCTURE],
+                    SCORE_COMPARISON_DECIMALS,
+                ),
+                metrics.total_route_length_m,
+                metrics.total_active_loss_mw,
+                evaluation.assessment.scenario_id,
+            )
+
+        engineering_best_sid = min(
+            eligible_evals,
+            key=engineering_key,
+        ).assessment.scenario_id
+        if is_cost_aware:
+            lowest_cost_sid = min(
+                eligible_evals,
+                key=lambda evaluation: (
+                    evaluation.lifecycle_cost
+                    if evaluation.lifecycle_cost is not None
+                    else math.inf,
+                    evaluation.assessment.scenario_id,
+                ),
+            ).assessment.scenario_id
+
     ranked_evals = []
     for rank, e in enumerate(eligible_evals, start=1):
         ranked_evals.append(
             CandidateEvaluation(
                 assessment=e.assessment,
                 metric_scores=e.metric_scores,
+                group_scores=e.group_scores,
+                engineering_benefit_score=e.engineering_benefit_score,
+                economic_benefit_score=e.economic_benefit_score,
+                final_benefit_score=e.final_benefit_score,
                 total_benefit_score=e.total_benefit_score,
+                lifecycle_cost=e.lifecycle_cost,
                 rank=rank,
             )
         )
     ranked_evals.extend(ineligible_evals)
 
-    # 5. Recommendation & Explainability
+    policy_name = scoring_config.policy_mode.value
+    if is_cost_aware:
+        assert cost_aware_config is not None
+        engineering_percent = int(cost_aware_config.engineering_weight * 100)
+        lifecycle_percent = int(cost_aware_config.lifecycle_cost_weight * 100)
+        policy_name = f"COST_AWARE_ENG_{engineering_percent}_ECO_{lifecycle_percent}"
+
     if not eligible_evals:
         return OptimizationRecommendation(
             status=OptimizationRecommendationStatus.NO_FEASIBLE_CANDIDATE,
             recommended_scenario_id=None,
+            engineering_best_scenario_id=None,
+            lowest_cost_scenario_id=None,
+            policy=policy_name,
+            economic_context_id=economic_context_id,
             evaluations=tuple(ranked_evals),
             normalization_ranges=ranges_tuple,
             reasons=(),
@@ -376,205 +574,250 @@ def evaluate_cohort(
         reasons.append(
             RecommendationReason(
                 code=RecommendationReasonCode.ONLY_ELIGIBLE_CANDIDATE,
-                message="Only one candidate was electrically feasible",
+                message=("Only one candidate satisfied all eligibility checks"),
             )
         )
     else:
-        reasons.append(
-            RecommendationReason(
-                code=RecommendationReasonCode.HIGHEST_TOTAL_BENEFIT,
-                message=(
-                    "Achieved the highest total benefit score "
-                    f"({winner.total_benefit_score:.3f})"
-                ),
-                candidate_value=winner.total_benefit_score,
+        if is_cost_aware:
+            assert winner.final_benefit_score is not None
+            reasons.append(
+                RecommendationReason(
+                    code=RecommendationReasonCode.HIGHEST_COST_AWARE_BENEFIT,
+                    message=(
+                        f"Achieved the highest cost-aware benefit score "
+                        f"({winner.final_benefit_score:.3f})"
+                    ),
+                    candidate_value=winner.final_benefit_score,
+                )
             )
-        )
+            if winner_id == lowest_cost_sid:
+                reasons.append(
+                    RecommendationReason(
+                        code=RecommendationReasonCode.LOWEST_LIFECYCLE_COST,
+                        message="Has the lowest lifecycle cost among feasible options",
+                        candidate_value=winner.lifecycle_cost,
+                    )
+                )
+            if winner_id == engineering_best_sid:
+                reasons.append(
+                    RecommendationReason(
+                        code=RecommendationReasonCode.HIGHEST_ENGINEERING_BENEFIT,
+                        message=(
+                            "Has the highest engineering benefit among feasible options"
+                        ),
+                        candidate_value=winner.engineering_benefit_score,
+                    )
+                )
+            if winner_id != lowest_cost_sid and winner_id != engineering_best_sid:
+                reasons.append(
+                    RecommendationReason(
+                        code=RecommendationReasonCode.BALANCED_ENGINEERING_AND_COST,
+                        message=(
+                            "Provides the best balanced trade-off between engineering "
+                            "and economics"
+                        ),
+                        candidate_value=winner.final_benefit_score,
+                    )
+                )
+        else:
+            assert winner.total_benefit_score is not None
+            reasons.append(
+                RecommendationReason(
+                    code=RecommendationReasonCode.HIGHEST_TOTAL_BENEFIT,
+                    message=(
+                        "Achieved the highest total benefit score "
+                        f"({winner.total_benefit_score:.3f})"
+                    ),
+                    candidate_value=winner.total_benefit_score,
+                )
+            )
 
         winner_metrics = winner.assessment.metrics
         assert winner_metrics is not None
 
-        # Check if winner has the absolute best raw value in the cohort for any metric
-        if (
-            not ranges_dict[ScoringMetric.ROUTE_LENGTH].constant
-            and scoring_config.route_length_weight > 0.0
-            and math.isclose(
-                winner_metrics.total_route_length_m,
-                ranges_dict[ScoringMetric.ROUTE_LENGTH].minimum,
+        def _is_best(m: ScoringMetric) -> bool:
+            norm_range = ranges_dict[m]
+            if norm_range.constant:
+                return False
+            assert winner_metrics is not None
+            val = _get_raw(winner_metrics, m)
+            if m == ScoringMetric.VOLTAGE_MARGIN:
+                return round(val, SCORE_COMPARISON_DECIMALS) == round(
+                    norm_range.maximum, SCORE_COMPARISON_DECIMALS
+                )
+            return round(val, SCORE_COMPARISON_DECIMALS) == round(
+                norm_range.minimum, SCORE_COMPARISON_DECIMALS
             )
-        ):
+
+        if _is_best(ScoringMetric.TRAVERSAL_COST):
             reasons.append(
                 RecommendationReason(
-                    code=RecommendationReasonCode.SHORTEST_ROUTE,
-                    message="Has the shortest routed length",
-                    metric=ScoringMetric.ROUTE_LENGTH,
-                    candidate_value=winner_metrics.total_route_length_m,
+                    code=RecommendationReasonCode.HIGHEST_SPATIAL_SCORE,
+                    message=(
+                        "Achieved the highest spatial benefit "
+                        "(e.g. lowest traversal cost)"
+                    ),
                 )
             )
-        if (
-            not ranges_dict[ScoringMetric.ACTIVE_LOSS].constant
-            and scoring_config.electrical_loss_weight > 0.0
-            and math.isclose(
-                winner_metrics.total_active_loss_mw,
-                ranges_dict[ScoringMetric.ACTIVE_LOSS].minimum,
-            )
-        ):
+        if _is_best(ScoringMetric.SOFT_CONSTRAINT_OVERLAP_LENGTH):
             reasons.append(
                 RecommendationReason(
-                    code=RecommendationReasonCode.LOWEST_ACTIVE_LOSS,
-                    message="Has the lowest total active loss",
-                    metric=ScoringMetric.ACTIVE_LOSS,
-                    candidate_value=winner_metrics.total_active_loss_mw,
+                    code=RecommendationReasonCode.LOWEST_SOFT_CONSTRAINT_OVERLAP,
+                    message="Has the lowest soft-constraint overlap",
+                    metric=ScoringMetric.SOFT_CONSTRAINT_OVERLAP_LENGTH,
+                    candidate_value=winner_metrics.soft_constraint_overlap_length_m,
                 )
             )
-        if (
-            not ranges_dict[ScoringMetric.CABLE_LOADING].constant
-            and scoring_config.cable_loading_weight > 0.0
-            and math.isclose(
-                winner_metrics.maximum_loading_percent,
-                ranges_dict[ScoringMetric.CABLE_LOADING].minimum,
-            )
-        ):
+        if _is_best(ScoringMetric.PHYSICAL_POLE_COUNT):
             reasons.append(
                 RecommendationReason(
-                    code=RecommendationReasonCode.LOWEST_CABLE_LOADING,
-                    message="Has the lowest maximum cable loading",
-                    metric=ScoringMetric.CABLE_LOADING,
-                    candidate_value=winner_metrics.maximum_loading_percent,
+                    code=RecommendationReasonCode.HIGHEST_INFRASTRUCTURE_SCORE,
+                    message=(
+                        "Achieved the highest infrastructure benefit "
+                        "(e.g. lowest pole count)"
+                    ),
                 )
             )
-        if (
-            not ranges_dict[ScoringMetric.VOLTAGE_MARGIN].constant
-            and scoring_config.voltage_margin_weight > 0.0
-            and math.isclose(
-                winner_metrics.voltage_margin_pu,
-                ranges_dict[ScoringMetric.VOLTAGE_MARGIN].maximum,
-            )
-        ):
+        if _is_best(ScoringMetric.ACTIVE_LOSS):
             reasons.append(
                 RecommendationReason(
-                    code=RecommendationReasonCode.BEST_VOLTAGE_MARGIN,
-                    message="Has the best voltage operating margin",
-                    metric=ScoringMetric.VOLTAGE_MARGIN,
-                    candidate_value=winner_metrics.voltage_margin_pu,
+                    code=RecommendationReasonCode.HIGHEST_ELECTRICAL_SCORE,
+                    message=(
+                        "Achieved the highest electrical benefit "
+                        "(e.g. lowest active losses)"
+                    ),
                 )
             )
 
-    # Find Baseline
-    baseline_wrappers = [
-        w
-        for w in wrappers
-        if w.scenario.parameters.strategy == ScenarioStrategy.BASELINE
-    ]
+    baseline_ids = sorted(
+        wrapper.electrical.scenario.scenario_id
+        for wrapper in wrappers
+        if wrapper.electrical.scenario.strategy == ScenarioStrategy.BASELINE
+    )
+    comp_status = "baseline_unavailable"
+    comp_list: list[MetricComparison] = []
 
-    if not baseline_wrappers:
-        baseline_wrapper = None
-    elif len(baseline_wrappers) == 1:
-        baseline_wrapper = baseline_wrappers[0]
-    else:
-        # Deterministically select one baseline if multiple exist
-        baseline_wrapper = sorted(
-            baseline_wrappers, key=lambda w: w.scenario.scenario_id
-        )[0]
-
-    baseline_status = "baseline_comparable"
-    baseline_comps: list[MetricComparison] = []
-
-    if baseline_wrapper is None:
-        baseline_status = "baseline_unavailable"
-    else:
+    if baseline_ids:
         baseline_eval = next(
-            (
-                e
-                for e in ranked_evals
-                if e.assessment.scenario_id == baseline_wrapper.scenario.scenario_id
-            ),
-            None,
+            evaluation
+            for evaluation in evaluations
+            if evaluation.assessment.scenario_id == baseline_ids[0]
         )
-        assert baseline_eval is not None
-
         if (
             not baseline_eval.assessment.eligible
-            or baseline_eval.assessment.metrics is None
+            or not baseline_eval.assessment.metrics
         ):
-            baseline_status = "baseline_not_comparable"
+            comp_status = "baseline_not_comparable"
         else:
-            w_metrics = winner.assessment.metrics
+            comp_status = "baseline_comparable"
             b_metrics = baseline_eval.assessment.metrics
-            assert w_metrics is not None and b_metrics is not None
+            w_metrics = winner.assessment.metrics
+            assert w_metrics is not None
 
-            def make_comp(
-                metric: ScoringMetric,
-                w_val: float,
-                b_val: float,
-                direction: Literal["higher", "lower"],
-            ) -> MetricComparison:
-                abs_delta = w_val - b_val
-                rel_delta = (
-                    (abs_delta / b_val * 100.0)
-                    if not math.isclose(b_val, 0.0, abs_tol=1e-9)
-                    else None
-                )
-                return MetricComparison(
-                    metric=metric,
-                    recommended_value=w_val,
-                    baseline_value=b_val,
-                    absolute_delta=abs_delta,
-                    relative_delta_percent=rel_delta,
-                    preferred_direction=direction,
+            for sm in ScoringMetric:
+                b_val = _get_raw(b_metrics, sm)
+                w_val = _get_raw(w_metrics, sm)
+                diff = w_val - b_val
+                comp_list.append(
+                    MetricComparison(
+                        metric=sm,
+                        baseline_value=b_val,
+                        recommended_value=w_val,
+                        absolute_delta=diff,
+                        relative_delta_percent=(
+                            diff / b_val * 100.0
+                            if not math.isclose(b_val, 0.0, abs_tol=1e-9)
+                            else None
+                        ),
+                        preferred_direction="lower"
+                        if sm != ScoringMetric.VOLTAGE_MARGIN
+                        else "higher",
+                    )
                 )
 
-            baseline_comps.extend(
-                [
-                    make_comp(
-                        ScoringMetric.ROUTE_LENGTH,
-                        w_metrics.total_route_length_m,
-                        b_metrics.total_route_length_m,
-                        "lower",
-                    ),
-                    make_comp(
-                        ScoringMetric.ACTIVE_LOSS,
-                        w_metrics.total_active_loss_mw,
-                        b_metrics.total_active_loss_mw,
-                        "lower",
-                    ),
-                    make_comp(
-                        ScoringMetric.CABLE_LOADING,
-                        w_metrics.maximum_loading_percent,
-                        b_metrics.maximum_loading_percent,
-                        "lower",
-                    ),
-                    make_comp(
-                        ScoringMetric.VOLTAGE_MARGIN,
-                        w_metrics.voltage_margin_pu,
-                        b_metrics.voltage_margin_pu,
-                        "higher",
-                    ),
-                ]
+            winner_score = (
+                winner.final_benefit_score
+                if is_cost_aware
+                else winner.total_benefit_score
             )
+            baseline_score = (
+                baseline_eval.final_benefit_score
+                if is_cost_aware
+                else baseline_eval.total_benefit_score
+            )
+            if (
+                winner_id != baseline_eval.assessment.scenario_id
+                and winner_score is not None
+                and baseline_score is not None
+                and winner_score > baseline_score
+            ):
+                reasons.append(
+                    RecommendationReason(
+                        code=RecommendationReasonCode.BASELINE_IMPROVEMENT,
+                        message=(
+                            f"Outperforms baseline ({baseline_ids[0]}) in "
+                            "multi-objective evaluation"
+                        ),
+                    )
+                )
 
-            if winner_id != baseline_wrapper.scenario.scenario_id:
-                # Only emit if there is a real multi-objective score advantage
-                w_score = winner.total_benefit_score
-                b_score = baseline_eval.total_benefit_score
-                if w_score is not None and b_score is not None and w_score > b_score:
-                    reasons.append(
-                        RecommendationReason(
-                            code=RecommendationReasonCode.BASELINE_IMPROVEMENT,
-                            message=(
-                                "Outperforms baseline "
-                                f"({baseline_wrapper.scenario.scenario_id}) "
-                                "in multi-objective evaluation"
-                            ),
+            if is_cost_aware and cost_assessments:
+                b_ca = cost_assessments.get(baseline_eval.assessment.scenario_id)
+                w_ca = cost_assessments.get(winner_id)
+
+                if b_ca and b_ca.cost and w_ca and w_ca.cost:
+                    b_capex = float(b_ca.cost.total_capex)
+                    w_capex = float(w_ca.cost.total_capex)
+                    diff_capex = w_capex - b_capex
+                    comp_list.append(
+                        MetricComparison(
+                            metric="total_capex",
+                            baseline_value=b_capex,
+                            recommended_value=w_capex,
+                            absolute_delta=diff_capex,
+                            relative_delta_percent=None,
+                            preferred_direction="lower",
+                        )
+                    )
+
+                    b_opex = float(b_ca.cost.present_value_opex)
+                    w_opex = float(w_ca.cost.present_value_opex)
+                    diff_opex = w_opex - b_opex
+                    comp_list.append(
+                        MetricComparison(
+                            metric="present_value_opex",
+                            baseline_value=b_opex,
+                            recommended_value=w_opex,
+                            absolute_delta=diff_opex,
+                            relative_delta_percent=None,
+                            preferred_direction="lower",
+                        )
+                    )
+
+                    b_lc = float(b_ca.cost.lifecycle_cost)
+                    w_lc = float(w_ca.cost.lifecycle_cost)
+                    diff_lc = w_lc - b_lc
+                    comp_list.append(
+                        MetricComparison(
+                            metric="lifecycle_cost",
+                            baseline_value=b_lc,
+                            recommended_value=w_lc,
+                            absolute_delta=diff_lc,
+                            relative_delta_percent=None,
+                            preferred_direction="lower",
                         )
                     )
 
     return OptimizationRecommendation(
         status=OptimizationRecommendationStatus.SUCCESS,
         recommended_scenario_id=winner_id,
+        engineering_best_scenario_id=engineering_best_sid,
+        lowest_cost_scenario_id=lowest_cost_sid,
+        policy=policy_name,
+        economic_context_id=economic_context_id,
         evaluations=tuple(ranked_evals),
         normalization_ranges=ranges_tuple,
         reasons=tuple(reasons),
-        baseline_comparison_status=baseline_status,
-        baseline_comparisons=tuple(baseline_comps),
+        baseline_comparison_status=comp_status,
+        baseline_comparisons=tuple(comp_list),
     )
