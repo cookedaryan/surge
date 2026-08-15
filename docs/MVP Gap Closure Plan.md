@@ -822,6 +822,43 @@ pane on initial load.
 which as `circleMarker`s were 606 individual SVG elements to create, style and reflow on every
 result change.
 
+## 5.7 Pre-deployment security checklist (agreed 2026-08-15, not yet done)
+
+Deferred deliberately — to be completed **before** the first real deployment, not before further
+local work. Context: the app was briefly exposed over a Cloudflare tunnel on 2026-08-15, which is
+how the two fixed items below were found.
+
+**Already fixed and committed (5d66566):** the JWT signing key has no default and the service
+refuses to start without `APP_JWT_SECRET`; the authentication filter resolves the account behind
+the token, so disabling, demoting or resetting a user takes effect immediately instead of a day
+later.
+
+**Outstanding, in priority order:**
+
+1. **Credential defaults still ship insecure.** `SURGE_BOOTSTRAP_ADMIN_PASSWORD` defaults to
+   `admin` in `application.yml`, and `DB_PASSWORD` defaults to `postgres` in `docker-compose.yml`.
+   A fresh database therefore seeds `admin`/`admin` — exactly the hole that was publicly reachable
+   during the tunnel test. Rotating the live instance did not change this; only a new deployment
+   is affected. Give both the same fail-fast treatment `APP_JWT_SECRET` now has.
+
+2. **No brute-force protection on login.** Verified empirically: eight rapid failed attempts all
+   returned 400 with no throttling, lockout or delay. With an 8-character minimum and unlimited
+   attempts, an exposed login page is guessable at leisure — `tester`/`tester123` was guessed by
+   hand on the second try. A per-IP delay after ~5 failures is enough to change the economics.
+
+3. **No TLS of its own.** nginx serves plain HTTP and tokens travel in headers, so whatever sits
+   in front must terminate TLS.
+
+**Also outstanding, from the same incident:** `engineer`/`engineer123` is in the public git
+history at `12d5be5` — the account is disabled locally but that password must be treated as burned
+wherever it was reused, as must the old JWT signing constant. The `viewer` account is still
+enabled and its password is unknown.
+
+**Never reviewed at all.** These fixes came from following up an exposure, not from a systematic
+audit. The KMZ upload path (archive and XML handling on 25 MB untrusted files), cross-user project
+access, and the export endpoints have had no security review. Acceptable for internal use behind a
+VPN; not for a public URL holding client survey data.
+
 ## 6. Explicitly out of scope for this pass
 
 Carried forward unchanged from `whats-next.md` §5/§11 and
