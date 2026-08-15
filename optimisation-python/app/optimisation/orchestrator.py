@@ -9,6 +9,7 @@ from shapely.geometry import Point
 
 from app.algorithms.physical_routing import validate_cost_surface
 from app.algorithms.pole_placement import place_poles_on_network
+from app.costing.lifecycle import evaluate_candidate_cost
 from app.electrical.errors import CandidateElectricalEvaluationError
 from app.electrical.load_flow.analysis import run_load_flow
 from app.electrical.load_flow.config import LoadFlowConfig
@@ -21,7 +22,10 @@ from app.optimisation.scenario_models import (
 )
 from app.optimisation.scenarios import generate_pnc_scenarios
 from app.optimisation.scoring import evaluate_cohort
-from app.optimisation.scoring_models import ElectricallyEvaluatedScenario
+from app.optimisation.scoring_models import (
+    ElectricallyEvaluatedScenario,
+    EngineeringEvaluatedScenario,
+)
 from app.optimisation.workflow_models import (
     CandidateFailure,
     CandidateWorkflowResult,
@@ -43,6 +47,8 @@ def _validate_input(project_input: ProjectInput, config: OptimisationConfig) -> 
     """Fail-fast validation of inputs before any heavy computation."""
     if not project_input.project_id or not project_input.project_id.strip():
         raise OptimisationInputError("Project ID must not be blank.")
+    if not math.isfinite(project_input.row_width_m) or project_input.row_width_m <= 0:
+        raise OptimisationInputError("ROW width must be positive and finite.")
 
     project_data = project_input.project_data
     if not project_data.turbines:
@@ -339,6 +345,7 @@ def optimise_project(
             load_flow_config=config.electrical,
             constraint_layers=project_input.constraint_layers,
             pole_config=config.pole,
+            row_corridor_width_m=project_input.row_width_m,
         )
         engineering_assessments[evaluated.scenario.scenario_id] = assessment
         if assessment.engineering_metrics_available:
@@ -353,14 +360,48 @@ def optimise_project(
                 ", ".join(failure.code for failure in assessment.extraction_failures),
             )
 
-    # 6. Candidate Scoring (unchanged PY-018 policy)
+    # 6. Optional Lifecycle Cost Evaluation
+    cost_assessments = {}
+    if config.costing is not None:
+        for evaluated in evaluated_scenarios:
+            cost_assessment = evaluate_candidate_cost(
+                scenario=evaluated.scenario,
+                load_flow_result=evaluated.load_flow_result,
+                electrical_config=config.electrical,
+                engineering_assessment=engineering_assessments[
+                    evaluated.scenario.scenario_id
+                ],
+                catalogue=config.costing.catalogue,
+                config=config.costing.lifecycle,
+            )
+            cost_assessments[evaluated.scenario.scenario_id] = cost_assessment
+            if cost_assessment.cost is not None:
+                logger.info(
+                    "%s lifecycle cost evaluated", evaluated.scenario.scenario_id
+                )
+            else:
+                logger.info(
+                    "%s lifecycle cost unavailable: %s",
+                    evaluated.scenario.scenario_id,
+                    ", ".join(f.code for f in cost_assessment.failures),
+                )
+
+    # 7. Candidate Scoring
     recommendation = None
     if evaluated_scenarios:
+        engineering_evaluated_scenarios = [
+            EngineeringEvaluatedScenario(
+                electrical=es,
+                engineering_assessment=engineering_assessments[es.scenario.scenario_id],
+                cost_assessment=cost_assessments.get(es.scenario.scenario_id),
+            )
+            for es in evaluated_scenarios
+        ]
         try:
             recommendation = evaluate_cohort(
-                wrappers=tuple(evaluated_scenarios),
+                wrappers=tuple(engineering_evaluated_scenarios),
                 scoring_config=config.scoring,
-                load_flow_config=config.electrical,
+                cost_aware_config=config.cost_aware,
             )
         except Exception as e:
             logger.exception("Candidate scoring failed")
@@ -391,6 +432,7 @@ def optimise_project(
                     engineering_assessment=engineering_assessments[
                         es.scenario.scenario_id
                     ],
+                    cost_assessment=cost_assessments.get(es.scenario.scenario_id),
                 )
             )
 
@@ -400,7 +442,7 @@ def optimise_project(
         candidate_map[s.scenario_id] for s in generation_result.candidates
     )
 
-    # 7. Recommendation and Status
+    # 8. Recommendation and Status
     recommended_result = None
     pole_network = None
     if recommendation and recommendation.recommended_scenario_id:

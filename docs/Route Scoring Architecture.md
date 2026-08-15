@@ -3,18 +3,9 @@
 ## Purpose
 The route scoring engine (`app/algorithms/route_scoring.py`) provides preliminary multi-criteria spatial and constructability scoring for engineering network alternatives. It evaluates candidate networks against predefined criteria, normalizes their performance metrics, and determines an overall ranking based on configurable weights.
 
-This module was delivered under SURGE-PY-012. It is not the canonical
-SURGE-PY-018 recommendation boundary by itself. PY-018 must adapt or extend
-scoring to consume PY-015 electrical outcomes, reject infeasible candidates,
-and return an explainable recommendation. See
-[Surge MVP Ticket Plan](Surge%20MVP%20Ticket%20Plan.md).
+This module was delivered under SURGE-PY-012. It is now a **legacy/preliminary compatibility scorer**. The canonical SURGE-PY-027 recommendation boundary is `app.optimisation.scoring`, which unifies spatial and electrical metrics into a single multi-objective score.
 
-## Missing Criteria (MVP Limitations)
-This implementation evaluates engineering footprint and topology, but currently omits two major domains:
-1. **Financial Scoring**: There is no evaluation of estimated CAPEX or lifecycle costs. The criteria evaluate engineering quantities (e.g. pole count, length), which do not perfectly map to monetary cost.
-2. **Electrical Scoring**: There is no evaluation of power losses, voltage drop margins, thermal utilization, or reliability.
-
-Until these are added, the result should be considered a "preliminary spatial/constructability score".
+See [Multi-Objective Candidate Scoring](Multi-Objective%20Candidate%20Scoring.md) for the canonical scoring engine.
 
 ## Candidate Scope
 Currently, the module strictly scores `NetworkCandidateMetrics`. It expects to compare complete alternative networks representing the same engineering decision under the same `comparison_group_id`. It does not support mixed-scope evaluation (e.g., scoring a single route segment against a full feeder) because that produces meaningless relative rankings.
@@ -46,6 +37,3 @@ If a candidate has one or more hard violations:
 - It is excluded from the cohort normalization boundaries, ensuring extreme violation quantities do not compress the scale for feasible candidates.
 - It receives an empty normalized criteria set and a `None` total score.
 - The raw metrics and `rejection_reasons` are preserved in the result for diagnostics.
-
-## Pipeline Integration
-`OptimisationService` does not yet invoke `evaluate_network_candidates`. The existing Python pipeline currently solves for a single optimal topological network. With only one candidate, a normalized relative score cannot meaningfully influence decision making. Route scoring will be integrated into the main pipeline once the engine supports generating multiple candidate network topologies.

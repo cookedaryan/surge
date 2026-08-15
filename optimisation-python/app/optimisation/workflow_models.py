@@ -2,6 +2,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from app.algorithms.pole_placement import CollectorPoleResult, PolePlacementConfig
+from app.costing.failures import CostConfigurationError
+from app.costing.models import (
+    CandidateCostAssessment,
+    EngineeringCostCatalogue,
+    LifecycleCostConfig,
+)
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult, WTGOperatingPoint
 from app.gis.constraints import ConstraintLayer
@@ -16,6 +22,7 @@ from app.optimisation.scenario_models import (
 from app.optimisation.scoring_models import (
     CandidateEvaluation,
     CandidateScoringConfig,
+    CostAwareRecommendationConfig,
     OptimizationRecommendation,
 )
 from app.presentation.models import ProjectOptimizationResult
@@ -42,6 +49,19 @@ class ProjectInput:
     feeder_capacity_mw: float
     operating_points: tuple[WTGOperatingPoint, ...]
     constraint_layers: tuple[ConstraintLayer, ...] = ()
+    row_width_m: float = 18.0
+
+
+@dataclass(frozen=True)
+class CostingConfig:
+    catalogue: EngineeringCostCatalogue
+    lifecycle: LifecycleCostConfig
+
+    def __post_init__(self) -> None:
+        if self.catalogue.currency.upper() != self.lifecycle.currency.upper():
+            raise CostConfigurationError(
+                "Cost catalogue currency must match lifecycle configuration currency"
+            )
 
 
 @dataclass(frozen=True)
@@ -50,6 +70,8 @@ class OptimisationConfig:
     electrical: LoadFlowConfig
     scoring: CandidateScoringConfig
     pole: PolePlacementConfig | None = None
+    costing: CostingConfig | None = None
+    cost_aware: CostAwareRecommendationConfig | None = None
 
 
 class WorkflowStage(StrEnum):
@@ -85,6 +107,7 @@ class CandidateWorkflowResult:
     evaluation: CandidateEvaluation | None
     execution_failure: CandidateFailure | None
     engineering_assessment: CandidateEngineeringAssessment | None = None
+    cost_assessment: CandidateCostAssessment | None = None
     presentation_result: ProjectOptimizationResult | None = None
     pole_failure: CandidateFailure | None = None
     packaging_failure: CandidateFailure | None = None
@@ -110,6 +133,8 @@ class CandidateWorkflowResult:
                 raise ValueError(
                     "Execution failure cannot have an engineering assessment."
                 )
+            if self.cost_assessment is not None:
+                raise ValueError("Execution failure cannot have a cost assessment.")
             if self.presentation_result is not None:
                 raise ValueError("Execution failure cannot have a presentation result.")
             if self.pole_failure is not None:
@@ -130,6 +155,11 @@ class CandidateWorkflowResult:
                 raise ValueError(
                     "Engineering assessment scenario_id must match the candidate "
                     "scenario."
+                )
+        if self.cost_assessment is not None:
+            if self.cost_assessment.scenario_id != self.scenario.scenario_id:
+                raise ValueError(
+                    "Cost assessment scenario_id must match the candidate scenario."
                 )
         if self.presentation_result is not None and self.evaluation is None:
             raise ValueError("Presentation result requires a candidate evaluation.")

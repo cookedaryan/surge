@@ -130,7 +130,7 @@ def process_project_data(
     sub_features = _extract_features(substation_geojson)
     if not sub_features:
         raise ValueError("Substation GeoJSON is empty or missing")
-    
+
     sub_feature = _select_primary_substation(sub_features, wtg_features)
 
     # 2. Parse and Validate geometries (must be Points)

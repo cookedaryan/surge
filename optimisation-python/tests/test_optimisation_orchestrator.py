@@ -17,6 +17,9 @@ from app.optimisation.orchestrator import optimise_project
 from app.optimisation.scenario_models import ScenarioGenerationConfig
 from app.optimisation.scoring_models import (
     CandidateScoringConfig,
+    ElectricalScoringWeights,
+    ScoringPolicyMode,
+    SpatialScoringWeights,
 )
 from app.optimisation.workflow_models import (
     OptimisationConfig,
@@ -54,10 +57,20 @@ def base_config() -> OptimisationConfig:
             segment_cable_type_ids={},
         ),
         scoring=CandidateScoringConfig(
-            route_length_weight=1.0,
-            electrical_loss_weight=0.0,
-            cable_loading_weight=0.0,
-            voltage_margin_weight=0.0,
+            policy_mode=ScoringPolicyMode.LEGACY_COMPATIBILITY,
+            physical_weight=1.0,
+            spatial_weight=0.0,
+            infrastructure_weight=0.0,
+            electrical_weight=0.0,
+            spatial_subweights=SpatialScoringWeights(0.0, 0.0, 0.0, 0.0),
+            electrical_subweights=ElectricalScoringWeights(0.0, 0.0, 0.0),
+        ),
+        pole=PolePlacementConfig(
+            target_span_m=80.0,
+            min_span_m=30.0,
+            max_span_m=100.0,
+            angle_pole_threshold_deg=10.0,
+            coordinate_tolerance_m=0.1,
         ),
     )
 
@@ -114,7 +127,7 @@ def test_complete_successful_workflow(
         candidate.engineering_assessment is not None for candidate in result.candidates
     )
     assert all(
-        not candidate.engineering_assessment.engineering_metrics_available
+        candidate.engineering_assessment.engineering_metrics_available
         for candidate in result.candidates
         if candidate.engineering_assessment is not None
     )
@@ -435,23 +448,17 @@ def test_pole_generation_failure_returns_structured_failure(
         replace(base_config, pole=pole_config),
     )
 
-    assert result.status == OptimisationStatus.FAILED
-    assert result.recommendation is None
-    assert result.recommended_result is None
-    assert result.pole_network is None
-    failure = next(
-        failure
-        for failure in result.failures
-        if failure.stage == WorkflowStage.POLE_PLACEMENT
-    )
-    assert failure.code == WorkflowFailureCode.POLE_NETWORK_GENERATION_FAILED
-    failed_candidate = next(
-        candidate
-        for candidate in result.candidates
-        if candidate.pole_failure is not None
-    )
-    assert failed_candidate.pole_failure is failure
-    assert failed_candidate.presentation_result is None
+    assert result.status == OptimisationStatus.NO_FEASIBLE_CANDIDATE
+
+    # Verify that the pole placement failure is recorded for the candidates
+    assert len(result.candidates) > 0
+    for candidate in result.candidates:
+        assert candidate.engineering_assessment is not None
+        assert not candidate.engineering_assessment.engineering_metrics_available
+        assert any(
+            f.code == "POLE_PLACEMENT_FAILED"
+            for f in candidate.engineering_assessment.extraction_failures
+        )
 
 
 def test_scoring_failure_returns_structured_failure(
@@ -489,6 +496,7 @@ def test_workflow_status_invariants(
             status=OptimisationStatus.FAILED,
             recommendation=None,
             recommended_result=None,
+            pole_network=None,
             failures=(),
         )
 

@@ -110,6 +110,11 @@ def evaluate_network_candidates(
 ) -> RouteScoringResult:
     """
     Score, normalize, and rank comparable network-level route candidates.
+
+    [PRELIMINARY/LEGACY] This is an earlier route-only scoring implementation.
+    The canonical engine for full multi-dimensional candidate evaluation is
+    now unified in `app.optimisation.scoring` using `CandidateEngineeringMetrics`.
+
     This is a standalone analytical method. It relies on the caller providing
     deduplicated footprint areas and unique parcel identities.
     """

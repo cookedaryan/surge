@@ -8,6 +8,13 @@ from app.algorithms.pole_placement import CollectorPoleResult
 
 
 @dataclass(frozen=True)
+class ParcelEngineeringExposure:
+    parcel_id: str
+    route_overlap_length_m: float
+    row_intersection_area_m2: float
+
+
+@dataclass(frozen=True)
 class CandidateEngineeringMetrics:
     """Raw engineering quantities extracted for one PNC candidate."""
 
@@ -94,6 +101,7 @@ class CandidateEngineeringAssessment:
     hard_violation_ids: tuple[str, ...]
     extraction_failures: tuple[EngineeringMetricFailure, ...]
     pole_result: CollectorPoleResult | None = None
+    parcel_exposures: tuple[ParcelEngineeringExposure, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.scenario_id.strip():

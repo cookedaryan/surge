@@ -26,6 +26,7 @@ from app.optimisation.engineering_metric_models import (
     CandidateEngineeringMetrics,
     EngineeringMetricFailure,
     EngineeringMetricFailureCode,
+    ParcelEngineeringExposure,
 )
 from app.optimisation.scenario_models import PNCScenario
 from app.pnc.models import ProjectPNCNetwork
@@ -50,6 +51,7 @@ def build_candidate_engineering_metrics(
     load_flow_config: LoadFlowConfig,
     constraint_layers: tuple[ConstraintLayer, ...] = (),
     pole_config: PolePlacementConfig | None = None,
+    row_corridor_width_m: float = 18.0,
 ) -> CandidateEngineeringAssessment:
     """Extract engineering metrics without changing recommendation eligibility."""
     failures: list[EngineeringMetricFailure] = []
@@ -79,6 +81,7 @@ def build_candidate_engineering_metrics(
     soft_overlap_length_m = 0.0
     environmental_overlap_m2 = 0.0
     hard_violation_ids: tuple[str, ...] = ()
+    parcel_exposures: tuple[ParcelEngineeringExposure, ...] = ()
     try:
         (
             affected_parcel_count,
@@ -86,7 +89,12 @@ def build_candidate_engineering_metrics(
             soft_overlap_length_m,
             environmental_overlap_m2,
             hard_violation_ids,
-        ) = _extract_spatial_metrics(network, constraint_layers)
+            parcel_exposures,
+        ) = _extract_spatial_metrics(
+            network,
+            constraint_layers,
+            row_corridor_width_m=row_corridor_width_m,
+        )
     except Exception as exc:
         failures.append(
             EngineeringMetricFailure(
@@ -204,13 +212,23 @@ def build_candidate_engineering_metrics(
         hard_violation_ids=hard_violation_ids,
         extraction_failures=tuple(failures),
         pole_result=pole_result,
+        parcel_exposures=parcel_exposures,
     )
 
 
 def _extract_spatial_metrics(
     network: ProjectPNCNetwork,
     constraint_layers: tuple[ConstraintLayer, ...],
-) -> tuple[int, int, float, float, tuple[str, ...]]:
+    *,
+    row_corridor_width_m: float,
+) -> tuple[
+    int,
+    int,
+    float,
+    float,
+    tuple[str, ...],
+    tuple[ParcelEngineeringExposure, ...],
+]:
     pnc_network = network
     routes = _network_routes(pnc_network)
     if any(not layer.crs.equals(pnc_network.crs) for layer in constraint_layers):
@@ -233,7 +251,7 @@ def _extract_spatial_metrics(
         routes,
         pnc_network.crs,
         constraints,
-        RowConfig(corridor_width_m=0.01),
+        RowConfig(corridor_width_m=row_corridor_width_m),
     )
     soft_intersections = tuple(
         intersection
@@ -264,6 +282,27 @@ def _extract_spatial_metrics(
             for route in routes
         )
     }
+    parcel_exposures_list: list[ParcelEngineeringExposure] = []
+    from collections import defaultdict
+
+    parcel_intersections = defaultdict(list)
+    for intersection in soft_intersections:
+        if intersection.layer_type == "parcel":
+            parcel_intersections[intersection.feature_id].append(intersection)
+
+    for parcel_id in sorted(parcel_intersections.keys()):
+        intersections = parcel_intersections[parcel_id]
+        merged_row = unary_union([item.geometry for item in intersections])
+        merged_route = unary_union(
+            [item.route_intersection_geometry for item in intersections]
+        )
+        exposure = ParcelEngineeringExposure(
+            parcel_id=parcel_id,
+            route_overlap_length_m=float(merged_route.length),
+            row_intersection_area_m2=float(merged_row.area),
+        )
+        parcel_exposures_list.append(exposure)
+
     return (
         len(affected_parcel_ids),
         analysis.road_crossing_count,
@@ -278,6 +317,7 @@ def _extract_spatial_metrics(
             else 0.0
         ),
         tuple(sorted(hard_ids)),
+        tuple(parcel_exposures_list),
     )
 
 

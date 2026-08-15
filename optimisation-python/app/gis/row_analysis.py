@@ -122,6 +122,7 @@ class RowIntersection:
     layer_type: ConstraintLayerType
     severity: ConstraintSeverity | None
     geometry: BaseGeometry
+    route_intersection_geometry: BaseGeometry
     intersection_area_m2: float
     route_overlap_length_m: float
     constraint_length_within_corridor_m: float
@@ -499,6 +500,7 @@ def _intersect_corridor(
         layer_type=feature.layer_type,
         severity=feature.severity,
         geometry=geometry,
+        route_intersection_geometry=route_intersection,
         intersection_area_m2=area,
         route_overlap_length_m=route_overlap_length,
         constraint_length_within_corridor_m=constraint_length,

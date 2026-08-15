@@ -32,7 +32,9 @@ def legacy_to_workflow_invocation(payload: OptimisationRequest) -> WorkflowInvoc
         wtg_geojson=payload.wtg_geojson,
         substation_geojson=payload.substation_geojson,
         avoidance_geojson=payload.avoidance_geojson,
-        routing_config=payload.routing_config,
+        routing_config=payload.routing_config.model_copy(
+            update={"row_width_m": payload.electrical_params.row_width_m}
+        ),
         pole_config=payload.pole_config,
         operating_point_config=payload.operating_point_config,
         cable_config=cable_config,
