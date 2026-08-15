@@ -23,6 +23,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -48,6 +49,9 @@ class OptimizationJobControllerTest {
 
     @MockBean
     private OptimizationJobService jobService;
+
+    @MockBean
+    private com.power.surge.service.OptimizationJobRunner jobRunner;
 
     @MockBean
     private ProjectRepository projectRepository;
@@ -80,8 +84,10 @@ class OptimizationJobControllerTest {
                 Instant.now()
         );
 
-        when(jobService.createAndRunJob(eq(projectId), any())).thenReturn(response);
+        when(jobService.createJob(eq(projectId), any())).thenReturn(response);
 
+        // 202, not 201: the run is queued and its outcome is followed separately. Returning 201
+        // with a finished job would mean the request had blocked for the whole solve.
         mockMvc.perform(post("/api/v1/projects/{projectId}/jobs", projectId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -90,11 +96,13 @@ class OptimizationJobControllerTest {
                                   "scenario": "Balanced"
                                 }
                                 """))
-                .andExpect(status().isCreated())
+                .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.id").value(jobId.toString()))
                 .andExpect(jsonPath("$.projectId").value(projectId.toString()))
-                .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.algorithmType").value("MULTI_OBJECTIVE_A_STAR"));
+
+        // The queued job must actually be handed to a worker, or it would sit untouched forever.
+        verify(jobRunner).submit(jobId);
     }
 
     @Test

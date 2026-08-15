@@ -90,15 +90,21 @@ public class OptimizationJobService {
         this.auditLogService = auditLogService;
     }
 
+    /**
+     * Validates the project and records a queued job, without running it.
+     *
+     * <p>Kept deliberately short: it must commit before the worker picks the job up, and the caller
+     * is holding an HTTP request open until it returns. Anything that can reject the run — no
+     * turbines, none optimisable, no substation — is checked here so the user is told immediately
+     * rather than discovering it in a job that fails seconds later.
+     */
     @Transactional
-    public OptimizationJobResponse createAndRunJob(UUID projectId, CreateOptimizationJobRequest request) {
+    public OptimizationJobResponse createJob(UUID projectId, CreateOptimizationJobRequest request) {
         Project project = getProjectOrThrow(projectId);
 
         List<WtgLocation> allWtgs = wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId);
         List<Substation> substations = substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId);
 
-        // Cancelled, low-AEP and to-be-shifted locations are stored and rendered but must not reach
-        // the optimiser: including them inflates the feeder count and distorts the MST topology.
         List<WtgLocation> wtgs = allWtgs.stream()
                 .filter(wtg -> wtg.getStatus().isOptimisable())
                 .toList();
@@ -126,11 +132,69 @@ public class OptimizationJobService {
                 req.capexWeight() != null ? req.capexWeight() : new BigDecimal("0.5000"),
                 req.lossesWeight() != null ? req.lossesWeight() : new BigDecimal("0.5000"),
                 req.maxSpanMeters() != null ? req.maxSpanMeters() : new BigDecimal("150.00"),
-                req.voltageKv() != null ? req.voltageKv() : new BigDecimal("33.00")
+                req.voltageKv() != null ? req.voltageKv() : new BigDecimal("33.00"),
+                req.feederCapacityMw(),
+                req.maxVoltageDropPct(),
+                req.rowWidthM()
         );
 
-        job = jobRepository.save(job);
-        job.markRunning();
+        return OptimizationJobResponse.fromEntity(jobRepository.save(job));
+    }
+
+    /** Creates and runs a job on the calling thread. The asynchronous path is the one the API uses. */
+    @Transactional
+    public OptimizationJobResponse createAndRunJob(UUID projectId, CreateOptimizationJobRequest request) {
+        OptimizationJobResponse created = createJob(projectId, request);
+        return executeJob(created.id());
+    }
+
+    /**
+     * Runs the optimisation pipeline for an already-persisted job.
+     *
+     * <p>Terminal jobs are ignored, so a duplicate submission cannot re-run finished work or
+     * overwrite its result.
+     */
+    @Transactional
+    public OptimizationJobResponse executeJob(UUID jobId) {
+        OptimizationJob job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new IllegalArgumentException("Optimization job not found: " + jobId));
+
+        if (job.getStatus() == com.power.surge.domain.JobStatus.COMPLETED
+                || job.getStatus() == com.power.surge.domain.JobStatus.FAILED) {
+            return OptimizationJobResponse.fromEntity(job);
+        }
+
+        Project project = job.getProject();
+        UUID projectId = project.getId();
+
+        List<WtgLocation> allWtgs = wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId);
+        List<Substation> substations = substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId);
+
+        // Cancelled, low-AEP and to-be-shifted locations are stored and rendered but must not reach
+        // the optimiser: including them inflates the feeder count and distorts the MST topology.
+        List<WtgLocation> wtgs = allWtgs.stream()
+                .filter(wtg -> wtg.getStatus().isOptimisable())
+                .toList();
+
+        // Rebuilt from the row, not from an inbound request: by the time a queued job runs, the
+        // request that created it is long gone.
+        CreateOptimizationJobRequest req = new CreateOptimizationJobRequest(
+                job.getAlgorithmType(),
+                job.getScenario(),
+                job.getCapexWeight(),
+                job.getLossesWeight(),
+                job.getMaxSpanMeters(),
+                job.getVoltageKv(),
+                job.getFeederCapacityMw(),
+                job.getMaxVoltageDropPct(),
+                job.getRowWidthM()
+        );
+
+        // Normally already RUNNING, committed by the worker before it got here. Still handled for
+        // the synchronous path, which has no worker to do it.
+        if (job.getStatus() == com.power.surge.domain.JobStatus.PENDING) {
+            job.markRunning();
+        }
         sseProgressService.emitProgress(job.getId(), 10, "Validating project assets and spatial constraints", com.power.surge.domain.JobStatus.RUNNING);
 
         try {
@@ -209,6 +273,40 @@ public class OptimizationJobService {
         }
 
         return OptimizationJobResponse.fromEntity(jobRepository.save(job));
+    }
+
+    /**
+     * Marks a queued job as started, in its own transaction.
+     *
+     * <p>Called by the worker before the pipeline begins. The long-running execution holds a single
+     * transaction, so a status change made inside it stays invisible to everyone else until the run
+     * finishes — a job would appear queued for its entire duration and then jump straight to
+     * completed. Committing the transition separately is what makes "running" observable.
+     */
+    @Transactional
+    public void markJobRunning(UUID jobId) {
+        jobRepository.findById(jobId).ifPresent(job -> {
+            if (job.getStatus() == com.power.surge.domain.JobStatus.PENDING) {
+                job.markRunning();
+                jobRepository.save(job);
+            }
+        });
+    }
+
+    /**
+     * Forces a job into a terminal failed state. Used when a run dies outside the pipeline's own
+     * error handling, so nothing is left showing as perpetually running.
+     */
+    @Transactional
+    public void markJobFailed(UUID jobId, String message) {
+        jobRepository.findById(jobId).ifPresent(job -> {
+            if (job.getStatus() != com.power.surge.domain.JobStatus.COMPLETED
+                    && job.getStatus() != com.power.surge.domain.JobStatus.FAILED) {
+                job.markFailed(message);
+                jobRepository.save(job);
+                sseProgressService.completeProgress(jobId, message, false);
+            }
+        });
     }
 
     public OptimizationJobResponse getJob(UUID projectId, UUID jobId) {

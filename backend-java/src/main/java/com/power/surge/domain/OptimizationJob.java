@@ -50,6 +50,20 @@ public class OptimizationJob extends AuditableEntity {
     @Column(name = "voltage_kv", nullable = false, precision = 6, scale = 2)
     private BigDecimal voltageKv;
 
+    /**
+     * Run parameters that used to live only on the inbound request. A queued job is executed after
+     * that request has gone, so anything it needs has to be on the row or it silently reverts to a
+     * default.
+     */
+    @Column(name = "feeder_capacity_mw", nullable = false, precision = 8, scale = 3)
+    private BigDecimal feederCapacityMw;
+
+    @Column(name = "max_voltage_drop_pct", nullable = false, precision = 5, scale = 2)
+    private BigDecimal maxVoltageDropPct;
+
+    @Column(name = "row_width_m", nullable = false, precision = 6, scale = 2)
+    private BigDecimal rowWidthM;
+
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
@@ -85,6 +99,22 @@ public class OptimizationJob extends AuditableEntity {
             BigDecimal maxSpanMeters,
             BigDecimal voltageKv
     ) {
+        this(project, algorithmType, scenario, capexWeight, lossesWeight, maxSpanMeters, voltageKv,
+                null, null, null);
+    }
+
+    public OptimizationJob(
+            Project project,
+            String algorithmType,
+            String scenario,
+            BigDecimal capexWeight,
+            BigDecimal lossesWeight,
+            BigDecimal maxSpanMeters,
+            BigDecimal voltageKv,
+            BigDecimal feederCapacityMw,
+            BigDecimal maxVoltageDropPct,
+            BigDecimal rowWidthM
+    ) {
         this.project = Objects.requireNonNull(project, "Project is required.");
         this.status = JobStatus.PENDING;
         this.algorithmType = algorithmType != null ? algorithmType.trim() : "MULTI_OBJECTIVE_A_STAR";
@@ -93,6 +123,10 @@ public class OptimizationJob extends AuditableEntity {
         this.lossesWeight = lossesWeight != null ? lossesWeight : new BigDecimal("0.5000");
         this.maxSpanMeters = maxSpanMeters != null ? maxSpanMeters : new BigDecimal("150.00");
         this.voltageKv = voltageKv != null ? voltageKv : new BigDecimal("33.00");
+        // Defaults mirror the API defaults, so a job always states the parameters it ran with.
+        this.feederCapacityMw = feederCapacityMw != null ? feederCapacityMw : new BigDecimal("20.000");
+        this.maxVoltageDropPct = maxVoltageDropPct != null ? maxVoltageDropPct : new BigDecimal("5.00");
+        this.rowWidthM = rowWidthM != null ? rowWidthM : new BigDecimal("18.00");
     }
 
     public Project getProject() {
@@ -125,6 +159,18 @@ public class OptimizationJob extends AuditableEntity {
 
     public BigDecimal getVoltageKv() {
         return voltageKv;
+    }
+
+    public BigDecimal getFeederCapacityMw() {
+        return feederCapacityMw;
+    }
+
+    public BigDecimal getMaxVoltageDropPct() {
+        return maxVoltageDropPct;
+    }
+
+    public BigDecimal getRowWidthM() {
+        return rowWidthM;
     }
 
     public String getErrorMessage() {

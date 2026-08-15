@@ -112,10 +112,31 @@ class OptimizationJobServiceTest {
         );
     }
 
+    /**
+     * Models how the job round-trips through storage: a save assigns an id, and the run reads the
+     * job back by that id. Jobs are queued and executed separately now, so the execution half only
+     * has the persisted row to work from.
+     */
+    private void stubJobPersistence() {
+        OptimizationJob[] saved = new OptimizationJob[1];
+        when(jobRepository.save(any(OptimizationJob.class))).thenAnswer(inv -> {
+            OptimizationJob job = inv.getArgument(0);
+            if (job.getId() == null) {
+                org.springframework.test.util.ReflectionTestUtils.setField(job, "id", UUID.randomUUID());
+            }
+            saved[0] = job;
+            return job;
+        });
+        when(jobRepository.findById(any(UUID.class)))
+                .thenAnswer(inv -> java.util.Optional.ofNullable(saved[0]));
+    }
+
     @Test
     void createAndRunJob_success() {
         UUID projectId = UUID.randomUUID();
         Project project = new Project("Test Project", "Description");
+        // A persisted project has an id; the run reads it back off the job entity.
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
 
         Point wtgPoint = geometryFactory.createPoint(new Coordinate(77.23, 28.63));
         WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"), wtgPoint);
@@ -127,7 +148,7 @@ class OptimizationJobServiceTest {
         when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
         when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
 
-        when(jobRepository.save(any(OptimizationJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubJobPersistence();
 
         PythonOptimisationResponse pythonResponse = new PythonOptimisationResponse(
                 "job-123", "success", "Balanced", Map.of(), Map.of(),
@@ -156,6 +177,8 @@ class OptimizationJobServiceTest {
     void eachScenarioDispatchesADistinctOptimisationRequest() {
         UUID projectId = UUID.randomUUID();
         Project project = new Project("Uravakonda", "PCN route");
+        // A persisted project has an id; the run reads it back off the job entity.
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
 
         WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
                 geometryFactory.createPoint(new Coordinate(77.10, 14.30)));
@@ -171,7 +194,7 @@ class OptimizationJobServiceTest {
         when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
         when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of(parcel));
         when(restrictedAreaRepository.findAllByProjectIdOrderByNameAsc(projectId)).thenReturn(List.of(restricted));
-        when(jobRepository.save(any(OptimizationJob.class))).thenAnswer(inv -> inv.getArgument(0));
+        stubJobPersistence();
         when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
                 new PythonOptimisationResponse("job-1", "success", "Balanced", Map.of(), Map.of(),
                         Map.of("feeder_count", 1, "total_length_m", 1500.0),
@@ -256,6 +279,8 @@ class OptimizationJobServiceTest {
     void createAndRunJob_sendsOnlyOptimisableTurbinesToThePythonEngine() {
         UUID projectId = UUID.randomUUID();
         Project project = new Project("Uravakonda", "PCN route");
+        // A persisted project has an id; the run reads it back off the job entity.
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
 
         WtgLocation approved = new WtgLocation(project, "KS67_S1", new BigDecimal("3.000"),
                 geometryFactory.createPoint(new Coordinate(77.10, 14.30)), WtgStatus.APPROVED, "Site / Approved");
@@ -271,7 +296,7 @@ class OptimizationJobServiceTest {
         when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId))
                 .thenReturn(List.of(approved, cancelled, lowAep));
         when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
-        when(jobRepository.save(any(OptimizationJob.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        stubJobPersistence();
         when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
                 new PythonOptimisationResponse("job-1", "success", "Balanced", Map.of(), Map.of(),
                         Map.of("feeder_count", 1, "total_length_m", 1500.0),

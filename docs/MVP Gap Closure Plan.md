@@ -732,6 +732,59 @@ See `web-map-next/src/test/e2e/README.md`.
 
 ---
 
+## 5.5 Asynchronous job execution (done 2026-08-15)
+
+Not one of the original four tiers. It came out of the MVP readiness review as the only
+item genuinely blocking anything beyond a supervised demo, and the Obsidian execution
+plan lists it as a Phase 1 requirement: *"make job execution reliably asynchronous and
+retain status/progress/failure information."*
+
+**Before:** `POST /jobs` ran the whole pipeline inline and returned the finished job.
+On the reference project that held an HTTP connection open for around a minute, and a
+few concurrent runs would have exhausted the servlet pool. The SSE progress stream
+existed but was dead weight — by the time the client had a job id to subscribe to, the
+run was over.
+
+**After:** the endpoint validates, records a queued job and returns **202 in about a
+second**. A bounded executor (2 core, 4 max, queue of 20) runs the pipeline. Verified
+end to end: `PENDING → RUNNING (t+3s) → COMPLETED (t+48s)`, with the progress stream now
+delivering live messages because there is finally something live to report.
+
+**Three things this surfaced, each a real defect rather than a refactor artefact:**
+
+- **Run parameters were not persisted.** Feeder capacity, maximum voltage drop and ROW
+  width were accepted from the client and forwarded to the optimiser, but never stored.
+  That is survivable only while the pipeline runs inside the request carrying them; a
+  queued job would have silently fallen back to defaults and ignored the operator's
+  feeder capacity. Migration `V12` stores all three, which also closes the ROW-width
+  follow-up from §4.3 and makes a completed job reproducible.
+- **"Running" was invisible.** The status transition happened inside the same long
+  transaction as the work, so it was not committed until the job was already finished —
+  a job appeared queued for its entire duration then jumped to completed. The worker now
+  commits the transition separately before starting.
+- **The result was destroyed by switching tabs.** `Pane` renders only the active tab, so
+  the run's outcome — held in component state — was discarded whenever the operator
+  looked at another pane. Synchronous runs hid this because the result arrived before
+  anyone could navigate. The pane now derives its state from the job itself via a query
+  keyed on the job id, so the result survives navigation and a page reload. Verified by
+  starting a run, leaving for the Layers pane, and returning to a fully populated
+  decision card.
+
+**Orphaned jobs.** Work lives in an in-memory executor while status lives in the
+database, so a crash would leave rows claiming RUNNING with nothing left to finish them.
+`StaleJobSweeper` fails those at startup rather than requeueing, so the operator decides
+whether to re-run. Graceful shutdown still drains in-flight work first.
+
+**Queue overflow** returns 503 and marks the job failed with a readable message, rather
+than running the task on the request thread and undoing the whole change.
+
+**Tests:** 197 Java (three new for the sweeper), 23 frontend. The controller test now
+asserts 202 and that the job is actually handed to a worker — a queued job nobody
+submits would sit untouched forever.
+
+**Still open:** progress percentages are coarse (10/35/70/85) and come from fixed points
+in the pipeline rather than real solver progress.
+
 ## 6. Explicitly out of scope for this pass
 
 Carried forward unchanged from `whats-next.md` §5/§11 and

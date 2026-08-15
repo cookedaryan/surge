@@ -57,6 +57,28 @@ export function useAuditLogs() {
   return useQuery({ queryKey: ['auditLogs'], queryFn: api.getAuditLogs });
 }
 
+const TERMINAL_JOB_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED'];
+
+/**
+ * The current job, polled until it reaches a terminal state.
+ *
+ * Held in the query cache rather than in component state so a run survives the pane unmounting —
+ * the sidebar renders only the active tab, so switching tabs during a run would otherwise discard
+ * the result and leave nothing to show when the job finished. It also means a reload lands back on
+ * the finished job instead of an empty panel.
+ */
+export function useJob(projectId: string | null, jobId: string | null) {
+  return useQuery({
+    queryKey: ['job', projectId, jobId],
+    queryFn: () => api.getJobStatus(projectId as string, jobId as string),
+    enabled: !!projectId && !!jobId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      return status && TERMINAL_JOB_STATUSES.includes(status) ? false : 3000;
+    }
+  });
+}
+
 /** Administrator-only; the endpoint 403s for anyone else, so do not fetch it for them. */
 export function useAdminUsers(enabled: boolean) {
   return useQuery({ queryKey: ['adminUsers'], queryFn: api.listUsers, enabled });

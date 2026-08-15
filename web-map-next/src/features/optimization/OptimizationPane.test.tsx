@@ -35,7 +35,9 @@ vi.mock('../map/useProjectData', () => ({
 vi.mock('./useJobProgress', () => ({ useJobProgress: () => null }));
 
 vi.mock('../../lib/query', () => ({
-  useRunOptimization: () => ({ mutateAsync: vi.fn(), isPending: false })
+  useRunOptimization: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  // No job selected in these fixtures, so nothing is in flight and nothing has settled.
+  useJob: () => ({ data: undefined })
 }));
 
 function wrapper({ children }: { children: ReactNode }) {

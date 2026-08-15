@@ -1,9 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
-import type { JobProgress } from '../../lib/api';
+import type { Job, JobProgress } from '../../lib/api';
 
-export function useJobProgress(projectId: string | null, jobId: string | null, onComplete: () => void) {
+const TERMINAL = ['COMPLETED', 'FAILED', 'CANCELLED'];
+
+/** How often to ask the server directly, in case the stream drops or never delivers a terminal event. */
+const POLL_INTERVAL_MS = 4000;
+
+/**
+ * Follows a queued optimisation to completion.
+ *
+ * <p>The server now returns 202 as soon as the job is queued, so the run's outcome arrives after
+ * the request that started it. Progress comes from the event stream, but the stream is not trusted
+ * as the only signal: a dropped connection or a proxy timeout would otherwise leave the UI showing
+ * a job that runs forever. A poll runs alongside it and settles the outcome either way.
+ *
+ * `onSettled` receives the finished job so the caller can show the real result rather than assuming
+ * success.
+ */
+export function useJobProgress(
+  projectId: string | null,
+  jobId: string | null,
+  onSettled: (job: Job) => void
+) {
   const [progress, setProgress] = useState<JobProgress | null>(null);
+  // Kept in a ref so re-renders don't restart the subscription and re-run the effect's cleanup.
+  const settledRef = useRef(false);
+  const onSettledRef = useRef(onSettled);
+  onSettledRef.current = onSettled;
 
   useEffect(() => {
     if (!projectId || !jobId) {
@@ -11,28 +35,51 @@ export function useJobProgress(projectId: string | null, jobId: string | null, o
       return;
     }
 
-    if (jobId.startsWith('job-demo')) {
-      setProgress({ status: 'RUNNING', progressPercent: 70, message: 'Calculating A* cost surface & feeder topology...' });
-      const timer = setTimeout(() => {
-        setProgress({ status: 'COMPLETED', progressPercent: 100, message: 'Optimization completed cleanly!' });
-        onComplete();
-      }, 1200);
-      return () => clearTimeout(timer);
-    }
+    settledRef.current = false;
+    setProgress({ status: 'PENDING', progressPercent: 5, message: 'Queued — waiting for a worker…' });
 
-    setProgress({ status: 'RUNNING', progressPercent: 10, message: 'Initializing optimization job request...' });
-    const stop = api.listenJobProgress(
+    const settle = (job: Job) => {
+      if (settledRef.current) return;
+      settledRef.current = true;
+      setProgress({
+        status: job.status ?? 'COMPLETED',
+        progressPercent: 100,
+        message:
+          job.status === 'FAILED'
+            ? job.errorMessage || 'Optimization failed.'
+            : 'Optimization completed.'
+      });
+      onSettledRef.current(job);
+    };
+
+    const stopStream = api.listenJobProgress(
       projectId,
       jobId,
-      (data) => setProgress(data),
-      (err) => setProgress({ status: 'FAILED', message: err.message }),
+      (data) => {
+        if (!settledRef.current) setProgress(data);
+      },
       () => {
-        setProgress({ status: 'COMPLETED', progressPercent: 100, message: 'Optimization completed cleanly!' });
-        onComplete();
+        // Stream errors are not fatal on their own — the poll below establishes the real outcome.
+      },
+      () => {
+        void api.getJobStatus(projectId, jobId).then(settle).catch(() => {});
       }
     );
-    return stop;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    const timer = setInterval(() => {
+      if (settledRef.current) return;
+      void api
+        .getJobStatus(projectId, jobId)
+        .then((job) => {
+          if (job.status && TERMINAL.includes(job.status)) settle(job);
+        })
+        .catch(() => {});
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      stopStream();
+      clearInterval(timer);
+    };
   }, [projectId, jobId]);
 
   return progress;

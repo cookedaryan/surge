@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardTitle, Select, Slider, Button } from '../../components/ui';
-import { useRunOptimization } from '../../lib/query';
+import { useJob, useRunOptimization } from '../../lib/query';
 import { useUiStore } from '../../lib/store';
 import { useJobProgress } from './useJobProgress';
 import { useProjectData } from '../map/useProjectData';
 import type { Job, JobDecisionSummary } from '../../lib/api';
+
+/** Statuses after which a job will not change again. */
+const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED'];
 
 const SCENARIOS = [
   { value: 'Balanced', label: 'Balanced (cost + environment)' },
@@ -35,16 +38,18 @@ export function OptimizationPane() {
   const [feederCapacityMw, setFeederCapacityMw] = useState(20.0);
   const [maxSpanMeters, setMaxSpanMeters] = useState(150);
   const [voltageKv, setVoltageKv] = useState(33.0);
-  const [lastJob, setLastJob] = useState<Job | null>(null);
 
   const { counts, isLoading: assetsLoading } = useProjectData(currentProjectId, currentJobId);
 
   const runOptimization = useRunOptimization(currentProjectId);
-  // The backend runs the pipeline synchronously within the POST /jobs request, so by the
-  // time it resolves below the job (and its progress stream) is already finished — the SSE
-  // subscription this opens almost never observes a live "completed" event. It's kept for the
-  // rare case progress messages do arrive, but nothing here is depended on for correctness.
-  const progress = useJobProgress(currentProjectId, currentJobId, () => {});
+
+  // The job itself is the source of truth for what to show, not component state. The sidebar
+  // unmounts whichever pane is not active, so a run watched through local state would lose its
+  // result the moment the operator looked at another tab — which, for a run measured in tens of
+  // seconds, they will.
+  const { data: job } = useJob(currentProjectId, currentJobId);
+  const isSettled = !!job?.status && TERMINAL_STATUSES.includes(job.status);
+  const progress = useJobProgress(currentProjectId, currentJobId, handleSettled);
 
   async function handleRun() {
     if (!currentProjectId) {
@@ -52,25 +57,29 @@ export function OptimizationPane() {
       return;
     }
     try {
-      const job = await runOptimization.mutateAsync({ scenario, feederCapacityMw, maxSpanMeters, voltageKv });
-      setCurrentJobId(job.id);
-      setLastJob(job);
-      queryClient.invalidateQueries({ queryKey: ['routes', currentProjectId] });
-      queryClient.invalidateQueries({ queryKey: ['poles', currentProjectId] });
-      queryClient.invalidateQueries({ queryKey: ['bom', currentProjectId] });
+      const queued = await runOptimization.mutateAsync({ scenario, feederCapacityMw, maxSpanMeters, voltageKv });
       setLiveBomOverride(null);
-      if (job.status === 'FAILED') {
-        showToast('Optimization failed: ' + (job.errorMessage || 'unknown error'), 'error');
-      } else {
-        showToast('Optimization completed cleanly!', 'success');
-      }
+      setCurrentJobId(queued.id);
     } catch (err) {
-      showToast('Optimization failed: ' + (err as Error).message, 'error');
-      setLastJob(null);
+      showToast('Could not queue optimization: ' + (err as Error).message, 'error');
     }
   }
 
-  const isRunning = runOptimization.isPending;
+  /** Refreshes everything derived from the run, and reports the outcome once. */
+  function handleSettled(settledJob: Job) {
+    queryClient.invalidateQueries({ queryKey: ['job', currentProjectId, settledJob.id] });
+    queryClient.invalidateQueries({ queryKey: ['routes', currentProjectId] });
+    queryClient.invalidateQueries({ queryKey: ['poles', currentProjectId] });
+    queryClient.invalidateQueries({ queryKey: ['bom', currentProjectId] });
+    if (settledJob.status === 'FAILED') {
+      showToast('Optimization failed: ' + (settledJob.errorMessage || 'unknown error'), 'error');
+    } else {
+      showToast('Optimization completed cleanly!', 'success');
+    }
+  }
+
+  const isRunning = runOptimization.isPending || (!!currentJobId && !!job && !isSettled);
+  const lastJob = isSettled ? job : null;
   const summary = parseSummary(lastJob);
 
   const blockers: string[] = [];

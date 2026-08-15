@@ -133,11 +133,16 @@ class OptimisationContractTest {
                 new RestrictedArea(project, "Sanctuary", "ENVIRONMENTAL", new BigDecimal("30.00"),
                         squareAt(77.20, 14.38))));
 
+        // A job is saved, then read back by id when it runs — the two halves are separate now.
+        OptimizationJob[] persisted = new OptimizationJob[1];
         when(jobRepository.save(any(OptimizationJob.class))).thenAnswer(inv -> {
             OptimizationJob saved = inv.getArgument(0);
             if (saved.getId() == null) ReflectionTestUtils.setField(saved, "id", JOB_ID);
+            persisted[0] = saved;
             return saved;
         });
+        when(jobRepository.findById(any(UUID.class)))
+                .thenAnswer(inv -> Optional.ofNullable(persisted[0]));
         when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(response);
         return project;
     }
