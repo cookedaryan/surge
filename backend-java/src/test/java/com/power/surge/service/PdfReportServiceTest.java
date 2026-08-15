@@ -42,8 +42,17 @@ class PdfReportServiceTest {
         UUID projectId = UUID.randomUUID();
         ProjectResponse dummyProject = new ProjectResponse(projectId, "Gujarat Wind Farm", "100 MW Evacuation", "EPSG:4326", Instant.now(), Instant.now());
         EngineeringBomReportResponse dummyBom = new EngineeringBomReportResponse(
-                projectId, "Gujarat Wind Farm", null, 0, new BigDecimal("8450.00"), 56,
-                new BigDecimal("676000.00"), new BigDecimal("42.50"), List.of(), List.of(), Instant.now()
+                projectId, "Gujarat Wind Farm", null,
+                new com.power.surge.dto.report.ReportRunParameters(
+                        "Balanced", "MULTI_OBJECTIVE_A_STAR", "COMPLETED",
+                        new BigDecimal("33"), new BigDecimal("10"), new BigDecimal("150"),
+                        new BigDecimal("5"), new BigDecimal("18"), null, null, Instant.now(), Instant.now()),
+                2, 5, new BigDecimal("8450.00"), 56,
+                java.util.Map.of("tangent", 40, "angle", 16),
+                java.util.Map.of("PSC-9M", 56),
+                new BigDecimal("676000.00"), new BigDecimal("42.50"),
+                new BigDecimal("18"), new BigDecimal("0.00"), new BigDecimal("0.00"),
+                List.of(), List.of(), List.of(), List.of(), Instant.now()
         );
         ScenarioComparisonResponse dummyScenarios = new ScenarioComparisonResponse(projectId, List.of());
 
@@ -51,7 +60,7 @@ class PdfReportServiceTest {
         when(reportService.generateBomReport(eq(projectId), eq(null))).thenReturn(dummyBom);
         when(reportService.getScenarioComparison(eq(projectId))).thenReturn(dummyScenarios);
 
-        byte[] pdfBytes = pdfReportService.generateExecutivePdfReport(projectId);
+        byte[] pdfBytes = pdfReportService.generateExecutivePdfReport(projectId, null);
 
         assertThat(pdfBytes).isNotNull();
         assertThat(pdfBytes.length).isGreaterThan(100);

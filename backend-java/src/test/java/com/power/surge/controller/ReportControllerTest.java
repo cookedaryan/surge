@@ -74,18 +74,31 @@ class ReportControllerTest {
         UUID projectId = UUID.randomUUID();
         UUID jobId = UUID.randomUUID();
 
-        FeederBomSummary feeder = new FeederBomSummary("Feeder-01", new BigDecimal("2500.00"), 15, new BigDecimal("150000.00"), new BigDecimal("12.50"));
+        FeederBomSummary feeder = new FeederBomSummary(
+                "Feeder-01", 1, new BigDecimal("2500.00"), 15, new BigDecimal("150000.00"), new BigDecimal("12.50"));
 
         EngineeringBomReportResponse response = new EngineeringBomReportResponse(
                 projectId,
                 "Gujarat Wind Farm",
                 jobId,
+                new com.power.surge.dto.report.ReportRunParameters(
+                        "Balanced", "MULTI_OBJECTIVE_A_STAR", "COMPLETED",
+                        new BigDecimal("33"), new BigDecimal("10"), new BigDecimal("150"),
+                        new BigDecimal("5"), new BigDecimal("18"), null, null, Instant.now(), Instant.now()),
+                1,
                 1,
                 new BigDecimal("2500.00"),
                 15,
+                java.util.Map.of("tangent", 15),
+                java.util.Map.of("PSC-9M", 15),
                 new BigDecimal("150000.00"),
                 new BigDecimal("12.50"),
+                new BigDecimal("18"),
+                new BigDecimal("0.00"),
+                new BigDecimal("0.00"),
                 List.of(feeder),
+                List.of(),
+                List.of(),
                 List.of(),
                 Instant.now()
         );
@@ -137,7 +150,7 @@ class ReportControllerTest {
         UUID projectId = UUID.randomUUID();
         byte[] pdfBytes = "%PDF-1.4 dummy pdf content".getBytes();
 
-        when(pdfReportService.generateExecutivePdfReport(projectId)).thenReturn(pdfBytes);
+        when(pdfReportService.generateExecutivePdfReport(projectId, null)).thenReturn(pdfBytes);
 
         mockMvc.perform(get("/api/v1/projects/{projectId}/reports/pdf", projectId))
                 .andExpect(status().isOk())
