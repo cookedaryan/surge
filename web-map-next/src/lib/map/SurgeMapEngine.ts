@@ -1,6 +1,7 @@
 import L from 'leaflet';
 import type { FeatureCollection } from 'geojson';
 import { SVG_ICONS } from './icons';
+import { FEEDER_COLORS, assignFeederColors, feederNameOf } from './feederColors';
 import type { LayerName } from '../store';
 
 export class SurgeMapEngine {
@@ -177,11 +178,11 @@ export class SurgeMapEngine {
   renderRoutes(geoJson: FeatureCollection, customColor: string | null = null): void {
     this.layers.routes.clearLayers();
     if (!geoJson || !geoJson.features) return;
-    const colors = customColor ? [customColor] : ['#10B981', '#06B6D4', '#3B82F6', '#8B5CF6', '#F59E0B'];
-    let idx = 0;
+    const feederColour = assignFeederColors(geoJson.features);
+
     L.geoJSON(geoJson, {
-      style: () => ({
-        color: customColor || colors[idx++ % colors.length],
+      style: (feature) => ({
+        color: customColor || feederColour.get(feederNameOf(feature)) || FEEDER_COLORS[0],
         weight: 5,
         opacity: 0.85,
         dashArray: '10, 6',
