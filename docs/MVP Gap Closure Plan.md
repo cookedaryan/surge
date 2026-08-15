@@ -785,6 +785,43 @@ submits would sit untouched forever.
 **Still open:** progress percentages are coarse (10/35/70/85) and come from fixed points
 in the pipeline rather than real solver progress.
 
+## 5.6 Results announced before they were readable (done 2026-08-15)
+
+**Symptom:** at the end of a run the UI reported success and the decision summary appeared,
+but the map stayed empty. A page reload showed the full network, so the data was clearly
+being produced and stored correctly.
+
+**Cause:** `OptimizationJobService.executeJob` is `@Transactional`, so the routes and poles it
+writes are invisible outside its own connection until it commits. It pushed the terminal SSE
+event from *inside* that transaction. The browser reacted immediately, fetched
+`/jobs/{id}/routes/geojson` and `/poles/geojson` on other connections, and legitimately got
+zero features back — then cached those empty answers. Measured live on the pre-fix build: the
+client received `feats=0` for both while the database already held 38 routes and 606 poles for
+that same job.
+
+**Fix:** `completeAfterCommit` defers the announcement to an `afterCompletion` synchronization,
+so the client is told the run finished only once its results are visible to everyone. A rollback
+is announced as a failure rather than dropped, which previously would have left the client
+waiting forever.
+
+The frontend now also loads the finished run into the query cache *before* pointing the map at
+it. Switching first and invalidating afterwards could not work: the query for the new job did
+not exist yet, so the invalidation had nothing to refetch and the map mounted an empty result.
+
+**Verified:** the same fetch made the instant the SSE stream announces completion now returns
+`routes=38 poles=606`. Through the UI, after an in-session run with no reload, the map holds 38
+route features with per-feeder colours and 606 poles split 483/84/27/12 across the intermediate,
+angle, junction and terminal layers.
+
+**Not verified:** the painted canvas. The automation pane runs hidden, `document.hidden` is
+true and `requestAnimationFrame` never fires, so Leaflet's canvas renderer cannot repaint there.
+Layer membership was checked instead. Canvas painting itself was confirmed working in the same
+pane on initial load.
+
+**Also changed:** the Leaflet map now uses `preferCanvas`. A completed run places 606 poles,
+which as `circleMarker`s were 606 individual SVG elements to create, style and reflow on every
+result change.
+
 ## 6. Explicitly out of scope for this pass
 
 Carried forward unchanged from `whats-next.md` §5/§11 and

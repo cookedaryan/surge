@@ -28,6 +28,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -254,13 +256,13 @@ public class OptimizationJobService {
                 auditLogService.record("OPTIMIZATION_COMPLETED", "JOB", String.valueOf(job.getId()),
                         "Scenario '" + scenario + "' completed for project '" + project.getName() + "' ("
                                 + wtgs.size() + " optimisable WTG, " + voltage(req) + " kV)");
-                sseProgressService.completeProgress(job.getId(), "Optimization job completed successfully!", true);
+                completeAfterCommit(job.getId(), "Optimization job completed successfully!", true);
             } else {
                 String errMsg = describeFailure(pythonResp);
                 job.markFailed(errMsg, summaryJson);
                 auditLogService.record("OPTIMIZATION_FAILED", "JOB", String.valueOf(job.getId()),
                         "Scenario '" + scenario + "' failed for project '" + project.getName() + "': " + errMsg);
-                sseProgressService.completeProgress(job.getId(), errMsg, false);
+                completeAfterCommit(job.getId(), errMsg, false);
             }
 
         } catch (Exception e) {
@@ -269,10 +271,41 @@ public class OptimizationJobService {
             job.markFailed(errMsg);
             auditLogService.record("OPTIMIZATION_FAILED", "JOB", String.valueOf(job.getId()),
                     "Job for project '" + project.getName() + "' failed: " + errMsg);
-            sseProgressService.completeProgress(job.getId(), errMsg, false);
+            completeAfterCommit(job.getId(), errMsg, false);
         }
 
         return OptimizationJobResponse.fromEntity(jobRepository.save(job));
+    }
+
+    /**
+     * Announces a terminal job state only once the surrounding transaction has committed.
+     *
+     * <p>The whole pipeline runs in one transaction, so at the point the result is written the
+     * routes and poles are visible to nobody but this connection. Pushing "completed" straight down
+     * the SSE stream from inside it told the browser to go and fetch results that no other
+     * transaction could see yet: the requests came back with zero features, the client cached the
+     * empty answer, and the map stayed blank until something forced a refetch. Waiting for the
+     * commit means the announcement and the data become visible in that order.
+     *
+     * <p>A rollback is reported rather than silently dropped — without it the client would sit on a
+     * progress bar forever for work that has been thrown away.
+     */
+    private void completeAfterCommit(UUID jobId, String message, boolean success) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            sseProgressService.completeProgress(jobId, message, success);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status == STATUS_COMMITTED) {
+                    sseProgressService.completeProgress(jobId, message, success);
+                } else {
+                    sseProgressService.completeProgress(
+                            jobId, "Optimization results could not be saved; the run was rolled back.", false);
+                }
+            }
+        });
     }
 
     /**

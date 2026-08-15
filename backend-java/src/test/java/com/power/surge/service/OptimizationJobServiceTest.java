@@ -34,6 +34,8 @@ import org.locationtech.jts.geom.PrecisionModel;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -44,6 +46,10 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -350,5 +356,87 @@ class OptimizationJobServiceTest {
         assertThatThrownBy(() -> jobService.createAndRunJob(projectId, request))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Project has no WTG locations");
+    }
+
+    /**
+     * The whole pipeline runs in one transaction, so the routes and poles it writes are invisible to
+     * every other connection until it commits. Announcing completion from inside that transaction
+     * sent the browser off to fetch results nobody else could see yet: it got zero features back,
+     * cached the empty answer, and left the map blank while the UI reported success.
+     */
+    @Test
+    void completionIsAnnouncedOnlyAfterTheTransactionCommits() {
+        UUID projectId = successfulRunFixture();
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                    "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+            // Still inside the transaction: the results are written but not yet visible to anyone
+            // else, so the client must not have been told to go and read them.
+            verify(sseProgressService, never()).completeProgress(any(UUID.class), anyString(), anyBoolean());
+
+            List<TransactionSynchronization> hooks =
+                    TransactionSynchronizationManager.getSynchronizations();
+            assertThat(hooks).hasSize(1);
+            hooks.get(0).afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
+
+            verify(sseProgressService).completeProgress(
+                    any(UUID.class), eq("Optimization job completed successfully!"), eq(true));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    /**
+     * A rollback must still close the stream. Reporting nothing would leave the client watching a
+     * progress bar for work that no longer exists.
+     */
+    @Test
+    void aRolledBackRunIsReportedAsFailedRatherThanLeftHanging() {
+        UUID projectId = successfulRunFixture();
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                    "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+            TransactionSynchronizationManager.getSynchronizations()
+                    .get(0).afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
+
+            verify(sseProgressService).completeProgress(
+                    any(UUID.class),
+                    eq("Optimization results could not be saved; the run was rolled back."),
+                    eq(false));
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
+    /** A project the optimiser will run to completion over, returning one feeder. */
+    private UUID successfulRunFixture() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Test Project", "Description");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.23, 28.63)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 28.64)));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+
+        stubJobPersistence();
+
+        when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
+                new PythonOptimisationResponse(
+                        "job-123", "success", "Balanced", Map.of(), Map.of(),
+                        Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                        "SUCCESS", List.of(), Map.of(), Map.of(), List.of()));
+
+        return projectId;
     }
 }

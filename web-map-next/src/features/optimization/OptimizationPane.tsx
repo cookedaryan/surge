@@ -5,6 +5,7 @@ import { useJob, useRunOptimization } from '../../lib/query';
 import { useUiStore } from '../../lib/store';
 import { useJobProgress } from './useJobProgress';
 import { useProjectData } from '../map/useProjectData';
+import { api } from '../../lib/api';
 import type { Job, JobDecisionSummary } from '../../lib/api';
 
 /** Statuses after which a job will not change again. */
@@ -78,17 +79,29 @@ export function OptimizationPane() {
       return;
     }
 
-    // Point the map at the finished run and wait for its data to actually arrive before saying so.
-    // Announcing completion first meant the success message appeared while the map was still empty
-    // and the results had not even been requested yet.
-    setResultJobId(settledJob.id);
+    // Load the finished run's geometry into the cache *before* pointing the map at it.
+    //
+    // Switching first and invalidating afterwards does not work: the query for the new job does
+    // not exist until the map has re-rendered, so there is nothing for the invalidation to
+    // refetch. The map would mount the new key with no data, draw an empty result, and only fill
+    // in once its own request came back — which is why the map went blank while the toast and the
+    // decision card were already claiming success.
+    const pid = currentProjectId as string;
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['routes', currentProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['poles', currentProjectId] }),
-      queryClient.invalidateQueries({ queryKey: ['bom', currentProjectId] })
+      queryClient.fetchQuery({
+        queryKey: ['routes', pid, settledJob.id],
+        queryFn: () => api.getRoutesGeoJson(pid, settledJob.id)
+      }),
+      queryClient.fetchQuery({
+        queryKey: ['poles', pid, settledJob.id],
+        queryFn: () => api.getPolesGeoJson(pid, settledJob.id)
+      }),
+      queryClient.invalidateQueries({ queryKey: ['bom', pid] })
     ]).catch(() => {
-      // A refresh failure should not swallow the outcome; the panels show their own error states.
+      // A refresh failure must not swallow the outcome; the panels show their own error states.
     });
+
+    setResultJobId(settledJob.id);
     showToast('Optimization completed cleanly!', 'success');
   }
 

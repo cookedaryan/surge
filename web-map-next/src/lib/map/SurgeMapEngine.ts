@@ -11,7 +11,15 @@ export class SurgeMapEngine {
   editHandleLayer?: L.LayerGroup;
 
   constructor(containerId: string) {
-    this.map = L.map(containerId, { center: [23.2350, 69.8210], zoom: 13, zoomControl: false });
+    // preferCanvas draws vector layers onto a single canvas instead of one SVG element each. A
+    // completed run places several hundred poles — 606 on the reference project — and as SVG that
+    // is several hundred DOM nodes to create, style and reflow every time the result changes.
+    this.map = L.map(containerId, {
+      center: [23.2350, 69.8210],
+      zoom: 13,
+      zoomControl: false,
+      preferCanvas: true
+    });
     L.control.zoom({ position: 'topright' }).addTo(this.map);
 
     const darkCarto = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
