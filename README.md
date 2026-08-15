@@ -59,6 +59,22 @@ npm run build
 npm run dev
 ```
 
+> **Two different builds serve this app, and they do not update together.**
+>
+> - `http://localhost:3000` — the `frontend` container, serving a bundle baked at image
+>   build time. It does **not** pick up source edits.
+> - `http://localhost:5174` — the Vite dev server started above, with hot reload.
+>
+> After changing anything under `web-map-next/src`, rebuild the container before testing
+> on port 3000, or you will be looking at an older bundle:
+>
+> ```powershell
+> docker compose up -d --build frontend
+> ```
+>
+> This has already caused a fix to be reported as working on 5174 while port 3000 still
+> served the broken version. Verify on the port you actually intend to use.
+
 ### Java Backend
 ```powershell
 cd backend-java
