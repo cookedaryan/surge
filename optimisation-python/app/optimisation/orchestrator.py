@@ -10,6 +10,7 @@ from shapely.geometry import Point
 from app.algorithms.physical_routing import validate_cost_surface
 from app.algorithms.pole_placement import place_poles_on_network
 from app.costing.lifecycle import evaluate_candidate_cost
+from app.electrical.cable_sizing import NoFeasibleCableError, size_cables_for_network
 from app.electrical.errors import CandidateElectricalEvaluationError
 from app.electrical.load_flow.analysis import run_load_flow
 from app.electrical.load_flow.config import LoadFlowConfig
@@ -160,8 +161,8 @@ def _validate_input(project_input: ProjectInput, config: OptimisationConfig) -> 
     # Configuration invariants
     if config.electrical.segment_cable_type_ids:
         raise OptimisationInputError(
-            "segment_cable_type_ids must be empty for orchestrator cohort MVP. "
-            "Use one default_cable_type_id to avoid cross-candidate assignment errors."
+            "Manual segment_cable_type_ids are not accepted by automatic "
+            "candidate design mode."
         )
     cable_ids = {cable.cable_type_id for cable in config.electrical.cable_types}
     if config.electrical.default_cable_type_id not in cable_ids:
@@ -280,13 +281,37 @@ def optimise_project(
     candidates = []
     failures = []
     evaluated_scenarios = []
+    candidate_electrical_configs: dict[str, LoadFlowConfig] = {}
+
+    wtg_active_power_mw = {
+        op.node_id: op.active_power_mw for op in project_input.operating_points
+    }
+    wtg_reactive_power_mvar = {
+        op.node_id: op.reactive_power_mvar for op in project_input.operating_points
+    }
 
     for scenario in generation_result.candidates:
         try:
+            sizing = size_cables_for_network(
+                network=scenario.network,
+                wtg_active_power_mw=wtg_active_power_mw,
+                wtg_reactive_power_mvar=wtg_reactive_power_mvar,
+                nominal_voltage_kv=config.electrical.nominal_voltage_kv,
+                cable_types=config.electrical.cable_types,
+                sizing_power_factor=1.0,
+            )
+            candidate_electrical_config = replace(
+                config.electrical,
+                segment_cable_type_ids=sizing.segment_cable_type_ids,
+            )
+
             lf_result = run_load_flow(
                 pnc_network=scenario.network,
                 operating_points=project_input.operating_points,
-                config=config.electrical,
+                config=candidate_electrical_config,
+            )
+            candidate_electrical_configs[scenario.scenario_id] = (
+                candidate_electrical_config
             )
             logger.info("%s electrical validation completed", scenario.scenario_id)
             evaluated_scenarios.append(
@@ -294,6 +319,25 @@ def optimise_project(
                     scenario=scenario,
                     load_flow_result=lf_result,
                     electrical_context_id=electrical_context_id,
+                    cable_sizing=sizing,
+                )
+            )
+        except NoFeasibleCableError as e:
+            logger.warning("%s sizing failed: %s", scenario.scenario_id, str(e))
+            failures.append(
+                CandidateFailure(
+                    stage=WorkflowStage.ELECTRICAL_VALIDATION,
+                    code=WorkflowFailureCode.ELECTRICAL_EXECUTION_ERROR,
+                    message=str(e),
+                    scenario_id=scenario.scenario_id,
+                )
+            )
+            candidates.append(
+                CandidateWorkflowResult(
+                    scenario=scenario,
+                    load_flow_result=None,
+                    evaluation=None,
+                    execution_failure=failures[-1],
                 )
             )
         except CandidateElectricalEvaluationError as e:
@@ -342,7 +386,9 @@ def optimise_project(
         assessment = build_candidate_engineering_metrics(
             scenario=evaluated.scenario,
             load_flow_result=evaluated.load_flow_result,
-            load_flow_config=config.electrical,
+            load_flow_config=candidate_electrical_configs[
+                evaluated.scenario.scenario_id
+            ],
             constraint_layers=project_input.constraint_layers,
             pole_config=config.pole,
             row_corridor_width_m=project_input.row_width_m,
@@ -367,7 +413,9 @@ def optimise_project(
             cost_assessment = evaluate_candidate_cost(
                 scenario=evaluated.scenario,
                 load_flow_result=evaluated.load_flow_result,
-                electrical_config=config.electrical,
+                electrical_config=candidate_electrical_configs[
+                    evaluated.scenario.scenario_id
+                ],
                 engineering_assessment=engineering_assessments[
                     evaluated.scenario.scenario_id
                 ],
@@ -433,6 +481,7 @@ def optimise_project(
                         es.scenario.scenario_id
                     ],
                     cost_assessment=cost_assessments.get(es.scenario.scenario_id),
+                    cable_sizing=es.cable_sizing,
                 )
             )
 

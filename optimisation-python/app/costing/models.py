@@ -176,6 +176,13 @@ class CandidateLifecycleCost:
     energy_price_basis_date: datetime.date
     cost_model_version: str
 
+    # Economic assumptions
+    analysis_period_years: int
+    discount_rate: Decimal
+    annual_operating_hours: int
+    loss_load_factor: Decimal
+    energy_price_per_mwh: Decimal
+
 
 @dataclass(frozen=True)
 class CandidateCostAssessment:
@@ -198,6 +205,12 @@ class CandidateCostAssessment:
     catalogue_price_basis_date: datetime.date | None = None
     energy_price_basis_date: datetime.date | None = None
     cost_model_version: str | None = None
+
+    analysis_period_years: int | None = None
+    discount_rate: Decimal | None = None
+    annual_operating_hours: int | None = None
+    loss_load_factor: Decimal | None = None
+    energy_price_per_mwh: Decimal | None = None
 
     @property
     def capex_available(self) -> bool:

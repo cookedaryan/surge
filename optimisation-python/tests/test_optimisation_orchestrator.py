@@ -123,6 +123,7 @@ def test_complete_successful_workflow(
     assert result.recommended_result == winner_candidate.presentation_result
     assert len([c for c in result.candidates if c.presentation_result is not None]) == 1
     assert all(candidate.packaging_failure is None for candidate in result.candidates)
+    assert all(candidate.cable_sizing is not None for candidate in result.candidates)
     assert all(
         candidate.engineering_assessment is not None for candidate in result.candidates
     )
@@ -270,7 +271,10 @@ def test_segment_cable_type_ids_not_empty_raises(
         ),
         scoring=base_config.scoring,
     )
-    with pytest.raises(OptimisationInputError, match="must be empty"):
+    with pytest.raises(
+        OptimisationInputError,
+        match="Manual segment_cable_type_ids are not accepted",
+    ):
         optimise_project(project_input, invalid_config)
 
 

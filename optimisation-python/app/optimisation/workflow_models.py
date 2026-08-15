@@ -8,6 +8,7 @@ from app.costing.models import (
     EngineeringCostCatalogue,
     LifecycleCostConfig,
 )
+from app.electrical.cable_sizing import CableSizingResult
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult, WTGOperatingPoint
 from app.gis.constraints import ConstraintLayer
@@ -111,6 +112,7 @@ class CandidateWorkflowResult:
     presentation_result: ProjectOptimizationResult | None = None
     pole_failure: CandidateFailure | None = None
     packaging_failure: CandidateFailure | None = None
+    cable_sizing: CableSizingResult | None = None
 
     def __post_init__(self) -> None:
         if self.execution_failure is not None:

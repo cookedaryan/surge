@@ -373,6 +373,7 @@ class CandidateSummary(ApiModel):
     group_scores: list[GroupScoreSummary] | None = None
     disqualifications: list[str] | None = None
     execution_failure: dict[str, Any] | None = None
+    cable_sizing: dict[str, Any] | None = None
 
 
 class RecommendationSummary(ApiModel):

@@ -91,6 +91,7 @@ def test_v2_optimise_endpoint_success(mvp_v2_payload: JsonObject) -> None:
     assert all(c.eligible is True for c in validated.candidates)
     assert all(c.engineering_metrics is not None for c in validated.candidates)
     assert all(c.group_scores is not None for c in validated.candidates)
+    assert all(c.cable_sizing is not None for c in validated.candidates)
     assert all(
         c.engineering_metrics is not None
         and c.engineering_metrics.environmental_overlap_m2 >= 0.0
