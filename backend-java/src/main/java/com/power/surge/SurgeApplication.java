@@ -1,6 +1,7 @@
 package com.power.surge;
 
 import com.power.surge.service.AuthService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -13,10 +14,18 @@ public class SurgeApplication {
         SpringApplication.run(SurgeApplication.class, args);
     }
 
+    /**
+     * Ensures a single administrator account exists so a fresh database is usable. Every other
+     * account is created by an administrator through {@code POST /api/v1/auth/register}; this
+     * runner only bootstraps the first one and never overwrites existing credentials.
+     */
     @Bean
-    public CommandLineRunner initDatabase(AuthService authService) {
-        return args -> {
-            authService.seedDemoUsers();
-        };
+    public CommandLineRunner initDatabase(
+            AuthService authService,
+            @Value("${surge.bootstrap-admin.username:admin}") String username,
+            @Value("${surge.bootstrap-admin.email:admin@surge.energy}") String email,
+            @Value("${surge.bootstrap-admin.password:" + AuthService.DEFAULT_BOOTSTRAP_PASSWORD + "}") String password
+    ) {
+        return args -> authService.seedBootstrapAdmin(username, email, password);
     }
 }

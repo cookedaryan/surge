@@ -7,6 +7,7 @@ import com.power.surge.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +26,12 @@ public class AuthController {
         this.authService = authService;
     }
 
+    /**
+     * Provisions a new account. Administrators only — accounts are never self-served, because a
+     * world-open registration endpoint would hand any caller a valid token for the whole API.
+     * Enforced here as well as in {@code SecurityConfig} so neither alone is load-bearing.
+     */
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
         AuthResponse response = authService.register(request);

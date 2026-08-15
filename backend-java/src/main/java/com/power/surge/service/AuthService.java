@@ -7,6 +7,8 @@ import com.power.surge.dto.auth.LoginRequest;
 import com.power.surge.dto.auth.RegisterRequest;
 import com.power.surge.repository.UserRepository;
 import com.power.surge.security.JwtTokenProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
+    /** Local-development fallback only; a deployed instance must override this. */
+    public static final String DEFAULT_BOOTSTRAP_PASSWORD = "admin";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -32,26 +39,29 @@ public class AuthService {
         this.auditLogService = auditLogService;
     }
 
+    /**
+     * Creates the bootstrap administrator when it does not already exist.
+     *
+     * <p>This deliberately never touches an existing account. The previous implementation
+     * re-encoded the password on every startup, which meant any credential change — including one
+     * made through the admin flow — was silently reverted the next time the backend restarted.
+     *
+     * <p>Credentials come from configuration so they are not baked into the source tree. The
+     * defaults exist only to keep a fresh local checkout usable, and are logged as a warning so an
+     * unchanged default cannot go unnoticed in a deployed environment.
+     */
     @Transactional
-    public void seedDemoUsers() {
-        // Always ensure admin exists with the correct password
-        upsertUser("admin", "admin@surge.energy", "admin", UserRole.ROLE_ADMIN);
-        upsertUser("engineer", "engineer@surge.energy", "engineer123", UserRole.ROLE_ENGINEER);
-    }
-
-    private void upsertUser(String username, String email, String password, UserRole role) {
-        String encoded = passwordEncoder.encode(password);
-        userRepository.findByUsername(username).ifPresentOrElse(
-            user -> {
-                // Always refresh the password hash so startup credentials are guaranteed
-                user.setPasswordHash(encoded);
-                userRepository.save(user);
-            },
-            () -> {
-                User user = new User(username, email, encoded, role);
-                userRepository.save(user);
-            }
-        );
+    public void seedBootstrapAdmin(String username, String email, String password) {
+        if (userRepository.findByUsername(username).isPresent()) {
+            log.info("Bootstrap administrator '{}' already exists; leaving its credentials untouched.", username);
+            return;
+        }
+        userRepository.save(new User(username, email, passwordEncoder.encode(password), UserRole.ROLE_ADMIN));
+        log.info("Created bootstrap administrator '{}'.", username);
+        if (DEFAULT_BOOTSTRAP_PASSWORD.equals(password)) {
+            log.warn("Bootstrap administrator '{}' is using the built-in default password. "
+                    + "Set SURGE_BOOTSTRAP_ADMIN_PASSWORD before exposing this instance to anyone else.", username);
+        }
     }
 
     @Transactional

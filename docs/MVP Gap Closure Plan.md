@@ -259,6 +259,20 @@ green, frontend typecheck and build clean.
 
 ## 3. Tier 2 — Close the authorization gap
 
+> **Scope changed after discussion (2026-08-15).** SURGE is used by a handful of trusted
+> colleagues who all need full access, so per-project ownership was dropped as
+> over-engineering: it would have meant a migration, a backfill, and enforcement
+> threaded through 42 endpoints to police a boundary that does not exist in the
+> organisation. Individual accounts were kept over a single shared login — they cost
+> the same to build and preserve a usable audit trail. Tier 2 is now three phases:
+>
+> - **Phase 1 — authentication (✅ done, see §3.3)**
+> - **Phase 2 — admin panel:** manage users, reset passwords, assign roles
+> - **Phase 3 — audit coverage:** `recordAudit` is currently called from only two
+>   places in the whole codebase (`USER_LOGIN`, `USER_REGISTERED`), so the log knows
+>   who signed in and nothing about what they did. Instrumenting project create/delete,
+>   asset import, job runs and report exports is the real work behind "who did what".
+
 **Why second:** every other feature sits behind this. Shipping Tier 1
 before this is fine (still local/demo-safe), but nothing here should be
 exposed beyond a trusted network until it's done.
@@ -298,7 +312,83 @@ exposed beyond a trusted network until it's done.
 
 **Estimated effort:** 0.5–1 day, depending on whether project ownership
 already exists on the `Project` entity (check first — this may already be
-half-done).
+half-done). *Superseded: ownership was dropped, see the note at the top of §3.*
+
+### 3.3 Phase 1 outcome — authentication (done 2026-08-15)
+
+**What was closed**
+
+1. `/api/v1/projects/**` removed from `permitAll()`. That single entry had been
+   exempting 9 controllers and 42 project-scoped endpoints.
+2. `POST /api/v1/auth/register` restricted to administrators, in both the filter
+   chain and a `@PreAuthorize` on the method. This mattered more than the first
+   item: registration was world-open, so anyone could have created an account,
+   received a valid token, and walked back in legitimately. Locking the project
+   routes without this would have been security theatre.
+3. `seedDemoUsers()` replaced with `seedBootstrapAdmin()`. The old version ran on
+   every startup and re-encoded the password each time, so **any credential change
+   was silently reverted on the next restart** — which would have broken the admin
+   panel's password-reset feature on day one, and silently undone manual database
+   edits. The replacement creates the account only when missing, never overwrites,
+   takes credentials from configuration, and warns when the built-in default is
+   still in use.
+
+**Three problems found while verifying, each fixed**
+
+- *Anonymous requests returned 403, not 401.* Added an `HttpStatusEntryPoint` so a
+  missing session is distinguishable from a forbidden action — the UI needs that to
+  send an expired session to the login screen rather than showing a permission error.
+- *Denied requests returned 401 even when authenticated.* `sendError()` makes the
+  container re-dispatch to `/error` through the same filter chain; that dispatch
+  carries no credentials, so it was itself rejected and the entry point overwrote
+  the real 403. Fixed by permitting `DispatcherType.ERROR`. Worth remembering:
+  **MockMvc performs no ERROR dispatch, so the test suite showed 403 while the
+  running server returned 401** — only live verification caught it.
+- *A 401 masqueraded as "no projects".* `listProjects` swallowed errors into an
+  empty array, which made `ProjectSelector` auto-create a replacement project, and
+  `createProject` fabricated a fake project with a client-generated id when the API
+  call failed. Enabling auth made that path reachable on every pre-login render.
+  All three were removed: failures now propagate, auto-create requires an
+  authenticated caller, and no synthetic project is ever invented. This was the
+  "simulated success after an API failure" the Obsidian MVP plan explicitly forbids.
+
+**Client changes**
+
+- Job progress moved from `EventSource` to a fetch-based stream. `EventSource`
+  cannot attach an `Authorization` header, and the alternative — a token in the
+  query string — would leak the credential into access logs, browser history and
+  referrer headers. The progress endpoint is now authenticated like everything else.
+- A 401 from any transport clears the token and returns to the sign-in screen.
+- Successful sign-in invalidates cached queries, so the workstation loads without a
+  manual page reload.
+
+**Verified against the running stack**
+
+| Caller | Endpoint | Result |
+| --- | --- | --- |
+| anonymous | `/api/v1/projects` | 401 |
+| anonymous | `/api/v1/projects/{id}/jobs/{jid}/progress` | 401 |
+| anonymous | `/api/v1/audit-logs` | 401 |
+| anonymous | `POST /api/v1/auth/register` | 401 |
+| engineer | `/api/v1/projects` | 200 |
+| engineer | `POST /api/v1/auth/register` | 403 |
+| admin | `POST /api/v1/auth/register` | 201 |
+| anyone | `/api/v1/health` | 200 |
+
+The admin password survived a container restart, confirming the seed no longer
+overwrites. A full UI pass — sign in, project list loads without a reload, run an
+optimisation, read the decision card — works end to end, and the fetch stream was
+confirmed to receive events with a valid token and to sign the operator out on a
+rejected one.
+
+**Tests:** `SecurityBoundaryTest` (11 tests) runs with the security filters *on*,
+unlike every other controller test (`addFilters = false`), and mints real tokens
+through `JwtTokenProvider`. `AuthServiceBootstrapTest` (3 tests) pins the
+never-overwrite contract. Suite: 167 Java tests green, frontend build clean.
+
+**Known gap:** roles are enforced only for registration. `ROLE_VIEWER` still has
+write access everywhere else — deliberate for now, and the natural companion to the
+Phase 2 admin panel.
 
 ---
 

@@ -1,4 +1,4 @@
-import { API_BASE_URL, emptyGeoJson, fetchJson } from './client';
+import { API_BASE_URL, emptyGeoJson, fetchJson, getToken, notifyUnauthorized } from './client';
 import type { FeatureCollection, Job, JobProgress, OptimizationParams } from './types';
 
 export async function getRoutesGeoJson(projectId: string, jobId?: string | null): Promise<FeatureCollection> {
@@ -47,6 +47,14 @@ export async function getJobStatus(projectId: string, jobId: string): Promise<Jo
   return await fetchJson<Job>(`${API_BASE_URL}/projects/${projectId}/jobs/${jobId}`);
 }
 
+/**
+ * Streams job progress over fetch rather than EventSource.
+ *
+ * EventSource cannot attach an Authorization header, and the progress endpoint requires a token
+ * like every other project route. Passing the JWT as a query parameter would "work" but leaks the
+ * credential into access logs, browser history and referrer headers, so the stream is read
+ * manually instead. Returns an unsubscribe function that aborts the in-flight request.
+ */
 export function listenJobProgress(
   projectId: string,
   jobId: string,
@@ -55,32 +63,83 @@ export function listenJobProgress(
   onComplete?: (data: JobProgress) => void
 ): () => void {
   const url = `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/progress`;
-  let eventSource: EventSource;
-  try {
-    eventSource = new EventSource(url);
+  const controller = new AbortController();
+  let finished = false;
 
-    eventSource.addEventListener('progress', (e: MessageEvent) => {
-      try {
-        const data: JobProgress = JSON.parse(e.data);
-        if (onProgress) onProgress(data);
-        if (data.status === 'COMPLETED' || data.status === 'FAILED') {
-          eventSource.close();
-          if (data.status === 'COMPLETED' && onComplete) onComplete(data);
-          if (data.status === 'FAILED' && onError) onError(new Error(data.message || 'Job failed'));
-        }
-      } catch (err) {
-        console.warn('[SSE Parse Error]', err);
+  const finish = (fn?: () => void) => {
+    if (finished) return;
+    finished = true;
+    controller.abort();
+    fn?.();
+  };
+
+  const handleFrame = (frame: string) => {
+    // An SSE frame is a block of "field: value" lines. Only the data payload matters here; the
+    // event name is always "progress" and reconnection hints are unused for a short-lived job.
+    const data = frame
+      .split('\n')
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trim())
+      .join('\n');
+    if (!data) return;
+
+    let parsed: JobProgress;
+    try {
+      parsed = JSON.parse(data);
+    } catch (err) {
+      console.warn('[SSE Parse Error]', err);
+      return;
+    }
+
+    onProgress?.(parsed);
+    if (parsed.status === 'COMPLETED') finish(() => onComplete?.(parsed));
+    if (parsed.status === 'FAILED') finish(() => onError?.(new Error(parsed.message || 'Job failed')));
+  };
+
+  (async () => {
+    try {
+      const token = getToken();
+      const res = await fetch(url, {
+        headers: {
+          Accept: 'text/event-stream',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        signal: controller.signal
+      });
+
+      if (res.status === 401) {
+        notifyUnauthorized();
+        throw new Error('Session expired while streaming job progress.');
       }
-    });
+      if (!res.ok || !res.body) {
+        throw new Error(`Progress stream failed: ${res.status} ${res.statusText}`);
+      }
 
-    eventSource.onerror = (err) => {
-      eventSource.close();
-      if (onError) onError(err as unknown as Error);
-    };
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-    return () => eventSource.close();
-  } catch (err) {
-    if (onError) onError(err as Error);
-    return () => {};
-  }
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Chunks can split a frame anywhere, so hold the remainder until its blank-line terminator.
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split(/\r?\n\r?\n/);
+        buffer = frames.pop() ?? '';
+        frames.forEach(handleFrame);
+        if (finished) return;
+      }
+
+      if (buffer.trim()) handleFrame(buffer);
+      // The server closing the stream without a terminal status is not an error on its own: the
+      // caller polls the job record separately and will pick up the final state from there.
+      finish();
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') return;
+      finish(() => onError?.(err as Error));
+    }
+  })();
+
+  return () => finish();
 }

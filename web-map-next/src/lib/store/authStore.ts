@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { setUnauthorizedHandler } from '../api/client';
 
 const TOKEN_KEY = 'surge_jwt_token';
 
@@ -20,3 +21,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isAuthenticated: false, username: null, role: null });
   }
 }));
+
+// A rejected token means the session is over, whatever localStorage still claims. Dropping straight
+// back to the sign-in screen beats leaving the operator in an app where every request quietly fails.
+setUnauthorizedHandler(() => useAuthStore.getState().logout());

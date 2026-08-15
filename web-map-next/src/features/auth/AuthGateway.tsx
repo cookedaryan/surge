@@ -1,4 +1,5 @@
 import { FormEvent, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../lib/store';
 import { Button } from '../../components/ui';
@@ -10,6 +11,7 @@ export function AuthGateway() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const queryClient = useQueryClient();
 
   if (isAuthenticated) return null;
 
@@ -24,6 +26,9 @@ export function AuthGateway() {
     try {
       const res = await api.login(username.trim(), password.trim());
       login(res.username, res.role);
+      // Queries that ran before sign-in were rejected and cached as failures. Without this the
+      // workstation loads behind an empty project list until the operator reloads by hand.
+      await queryClient.invalidateQueries();
     } catch (err) {
       setError('Authentication failed: ' + (err as Error).message);
     } finally {
