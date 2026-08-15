@@ -20,10 +20,10 @@ export function ScenarioComparisonModal() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen} title="Scenario Comparison" widthClassName="w-[760px]">
-      {isLoading && <div className="text-[11px] text-textFaint">Loading scenario analytics…</div>}
-      {isError && <div className="text-[11px] text-danger">Failed to load scenario comparison.</div>}
+      {isLoading && <div className="text-[11.5px] text-textFaint">Loading scenario analytics…</div>}
+      {isError && <div className="text-[11.5px] text-danger">Failed to load scenario comparison.</div>}
       {!isLoading && !isError && scenarios.length === 0 && (
-        <div className="text-[11px] text-textFaint">No scenario comparison data available.</div>
+        <div className="text-[11.5px] text-textFaint">No scenario comparison data available.</div>
       )}
       <div className="grid grid-cols-2 gap-3">
         {scenarios.map((sc) => {
@@ -31,24 +31,24 @@ export function ScenarioComparisonModal() {
           return (
             <div key={sc.scenarioName} className="border border-border rounded-md bg-surface2 p-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-text">{sc.scenarioName}</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: color, color: '#fff' }}>
+                <span className="text-[11.5px] font-semibold text-text">{sc.scenarioName}</span>
+                <span className="text-[11.5px] font-bold px-1.5 py-0.5 rounded" style={{ background: color, color: '#fff' }}>
                   {sc.scenarioName.split(' ')[0]}
                 </span>
               </div>
-              <div className="flex justify-between text-[11px] text-textMuted py-0.5">
+              <div className="flex justify-between text-[11.5px] text-textMuted py-0.5">
                 <span>CAPEX</span>
                 <span className="font-mono text-text tabular">${(sc.totalEstimatedCost || 0).toLocaleString()}</span>
               </div>
-              <div className="flex justify-between text-[11px] text-textMuted py-0.5">
+              <div className="flex justify-between text-[11.5px] text-textMuted py-0.5">
                 <span>Losses</span>
                 <span className="font-mono text-text tabular">{(sc.totalElectricalLossesKw || 0).toFixed(1)} kW</span>
               </div>
-              <div className="flex justify-between text-[11px] text-textMuted py-0.5">
+              <div className="flex justify-between text-[11.5px] text-textMuted py-0.5">
                 <span>ROW cost</span>
                 <span className="font-mono text-text tabular">${(sc.landRowCompensationCost || 0).toLocaleString()}</span>
               </div>
-              <div className="flex justify-between text-[11px] text-textMuted py-0.5 mb-2">
+              <div className="flex justify-between text-[11.5px] text-textMuted py-0.5 mb-2">
                 <span>Length / Poles</span>
                 <span className="font-mono text-text tabular">
                   {((sc.totalNetworkLengthMeters || 0) / 1000).toFixed(2)} km / {sc.totalPoles || 0}

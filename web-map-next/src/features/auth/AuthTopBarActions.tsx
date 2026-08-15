@@ -12,7 +12,7 @@ export function AuthTopBarActions() {
 
   return (
     <>
-      <span className="text-[11px] text-textMuted">
+      <span className="text-[11.5px] text-textMuted">
         {username || 'Engineer'} ({cleanRole})
       </span>
       <Button size="sm" onClick={logout}>Logout</Button>

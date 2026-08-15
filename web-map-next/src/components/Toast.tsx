@@ -22,7 +22,7 @@ export function Toast() {
 
   return (
     <div
-      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[20050] text-white text-[13px] font-semibold px-5 py-2.5 rounded-lg shadow-lg max-w-[520px] text-center ${VARIANT_CLASSES[toast.variant]}`}
+      className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[20050] text-white text-[13.5px] font-semibold px-5 py-2.5 rounded-lg shadow-lg max-w-[520px] text-center ${VARIANT_CLASSES[toast.variant]}`}
     >
       {toast.message}
     </div>

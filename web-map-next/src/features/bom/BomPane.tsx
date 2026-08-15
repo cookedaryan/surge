@@ -41,19 +41,19 @@ export function BomPane() {
       <div className="grid grid-cols-2 gap-2 mb-3">
         <div className="border border-border rounded-md bg-surface2 px-2 pt-2 pb-1.5">
           <div className="font-mono text-[17px] font-semibold tabular leading-none">{lengthKm} km</div>
-          <div className="text-[10px] text-textFaint mt-1">Network length</div>
+          <div className="text-[11.5px] text-textFaint mt-1">Network length</div>
         </div>
         <div className="border border-border rounded-md bg-surface2 px-2 pt-2 pb-1.5">
           <div className="font-mono text-[17px] font-semibold tabular leading-none">{bom?.totalPoles ?? 0}</div>
-          <div className="text-[10px] text-textFaint mt-1">Poles</div>
+          <div className="text-[11.5px] text-textFaint mt-1">Poles</div>
         </div>
         <div className="border border-border rounded-md bg-surface2 px-2 pt-2 pb-1.5">
           <div className="font-mono text-[17px] font-semibold tabular leading-none">{cost}</div>
-          <div className="text-[10px] text-textFaint mt-1">Est. CapEx</div>
+          <div className="text-[11.5px] text-textFaint mt-1">Est. CapEx</div>
         </div>
         <div className="border border-border rounded-md bg-surface2 px-2 pt-2 pb-1.5">
           <div className="font-mono text-[17px] font-semibold tabular leading-none">{losses} kW</div>
-          <div className="text-[10px] text-textFaint mt-1">Losses</div>
+          <div className="text-[11.5px] text-textFaint mt-1">Losses</div>
         </div>
       </div>
       <div className="flex gap-2">

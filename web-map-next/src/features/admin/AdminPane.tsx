@@ -22,7 +22,7 @@ const ROLE_LABEL: Record<UserRole, string> = {
 const MIN_PASSWORD_LENGTH = 8;
 
 const inputClass =
-  'h-8 w-full rounded-md border border-borderStrong bg-surface2 px-2.5 text-xs text-text outline-none focus:border-accent';
+  'h-8 w-full rounded-md border border-borderStrong bg-surface2 px-2.5 text-[11.5px] text-text outline-none focus:border-accent';
 
 export function AdminPane() {
   const role = useAuthStore((s) => s.role);
@@ -51,8 +51,8 @@ export function AdminPane() {
           </h3>
           <Button size="sm" onClick={() => refetch()}>Refresh</Button>
         </div>
-        {isLoading && <div className="text-[11px] text-textFaint">Loading…</div>}
-        {isError && <div className="text-[11px] text-danger">Failed to load accounts.</div>}
+        {isLoading && <div className="text-[11.5px] text-textFaint">Loading…</div>}
+        {isError && <div className="text-[11.5px] text-danger">Failed to load accounts.</div>}
         <div className="flex flex-col gap-2.5">
           {users.map((user) => (
             <UserRow key={user.id} user={user} isSelf={user.username === currentUsername} onChanged={refetch} />
@@ -122,7 +122,7 @@ function CreateUserCard({ onDone }: { onDone: () => void }) {
           <Button type="submit" variant="primary" disabled={busy} className="justify-center">
             {busy ? 'Creating…' : 'Create account'}
           </Button>
-          <p className="m-0 text-[10.5px] text-textFaint">
+          <p className="m-0 text-[11.5px] text-textFaint">
             Share the initial password out of band — it is never shown again.
           </p>
         </form>
@@ -168,15 +168,15 @@ function UserRow({ user, isSelf, onChanged }: { user: AdminUser; isSelf: boolean
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[12px] text-text font-semibold truncate">{user.username}</span>
-            {isSelf && <span className="text-[9.5px] text-accent uppercase tracking-wide">you</span>}
+            <span className="text-[11.5px] text-text font-semibold truncate">{user.username}</span>
+            {isSelf && <span className="text-[11.5px] text-accent uppercase tracking-wide">you</span>}
             {!user.enabled && (
-              <span className="text-[9.5px] text-danger uppercase tracking-wide">suspended</span>
+              <span className="text-[11.5px] text-danger uppercase tracking-wide">suspended</span>
             )}
           </div>
-          <div className="text-[10.5px] text-textFaint truncate">{user.email}</div>
+          <div className="text-[11.5px] text-textFaint truncate">{user.email}</div>
         </div>
-        <span className="text-[10.5px] text-textMuted flex-none">{ROLE_LABEL[user.role]}</span>
+        <span className="text-[11.5px] text-textMuted flex-none">{ROLE_LABEL[user.role]}</span>
       </div>
 
       <div className="flex items-center gap-1.5 flex-wrap">

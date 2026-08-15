@@ -23,7 +23,7 @@ export function AssetSummary() {
         {metrics.map((m) => (
           <div key={m.label} className="border border-border rounded-md bg-surface2 px-2 pt-2 pb-1.5">
             <div className="font-mono text-[17px] font-semibold tabular leading-none">{m.value}</div>
-            <div className="text-[10px] text-textFaint mt-1">{m.label}</div>
+            <div className="text-[11.5px] text-textFaint mt-1">{m.label}</div>
           </div>
         ))}
       </div>

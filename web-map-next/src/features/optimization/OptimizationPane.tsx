@@ -110,13 +110,13 @@ export function OptimizationPane() {
               { label: 'Restricted', value: counts.restrictedAreas }
             ].map((m) => (
               <div key={m.label} className="border border-border rounded-md bg-surface2 px-2 pt-2 pb-1.5">
-                <div className="font-mono text-[15px] font-semibold tabular leading-none">{m.value}</div>
-                <div className="text-[10px] text-textFaint mt-1">{m.label}</div>
+                <div className="font-mono text-[13.5px] font-semibold tabular leading-none">{m.value}</div>
+                <div className="text-[11.5px] text-textFaint mt-1">{m.label}</div>
               </div>
             ))}
           </div>
         )}
-        {multipleSubstationsNote && <p className="text-[11px] text-textFaint mt-2 mb-0">ℹ️ {multipleSubstationsNote}</p>}
+        {multipleSubstationsNote && <p className="text-[11.5px] text-textFaint mt-2 mb-0">ℹ️ {multipleSubstationsNote}</p>}
       </Card>
       <Card>
         <CardTitle>Scenario &amp; Algorithm</CardTitle>
@@ -147,7 +147,7 @@ export function OptimizationPane() {
             {isRunning ? 'Running…' : 'Run optimization pipeline'}
           </Button>
           {!isRunning && blockers.length > 0 && (
-            <ul className="list-disc list-inside text-[11px] text-danger m-0">
+            <ul className="list-disc list-inside text-[11.5px] text-danger m-0">
               {blockers.map((b, i) => (
                 <li key={i}>{b}</li>
               ))}
@@ -161,7 +161,7 @@ export function OptimizationPane() {
                   style={{ width: `${progress.progressPercent ?? 10}%` }}
                 />
               </div>
-              <p className="text-[11px] text-textFaint mt-1.5">{progress.message}</p>
+              <p className="text-[11.5px] text-textFaint mt-1.5">{progress.message}</p>
             </div>
           )}
         </div>
@@ -178,10 +178,10 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
     return (
       <Card className="border-danger/60 bg-danger/5">
         <CardTitle>Optimization Failed</CardTitle>
-        <p className="text-xs text-danger font-medium mb-2">{job.errorMessage || 'No feasible route was found.'}</p>
+        <p className="text-[11.5px] text-danger font-medium mb-2">{job.errorMessage || 'No feasible route was found.'}</p>
         {summary?.candidates && summary.candidates.length > 0 && (
           <div className="flex flex-col gap-1.5">
-            <p className="text-[11px] text-textMuted uppercase tracking-wide font-bold">Candidate scenarios evaluated</p>
+            <p className="text-[11.5px] text-textMuted uppercase tracking-wide font-bold">Candidate scenarios evaluated</p>
             {summary.candidates.map((c) => (
               <div key={c.scenario_id} className="text-[11.5px] text-text border-b border-border last:border-b-0 py-1">
                 <span className="font-mono">{c.scenario_id}</span>
@@ -200,7 +200,7 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
         {summary?.failures && summary.failures.length > 0 && (
           <div className="mt-2 flex flex-col gap-1">
             {summary.failures.map((f, i) => (
-              <p key={i} className="text-[11px] text-textFaint">
+              <p key={i} className="text-[11.5px] text-textFaint">
                 <span className="font-mono text-textMuted">{f.stage}</span>: {f.message}
               </p>
             ))}
@@ -223,7 +223,7 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
       <CardTitle>Why This Route</CardTitle>
       <div className="flex flex-col gap-3 text-[11.5px]">
         {job.scenario && (
-          <p className="text-[11px] text-textMuted m-0">
+          <p className="text-[11.5px] text-textMuted m-0">
             Optimised for <span className="text-text font-semibold">{job.scenario}</span>
           </p>
         )}
@@ -307,7 +307,7 @@ function SummaryRow({
 }) {
   return (
     <div>
-      <p className={`text-[10.5px] uppercase tracking-wide font-bold mb-1 ${warn ? 'text-danger' : 'text-textMuted'}`}>
+      <p className={`text-[11.5px] uppercase tracking-wide font-bold mb-1 ${warn ? 'text-danger' : 'text-textMuted'}`}>
         {label}
       </p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">

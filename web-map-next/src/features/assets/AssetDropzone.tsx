@@ -49,8 +49,8 @@ export function AssetDropzone({ mapRef, onKmzPreview }: AssetDropzoneProps) {
           dragOver ? 'border-accent bg-accentSoft' : 'border-borderStrong bg-surface2'
         }`}
       >
-        <p className="m-0 text-xs font-semibold text-text">{isProcessing ? 'Processing…' : 'Drop .geojson / .kmz / .kml'}</p>
-        <span className="text-[11px] text-textFaint">or click to browse</span>
+        <p className="m-0 text-[11.5px] font-semibold text-text">{isProcessing ? 'Processing…' : 'Drop .geojson / .kmz / .kml'}</p>
+        <span className="text-[11.5px] text-textFaint">or click to browse</span>
         <input ref={fileInputRef} type="file" multiple accept=".geojson,.json,.kmz,.kml" className="hidden" onChange={onFileInputChange} />
       </div>
       <div className="flex flex-wrap gap-1.5 mt-2.5 items-center justify-between">
@@ -59,8 +59,8 @@ export function AssetDropzone({ mapRef, onKmzPreview }: AssetDropzoneProps) {
             <button
               key={opt.value}
               onClick={() => setSelectedType(opt.value)}
-              className={`text-[11px] font-semibold px-2.5 py-1 rounded-full border ${
-                selectedType === opt.value ? 'bg-accent border-accent text-white' : 'bg-surface2 border-borderStrong text-textMuted'
+              className={`text-[11.5px] font-semibold px-2.5 py-1 rounded-full border ${
+                selectedType === opt.value ? 'bg-accent border-accent text-accentInk' : 'bg-surface2 border-borderStrong text-textMuted'
               }`}
             >
               {opt.label}
@@ -70,7 +70,7 @@ export function AssetDropzone({ mapRef, onKmzPreview }: AssetDropzoneProps) {
         <a
           href="/sample_wind_farm.kmz"
           download="sample_wind_farm.kmz"
-          className="text-[11px] font-medium text-accent hover:underline inline-flex items-center gap-1 mt-1"
+          className="text-[11.5px] font-medium text-accent hover:underline inline-flex items-center gap-1 mt-1 min-h-6 py-1"
         >
           ⬇️ Download Sample .KMZ
         </a>

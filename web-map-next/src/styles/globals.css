@@ -9,9 +9,15 @@
   --surface-2: #1C1C20;
   --border: rgba(255,255,255,0.09);
   --border-strong: rgba(255,255,255,0.17);
+  /* Three text tiers, all of which must stay readable on --panel through --surface-2.
+     --text-faint was #55585F, which measured 2.4:1 against the panel — well under the 4.5:1
+     WCAG AA needs — and it was carrying the labels that say what each figure means.
+     --text-muted is lifted alongside it so the three tiers remain visually distinct instead of
+     collapsing into two. Measured on --surface-2, the lightest background any of them sit on:
+     text 13.7:1, muted 6.7:1, faint 4.8:1. */
   --text: #F2F3F5;
-  --text-muted: #8B909C;
-  --text-faint: #55585F;
+  --text-muted: #A2A8B3;
+  --text-faint: #838892;
   --accent: #4E8CFF;
   --accent-soft: rgba(78,140,255,0.14);
   --accent-ink: #071022;
@@ -35,6 +41,23 @@ body {
 }
 .tabular { font-variant-numeric: tabular-nums; }
 .leaflet-container { background: var(--surface-2) !important; }
+
+/* Leaflet ships its controls with light chrome. Left alone, the app's near-white text lands on a
+   white panel at about 1.1:1 — effectively invisible. Themed to match the rest of the surface. */
+.leaflet-control-layers,
+.leaflet-bar a,
+.leaflet-control-attribution {
+  background: var(--panel) !important;
+  color: var(--text-muted) !important;
+  border-color: var(--border-strong) !important;
+}
+.leaflet-bar a { border-bottom-color: var(--border) !important; }
+.leaflet-bar a:hover { background: var(--surface-2) !important; color: var(--text) !important; }
+.leaflet-control-layers label { color: var(--text) !important; }
+.leaflet-control-attribution a { color: var(--text-muted) !important; }
+
+/* Leaflet's zoom buttons are 30px; nudge them to a comfortable target. */
+.leaflet-touch .leaflet-bar a { width: 32px; height: 32px; line-height: 32px; }
 
 .custom-leaflet-marker { background: transparent; border: none; }
 

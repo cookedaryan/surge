@@ -91,7 +91,7 @@ export function ImportPreviewModal({ preview, onClose }: ImportPreviewModalProps
         {Object.entries(counts)
           .filter(([, count]) => count > 0)
           .map(([type, count]) => (
-            <div key={type} className="text-[11px] font-semibold px-2 py-1 rounded-full bg-surface2 border border-border text-textMuted">
+            <div key={type} className="text-[11.5px] font-semibold px-2 py-1 rounded-full bg-surface2 border border-border text-textMuted">
               <strong className="text-text">{count}</strong> {ASSET_TYPE_LABELS[type as keyof typeof ASSET_TYPE_LABELS] || type}
             </div>
           ))}
@@ -99,7 +99,7 @@ export function ImportPreviewModal({ preview, onClose }: ImportPreviewModalProps
       {notes.length > 0 && (
         <div className="flex flex-col gap-1 mb-2.5">
           {notes.map((note, i) => (
-            <div key={i} className="text-[11px] text-warning">{note}</div>
+            <div key={i} className="text-[11.5px] text-warning">{note}</div>
           ))}
         </div>
       )}
@@ -112,16 +112,16 @@ export function ImportPreviewModal({ preview, onClose }: ImportPreviewModalProps
         />
         <Button size="sm" onClick={applyBulk}>Apply to all rows</Button>
         <input
-          className="h-[26px] w-[120px] rounded-md border border-borderStrong bg-surface2 px-2 text-[11px] text-text outline-none focus:border-accent"
+          className="h-[26px] w-[120px] rounded-md border border-borderStrong bg-surface2 px-2 text-[11.5px] text-text outline-none focus:border-accent"
           placeholder="Default MW"
           value={defaultCapacity}
           onChange={(e) => setDefaultCapacity(e.target.value)}
         />
       </div>
       <div className="overflow-x-auto border border-border rounded-md">
-        <table className="w-full text-[11px] border-collapse">
+        <table className="w-full text-[11.5px] border-collapse">
           <thead>
-            <tr className="bg-surface2 text-textFaint uppercase tracking-wide text-[10px]">
+            <tr className="bg-surface2 text-textFaint uppercase tracking-wide text-[11.5px]">
               <th className="text-left px-2 py-1.5">Geom</th>
               <th className="text-left px-2 py-1.5">Name</th>
               <th className="text-left px-2 py-1.5">Folder</th>
@@ -144,7 +144,7 @@ export function ImportPreviewModal({ preview, onClose }: ImportPreviewModalProps
                   <td className="px-2 py-1 text-text">{feature.externalId || <em>unnamed</em>}</td>
                   <td className="px-2 py-1 text-textFaint">{feature.kmlFolder || '—'}</td>
                   <td className="px-2 py-1">
-                    <Select value={currentValue} onValueChange={(v) => setOverride(feature.externalId, v)} options={options} className="h-6 text-[11px]" />
+                    <Select value={currentValue} onValueChange={(v) => setOverride(feature.externalId, v)} options={options} className="h-6 text-[11.5px]" />
                   </td>
                   <td className="px-2 py-1 text-textFaint">{feature.status && feature.status !== 'UNKNOWN' ? feature.status.replace(/_/g, ' ') : '—'}</td>
                   <td className="px-2 py-1 text-textFaint" title={feature.evidence || ''}>{feature.matchedRule.replace(/_/g, ' ').toLowerCase()}</td>

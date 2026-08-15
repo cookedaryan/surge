@@ -34,25 +34,25 @@ export function AuditPane() {
         </h3>
         <Button size="sm" onClick={() => refetch()}>Refresh</Button>
       </div>
-      <p className="m-0 mb-2 text-[10.5px] text-textFaint">
+      <p className="m-0 mb-2 text-[11.5px] text-textFaint">
         Most recent 50 actions. Sign-ins, account changes, imports, optimisation runs and exports.
       </p>
-      {isLoading && <div className="text-[11px] text-textFaint">Loading…</div>}
-      {isError && <div className="text-[11px] text-danger">Failed to load audit logs.</div>}
+      {isLoading && <div className="text-[11.5px] text-textFaint">Loading…</div>}
+      {isError && <div className="text-[11.5px] text-danger">Failed to load audit logs.</div>}
       {!isLoading && !isError && logs.length === 0 && (
-        <div className="text-[11px] text-textFaint">No audit logs recorded yet.</div>
+        <div className="text-[11.5px] text-textFaint">No audit logs recorded yet.</div>
       )}
       <div className="flex flex-col gap-2">
         {logs.map((log, i) => (
           <div key={i} className="border-b border-border pb-2 last:border-b-0">
-            <div className="flex items-baseline justify-between gap-2 text-[11px]">
+            <div className="flex items-baseline justify-between gap-2 text-[11.5px]">
               <span className="text-text font-semibold truncate">{log.username || 'anonymous'}</span>
-              <span className={`font-mono text-[10px] flex-none ${toneFor(log.action || '')}`}>
+              <span className={`font-mono text-[11.5px] flex-none ${toneFor(log.action || '')}`}>
                 {log.action}
               </span>
             </div>
-            <div className="text-[11px] text-textFaint">{log.details || log.resourceType}</div>
-            <div className="text-[10px] text-textFaint mt-0.5">{formatTimestamp(log.timestamp)}</div>
+            <div className="text-[11.5px] text-textFaint">{log.details || log.resourceType}</div>
+            <div className="text-[11.5px] text-textFaint mt-0.5">{formatTimestamp(log.timestamp)}</div>
           </div>
         ))}
       </div>

@@ -39,24 +39,24 @@ export function AuthGateway() {
   return (
     <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/85 font-ui">
       <form onSubmit={handleSubmit} className="w-[320px] bg-panel border border-borderStrong rounded-lg p-5 flex flex-col gap-3">
-        <h2 className="m-0 text-sm font-bold text-text">Sign in to SURGE</h2>
+        <h2 className="m-0 text-[13.5px] font-bold text-text">Sign in to SURGE</h2>
         <p className="m-0 text-[11.5px] text-textFaint">Engineering access is required to load or edit project data.</p>
         <input
-          className="h-8 rounded-md border border-borderStrong bg-surface2 px-2.5 text-xs text-text outline-none focus:border-accent"
+          className="h-8 rounded-md border border-borderStrong bg-surface2 px-2.5 text-[11.5px] text-text outline-none focus:border-accent"
           placeholder="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoComplete="username"
         />
         <input
-          className="h-8 rounded-md border border-borderStrong bg-surface2 px-2.5 text-xs text-text outline-none focus:border-accent"
+          className="h-8 rounded-md border border-borderStrong bg-surface2 px-2.5 text-[11.5px] text-text outline-none focus:border-accent"
           placeholder="Password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           autoComplete="current-password"
         />
-        {error && <div className="text-[11px] text-danger">{error}</div>}
+        {error && <div className="text-[11.5px] text-danger">{error}</div>}
         <Button type="submit" variant="primary" disabled={submitting} className="justify-center">
           {submitting ? 'Signing in…' : 'Sign in'}
         </Button>

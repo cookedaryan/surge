@@ -41,7 +41,7 @@ export function LayersPane() {
         <CardTitle>Map Layer Controls</CardTitle>
         {LAYER_TOGGLES.map((item) => (
           <div key={item.key} className="flex items-center justify-between py-1.5 border-b border-border last:border-b-0">
-            <span className="text-xs text-text">{item.label}</span>
+            <span className="text-[11.5px] text-text">{item.label}</span>
             <Switch checked={layerVisibility[item.key]} onCheckedChange={() => toggleLayer(item.key)} />
           </div>
         ))}
@@ -51,8 +51,8 @@ export function LayersPane() {
         {CONSTRAINT_TOGGLES.map((item) => (
           <div key={item.key} className="flex items-center justify-between py-1.5 border-b border-border last:border-b-0">
             <div>
-              <span className="text-xs text-text block">{item.label}</span>
-              <span className="text-[10.5px] text-textFaint">{item.hint}</span>
+              <span className="text-[11.5px] text-text block">{item.label}</span>
+              <span className="text-[11.5px] text-textFaint">{item.hint}</span>
             </div>
             <Switch checked={layerVisibility[item.key]} onCheckedChange={() => toggleLayer(item.key)} />
           </div>
@@ -62,7 +62,7 @@ export function LayersPane() {
         <CardTitle>Pole Classes</CardTitle>
         {POLE_TOGGLES.map((item) => (
           <div key={item.key} className="flex items-center justify-between py-1.5 border-b border-border last:border-b-0">
-            <span className="text-xs text-text">{item.label}</span>
+            <span className="text-[11.5px] text-text">{item.label}</span>
             <Switch checked={layerVisibility[item.key]} onCheckedChange={() => toggleLayer(item.key)} />
           </div>
         ))}
@@ -86,7 +86,7 @@ export function LayersPane() {
       </Card>
       <Card>
         <div className="flex items-center justify-between">
-          <span className="text-xs text-text">Interactive route editing</span>
+          <span className="text-[11.5px] text-text">Interactive route editing</span>
           <Switch
             checked={routeEditMode}
             onCheckedChange={(v) => {
@@ -95,7 +95,7 @@ export function LayersPane() {
             }}
           />
         </div>
-        <p className="text-[11px] text-textFaint mt-1.5 mb-0">Drag route vertices on the map; BOM totals update live while enabled.</p>
+        <p className="text-[11.5px] text-textFaint mt-1.5 mb-0">Drag route vertices on the map; BOM totals update live while enabled.</p>
       </Card>
     </>
   );

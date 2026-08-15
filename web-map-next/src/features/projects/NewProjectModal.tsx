@@ -36,13 +36,13 @@ export function NewProjectModal() {
     >
       <div className="flex flex-col gap-3">
         <input
-          className="h-8 rounded-md border border-borderStrong bg-surface2 px-2.5 text-xs text-text outline-none focus:border-accent"
+          className="h-8 rounded-md border border-borderStrong bg-surface2 px-2.5 text-[11.5px] text-text outline-none focus:border-accent"
           placeholder="Project name"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <textarea
-          className="rounded-md border border-borderStrong bg-surface2 px-2.5 py-2 text-xs text-text outline-none focus:border-accent resize-none h-20"
+          className="rounded-md border border-borderStrong bg-surface2 px-2.5 py-2 text-[11.5px] text-text outline-none focus:border-accent resize-none h-20"
           placeholder="Description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}

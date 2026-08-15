@@ -6,7 +6,12 @@ export function BomStrip() {
   const currentJobId = useUiStore((s) => s.currentJobId);
   const liveOverride = useUiStore((s) => s.liveBomOverride);
   const elevationDrawerOpen = useUiStore((s) => s.elevationDrawerOpen);
+  const activeSidebarTab = useUiStore((s) => s.activeSidebarTab);
   const { bom } = useProjectData(currentProjectId, currentJobId);
+
+  // The BOM pane shows these same four figures, larger and with the exports beside them. Repeating
+  // them over the map while it is open costs map area and says nothing new.
+  if (activeSidebarTab === 'bom') return null;
 
   const lengthKm = liveOverride ? liveOverride.lengthKm : bom ? (bom.totalNetworkLengthMeters / 1000).toFixed(2) : '0.00';
   const poles = liveOverride ? liveOverride.poles : bom?.totalPoles ?? 0;
@@ -22,8 +27,12 @@ export function BomStrip() {
 
   return (
     <div
-      className={`absolute left-3.5 z-[1010] flex rounded-lg overflow-hidden font-ui transition-all ${
-        elevationDrawerOpen ? 'bottom-[220px]' : 'bottom-3.5'
+      // Lifted clear of the elevation drawer with a transform rather than by swapping the `bottom`
+      // utility. Animating a layout offset through a class swap left the element painting at its
+      // old offset — the strip sat on top of the elevation chart until something else forced a
+      // reflow. A transform is also compositor-only, so opening the drawer costs no layout work.
+      className={`absolute left-3.5 bottom-3.5 z-[1010] flex rounded-lg overflow-hidden font-ui transition-transform duration-150 ${
+        elevationDrawerOpen ? '-translate-y-[206px]' : 'translate-y-0'
       }`}
     >
       {segments.map((seg, i) => (
@@ -32,7 +41,7 @@ export function BomStrip() {
           className={`bg-panel border border-borderStrong px-4 py-2.5 flex flex-col gap-0.5 min-w-[88px] ${i > 0 ? 'border-l-0' : ''}`}
         >
           <span className="font-mono font-bold text-[13.5px] tabular">{seg.value}</span>
-          <span className="text-[9.5px] uppercase tracking-wide text-textFaint">{seg.label}</span>
+          <span className="text-[11.5px] uppercase tracking-wide text-textFaint">{seg.label}</span>
         </div>
       ))}
     </div>

@@ -11,10 +11,12 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={clsx(
-        'inline-flex items-center gap-1.5 rounded-md border font-semibold cursor-pointer transition-colors',
-        size === 'default' ? 'h-7 px-2.5 text-xs' : 'h-[26px] px-2 text-[11.5px]',
+        'inline-flex items-center justify-center gap-1.5 rounded-md border font-semibold cursor-pointer transition-colors',
+        // Both sizes clear the 24px minimum WCAG 2.5.8 asks for; the default is 32px so the
+        // toolbar is comfortable rather than merely compliant.
+        size === 'default' ? 'h-8 px-3 text-[11.5px]' : 'h-7 px-2.5 text-[11.5px]',
         variant === 'primary'
-          ? 'bg-accent border-accent text-white hover:brightness-110'
+          ? 'bg-accent border-accent text-accentInk hover:brightness-110'
           : 'bg-surface2 border-borderStrong text-text hover:border-textFaint',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         className
