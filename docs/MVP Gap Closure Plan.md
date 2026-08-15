@@ -516,7 +516,10 @@ the application, so no deletion auditing was needed.
 
 ---
 
-## 4. Tier 3 — Fix the two known data-correctness bugs
+## 4. Tier 3 — Fix the two known data-correctness bugs ✅ DONE (2026-08-15)
+
+> **Completed.** Both fixed and verified against the running stack; see §4.3 for the
+> outcome and for two things that turned out to be worse than recorded below.
 
 Both were diagnosed to the exact line earlier this session; this section is
 the fix, not further investigation.
@@ -562,6 +565,58 @@ the fix, not further investigation.
 **Estimated effort:** 0.5 day each (roughly 1 day total) — both are
 localized name/wiring fixes against already-correct underlying data, not new
 algorithms.
+
+### 4.3 Outcome (done 2026-08-15)
+
+**Losses — fixed as planned.** Python now emits `electrical_losses_kw` alongside
+`active_loss_mw` in the segment properties. Java already accepted that key, so no
+backend change was needed at all. Verified on a fresh run of the reference project:
+BOM losses **324.18 kW**, exactly matching Pandapower's `total_active_loss_mw`, where
+the old heuristic gave 349.96 kW. The BOM and the "Why This Route" panel now agree —
+their disagreement was the original symptom.
+
+**Parcel area — worse than recorded, and the fix is different.** The plan assumed
+Python already computed a usable per-parcel overlap. It does compute
+`RowIntersection.intersection_area_m2`, but `result_builder.py` invokes the analysis
+with `RowConfig(corridor_width_m=0.01)` — a **1 cm** corridor used to *detect*
+crossings, not a real right-of-way. Widening it there would have changed the
+crossing-detection and hard-violation semantics that the Python suite pins, so the
+overlap is computed in PostGIS instead, which is already the storage layer and can
+measure on the ellipsoid via `::geography`.
+
+The old Java figure was also worse than "full parcel area". It was:
+
+```java
+p.getGeometry().getArea() * 111000.0 * 111000.0 * 0.001
+```
+
+— the whole parcel, converted with a fixed metres-per-degree factor that ignores
+latitude, then scaled by an unexplained `0.001`. On the reference project:
+
+| Basis | m² |
+| --- | ---: |
+| Whole parcel | 36,862 |
+| **True 18 m ROW overlap** | **18,884** |
+| Figure previously reported | 38 |
+
+Roughly 500× too small, feeding `estimatedCompensationCost` — a money field.
+
+`CadastralParcelRepository.findRowCorridorAreaByParcel` now returns the area of
+`ST_Intersection(ST_Buffer(route::geography, width/2), parcel)` per parcel. Parcels the
+corridor misses return zero rather than being dropped, so they still appear as
+unaffected. If the spatial query cannot run, every parcel reports zero and a warning is
+logged: showing no impact is honest, inventing an area that feeds a compensation
+estimate is not.
+
+**One assumption made explicit.** ROW width is accepted on the job request and sent to
+Python but never persisted, so the report uses the documented 18 m default. Rather than
+bury that behind a number, the CSV export now states the corridor width and the basis
+of the calculation. Persisting `rowWidthM` on the job is the proper follow-up.
+
+**Verified:** 187 Java tests and 487 Python tests green; a live run of the reference
+project shows 324.18 kW losses and 11,475 m² of corridor overlap for the job's actual
+routes (the figure differs from the 18,884 m² above because that measured a different
+job's route set).
 
 ---
 
@@ -623,11 +678,8 @@ forward while Tiers 1–4 are open:
 ## 7. Suggested execution order
 
 1. ~~**Tier 1** (scenarios real)~~ — **done 2026-08-15**, see §2.4.
-2. **Tier 3** (BOM losses + ROW area fixes) — small, independent, already
-   fully diagnosed; can be done in parallel with Tier 1 by a second
-   contributor if available.
-3. **Tier 2** (authorization) — must land before any external/non-local
-   demo, but doesn't block continued local development of Tiers 1/3/4.
+2. ~~**Tier 3** (BOM losses + ROW area fixes)~~ — **done 2026-08-15**, see §4.3.
+3. ~~**Tier 2** (authorization)~~ — **done 2026-08-15**, see §3.3–§3.5.
 4. **Tier 4** (tests) — do incrementally alongside 1–3 rather than as one
    final push; each new behavior in Tiers 1–3 should ship with the test that
    proves it, per this repo's own CI gates.

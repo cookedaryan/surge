@@ -6,6 +6,7 @@ import com.power.surge.domain.JobStatus;
 import com.power.surge.domain.OptimizationJob;
 import com.power.surge.domain.Project;
 import com.power.surge.dto.report.EngineeringBomReportResponse;
+import com.power.surge.dto.report.ParcelImpactSummary;
 import com.power.surge.repository.CadastralParcelRepository;
 import com.power.surge.repository.GeneratedPoleRepository;
 import com.power.surge.repository.GeneratedRouteRepository;
@@ -29,6 +30,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -101,6 +104,82 @@ class ReportServiceTest {
         assertThat(report.totalPoles()).isEqualTo(15);
         assertThat(report.feederSummaries()).hasSize(1);
         assertThat(report.parcelImpactSummaries()).hasSize(1);
+    }
+
+    /**
+     * Land compensation is money, and it used to be derived from the parcel's entire area scaled by
+     * an unexplained constant. It must come from the right-of-way corridor overlap instead.
+     */
+    @Test
+    void parcelImpactUsesTheRightOfWayOverlapRatherThanTheWholeParcel() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+
+        Project project = new Project("Test Project", "Description");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+        OptimizationJob job = new OptimizationJob(project, "MULTI_OBJECTIVE_A_STAR", null, null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "id", jobId);
+
+        // A large parcel whose corridor overlap is only a narrow strip.
+        LinearRing ring = geometryFactory.createLinearRing(new Coordinate[]{
+                new Coordinate(77.20, 28.60),
+                new Coordinate(77.30, 28.60),
+                new Coordinate(77.30, 28.70),
+                new Coordinate(77.20, 28.70),
+                new Coordinate(77.20, 28.60)
+        });
+        CadastralParcel parcel = new CadastralParcel(
+                project, "P-001", "John Doe", new BigDecimal("2.00"), geometryFactory.createPolygon(ring));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of());
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of(parcel));
+        when(parcelRepository.findRowCorridorAreaByParcel(eq(projectId), eq(jobId), anyDouble()))
+                .thenReturn(List.<Object[]>of(new Object[]{"P-001", 1500.0}));
+
+        EngineeringBomReportResponse report = reportService.generateBomReport(projectId, jobId);
+
+        ParcelImpactSummary summary = report.parcelImpactSummaries().get(0);
+        assertThat(summary.affectedAreaM2()).isEqualTo(1500.0);
+        // 1500 m2 at $2.00/m2 — derived from the corridor overlap, not the parcel's full extent.
+        assertThat(summary.estimatedCompensationCost()).isEqualByComparingTo(new BigDecimal("3000.00"));
+    }
+
+    /** A spatial failure must not invent an area that would feed a compensation figure. */
+    @Test
+    void parcelImpactReportsZeroWhenTheCorridorOverlapCannotBeComputed() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+
+        Project project = new Project("Test Project", "Description");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+        OptimizationJob job = new OptimizationJob(project, "MULTI_OBJECTIVE_A_STAR", null, null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "id", jobId);
+
+        LinearRing ring = geometryFactory.createLinearRing(new Coordinate[]{
+                new Coordinate(77.20, 28.60),
+                new Coordinate(77.21, 28.60),
+                new Coordinate(77.21, 28.61),
+                new Coordinate(77.20, 28.60)
+        });
+        CadastralParcel parcel = new CadastralParcel(
+                project, "P-001", "John Doe", new BigDecimal("100.00"), geometryFactory.createPolygon(ring));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of());
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of(parcel));
+        when(parcelRepository.findRowCorridorAreaByParcel(eq(projectId), eq(jobId), anyDouble()))
+                .thenThrow(new org.springframework.dao.InvalidDataAccessResourceUsageException("no postgis"));
+
+        EngineeringBomReportResponse report = reportService.generateBomReport(projectId, jobId);
+
+        assertThat(report.parcelImpactSummaries().get(0).affectedAreaM2()).isZero();
+        assertThat(report.parcelImpactSummaries().get(0).estimatedCompensationCost())
+                .isEqualByComparingTo(BigDecimal.ZERO);
     }
 
     @Test
