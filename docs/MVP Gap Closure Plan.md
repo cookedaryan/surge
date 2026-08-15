@@ -112,7 +112,10 @@ any project. `MVP Execution Plan - Frontend & Java.md` flags this explicitly:
 
 ---
 
-## 2. Tier 1 — Make the four scenarios real
+## 2. Tier 1 — Make the four scenarios real ✅ DONE (2026-08-15)
+
+> **Completed.** Implemented on `feat/mvp-tier1-real-scenarios`. See §2.4 for the
+> verified result and the one design correction made during implementation.
 
 **Why first:** this is the single largest gap between "looks like a demo"
 and "is the MVP," it's explicitly called out as a must-have in three
@@ -192,6 +195,65 @@ config (already real, already validated, just unused by V1 callers).
 
 **Estimated effort:** 0.5–1 day (mostly Java DTO/service wiring; Python side
 is already built).
+
+### 2.4 Outcome and the one design correction
+
+**Correction to §2.1.** The table above assigned *Minimum Cost* to scoring
+weights alone. Verification showed that would have been a no-op: on the real
+Uravakonda data only one of three candidates survives electrical screening
+(`"Only one candidate was electrically feasible"`), and a sole eligible
+candidate wins under every possible weight vector. Every scenario therefore
+also carries a cost-surface bias, so the candidate routes differ before scoring
+runs at all. Two further constraints discovered while reading the engine:
+
+- Soft-constraint cost is **additive to the raster**
+  (`costs[finite_mask] += layer.cost_weight`, `constraints.py:217`), with a
+  documented default of `20.0` when a feature carries no explicit cost.
+- Hard exclusions **must not** carry `cost_weight` — Python raises on it
+  (`constraints.py:67`) — so the environmental scenario expresses its
+  preference as extra `buffer_m` clearance instead, added on top of Python's
+  own `avoidance_buffer_m` default of `10.0` m so it can never resolve to
+  *less* clearance than the baseline.
+
+**As-built profile table** (`ScenarioProfile.java`):
+
+| Scenario | Weights (len/loss/load/volt) | Constraint bias |
+| --- | --- | --- |
+| Balanced | 0.40 / 0.25 / 0.20 / 0.15 | none — imported values used as-is |
+| Minimum Cost | 0.70 / 0.12 / 0.10 / 0.08 | soft crossings ×0.5 |
+| Minimum Land Impact | 0.40 / 0.25 / 0.20 / 0.15 | parcels ×3 |
+| Minimum Environmental Impact | 0.40 / 0.25 / 0.20 / 0.15 | watercourses ×3, restricted +25 m clearance |
+
+Balanced at a 1.0 multiplier reproduces the previous behaviour exactly, so the
+default scenario is not a regression.
+
+**Verified live** against `Uravakonda PCN Route Test` (95 WTGs / 38 optimisable,
+45 reference lines, 1 parcel, 2 restricted areas):
+
+| Scenario | Length (m) | Poles | Losses (kW) |
+| --- | ---: | ---: | ---: |
+| Balanced | 69,991.4 | 606 | 324.18 |
+| Minimum Cost | 68,476.4 | 581 | 317.29 |
+| Minimum Land Impact | 69,933.6 | 601 | 324.12 |
+| Minimum Environmental Impact | 70,142.2 | 608 | 324.82 |
+
+Four distinct lengths, four distinct pole counts, four distinct loss figures —
+and the ordering is physically sensible: Minimum Cost is the shortest and
+cheapest because it accepts crossings, Minimum Environmental Impact is the
+longest because it detours around the widened clearance.
+
+**Also fixed in passing:** `OptimizationJobResponse` never exposed the job's
+`scenario`, so the UI could not show which scenario produced a result. Added
+the field and surfaced it in the decision card ("Optimised for …").
+
+**Test coverage added:** `ScenarioProfileTest` (17 tests: weights total 1.0 per
+the Python contract, per-weight range, no two scenarios share a configuration,
+every scenario biases the surface, direction-of-effect per scenario, fallback
+and casing) and `OptimizationJobServiceTest.eachScenarioDispatchesADistinct
+OptimisationRequest` (captures all four dispatched payloads and asserts they
+differ). Both were mutation-tested: forcing `forScenario()` to always return
+Balanced fails 6 of them, so the guard has teeth. Full suite: 153 Java tests
+green, frontend typecheck and build clean.
 
 ---
 
@@ -346,8 +408,7 @@ forward while Tiers 1–4 are open:
 
 ## 7. Suggested execution order
 
-1. **Tier 1** (scenarios real) — highest product-credibility impact, and the
-   Python half is already built, so it's also the cheapest of the big items.
+1. ~~**Tier 1** (scenarios real)~~ — **done 2026-08-15**, see §2.4.
 2. **Tier 3** (BOM losses + ROW area fixes) — small, independent, already
    fully diagnosed; can be done in parallel with Tier 1 by a second
    contributor if available.

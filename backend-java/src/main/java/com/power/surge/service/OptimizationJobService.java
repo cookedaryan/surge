@@ -135,7 +135,10 @@ public class OptimizationJobService {
             Map<String, Object> wtgGeoJson = buildWtgGeoJson(wtgs);
             Map<String, Object> subGeoJson = buildSubstationGeoJson(substations, wtgs);
 
-            String scenario = req.scenario() != null ? req.scenario() : "Balanced";
+            String scenario = req.scenario() != null ? req.scenario() : ScenarioProfile.BALANCED;
+            // The scenario is not just a label: it selects the candidate scoring weights AND the
+            // constraint cost/clearance bias applied to the A* surface. See ScenarioProfile.
+            ScenarioProfile profile = ScenarioProfile.forScenario(scenario);
 
             Map<String, Object> electricalParams = new LinkedHashMap<>();
             electricalParams.put("feeder_capacity_mw", req.feederCapacityMw() != null ? req.feederCapacityMw().doubleValue() : 20.0);
@@ -153,7 +156,7 @@ public class OptimizationJobService {
             poleConfig.put("target_span_m", maxSpanM * (100.0 / 120.0));
             poleConfig.put("min_span_m", maxSpanM * (30.0 / 120.0));
 
-            Map<String, Object> avoidanceGeoJson = buildAvoidanceGeoJson(projectId);
+            Map<String, Object> avoidanceGeoJson = buildAvoidanceGeoJson(projectId, profile);
 
             PythonOptimisationRequest pythonReq = new PythonOptimisationRequest(
                     "job-" + job.getId(),
@@ -163,7 +166,8 @@ public class OptimizationJobService {
                     subGeoJson,
                     electricalParams,
                     poleConfig,
-                    avoidanceGeoJson
+                    avoidanceGeoJson,
+                    profile.scoringWeights()
             );
 
             PythonOptimisationResponse pythonResp = pythonClient.runOptimization(pythonReq);
@@ -287,7 +291,7 @@ public class OptimizationJobService {
      * when the project has no such features, so the request omits avoidance_geojson entirely
      * rather than sending an empty collection.
      */
-    private Map<String, Object> buildAvoidanceGeoJson(UUID projectId) {
+    private Map<String, Object> buildAvoidanceGeoJson(UUID projectId, ScenarioProfile profile) {
         List<Map<String, Object>> features = new ArrayList<>();
 
         for (ReferenceLine line : referenceLineRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)) {
@@ -302,13 +306,18 @@ public class OptimizationJobService {
             geometry.put("type", "LineString");
             geometry.put("coordinates", coords);
 
+            String constraintType = lineConstraintType(line.getLineType());
+            Double importedCost = line.getCrossingCost() != null ? line.getCrossingCost().doubleValue() : null;
+
             Map<String, Object> properties = new LinkedHashMap<>();
             properties.put("constraint_id", "line-" + line.getId());
-            properties.put("constraint_type", lineConstraintType(line.getLineType()));
+            properties.put("constraint_type", constraintType);
             properties.put("routing_mode", "soft");
-            if (line.getCrossingCost() != null) {
-                properties.put("cost_weight", line.getCrossingCost().doubleValue());
-            }
+            // Always explicit: the scenario multiplier has to be applied to a known base, and
+            // sending Python's own default at a 1.0 multiplier keeps Balanced byte-identical.
+            properties.put("cost_weight", "watercourse".equals(constraintType)
+                    ? profile.watercourseCost(importedCost)
+                    : profile.crossingCost(importedCost));
 
             features.add(avoidanceFeature("line-" + line.getId(), geometry, properties));
         }
@@ -321,6 +330,7 @@ public class OptimizationJobService {
             properties.put("constraint_id", "parcel-" + parcel.getId());
             properties.put("constraint_type", "parcel");
             properties.put("routing_mode", "soft");
+            properties.put("cost_weight", profile.parcelCost());
 
             features.add(avoidanceFeature("parcel-" + parcel.getId(), polygonGeoJson(parcel.getGeometry()), properties));
         }
@@ -333,9 +343,10 @@ public class OptimizationJobService {
             properties.put("constraint_id", "restricted-" + area.getId());
             properties.put("constraint_type", "restricted_area");
             properties.put("routing_mode", "hard");
-            if (area.getBufferMeters() != null) {
-                properties.put("buffer_m", area.getBufferMeters().doubleValue());
-            }
+            // Hard exclusions must not carry cost_weight (Python rejects it), so the environmental
+            // scenario expresses its preference as extra routing clearance instead.
+            properties.put("buffer_m", profile.restrictedBufferMeters(
+                    area.getBufferMeters() != null ? area.getBufferMeters().doubleValue() : null));
 
             features.add(avoidanceFeature("restricted-" + area.getId(), polygonGeoJson(area.getGeometry()), properties));
         }

@@ -222,6 +222,11 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
     <Card>
       <CardTitle>Why This Route</CardTitle>
       <div className="flex flex-col gap-3 text-[11.5px]">
+        {job.scenario && (
+          <p className="text-[11px] text-textMuted m-0">
+            Optimised for <span className="text-text font-semibold">{job.scenario}</span>
+          </p>
+        )}
         {reasons && reasons.length > 0 && (
           <ul className="list-disc list-inside text-text">
             {reasons.map((r, i) => (

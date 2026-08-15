@@ -50,7 +50,7 @@ class JobProgressControllerTest {
         UUID jobId = UUID.randomUUID();
 
         OptimizationJobResponse dummyJob = new OptimizationJobResponse(
-                jobId, projectId, JobStatus.RUNNING, "MULTI_OBJECTIVE_A_STAR",
+                jobId, projectId, JobStatus.RUNNING, "MULTI_OBJECTIVE_A_STAR", "Balanced",
                 new BigDecimal("0.5000"), new BigDecimal("0.5000"), new BigDecimal("150.00"),
                 new BigDecimal("33.00"), null, "{}", Instant.now(), Instant.now(), null
         );

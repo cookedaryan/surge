@@ -2,9 +2,11 @@ package com.power.surge.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.power.surge.client.PythonOptimizationClient;
+import com.power.surge.domain.CadastralParcel;
 import com.power.surge.domain.JobStatus;
 import com.power.surge.domain.OptimizationJob;
 import com.power.surge.domain.Project;
+import com.power.surge.domain.RestrictedArea;
 import com.power.surge.domain.Substation;
 import com.power.surge.domain.WtgLocation;
 import com.power.surge.domain.WtgStatus;
@@ -25,7 +27,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LinearRing;
 import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -137,6 +141,105 @@ class OptimizationJobServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.status()).isEqualTo(JobStatus.COMPLETED);
         assertThat(response.algorithmType()).isEqualTo("MULTI_OBJECTIVE_A_STAR");
+    }
+
+    /**
+     * The scenario selector used to be cosmetic: the label was stored and displayed, but no weight
+     * or constraint cost ever reached Python, so all four scenarios returned identical routes. This
+     * proves each scenario now dispatches a genuinely different optimisation request.
+     */
+    @Test
+    void eachScenarioDispatchesADistinctOptimisationRequest() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Uravakonda", "PCN route");
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.10, 14.30)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 14.40)));
+        CadastralParcel parcel = new CadastralParcel(project, "P-001", "Owner",
+                new BigDecimal("100.00"), squareAt(77.15, 14.35));
+        RestrictedArea restricted = new RestrictedArea(project, "Sanctuary", "ENVIRONMENTAL",
+                new BigDecimal("30.00"), squareAt(77.20, 14.38));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of(parcel));
+        when(restrictedAreaRepository.findAllByProjectIdOrderByNameAsc(projectId)).thenReturn(List.of(restricted));
+        when(jobRepository.save(any(OptimizationJob.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
+                new PythonOptimisationResponse("job-1", "success", "Balanced", Map.of(), Map.of(),
+                        Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                        "SUCCESS", List.of(), Map.of(), Map.of(), List.of()));
+
+        List<String> scenarios = List.of(
+                ScenarioProfile.BALANCED,
+                ScenarioProfile.MINIMUM_COST,
+                ScenarioProfile.MINIMUM_LAND_IMPACT,
+                ScenarioProfile.MINIMUM_ENVIRONMENTAL_IMPACT);
+
+        for (String scenario : scenarios) {
+            jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                    "MULTI_OBJECTIVE_A_STAR", scenario, null, null, null, null, null, null, null));
+        }
+
+        ArgumentCaptor<PythonOptimisationRequest> captor =
+                ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient, org.mockito.Mockito.times(scenarios.size())).runOptimization(captor.capture());
+        List<PythonOptimisationRequest> sent = captor.getAllValues();
+
+        // Every request must be materially different from every other one, not just differently
+        // labelled. Comparing weights + constraint payload together catches a regression in either
+        // mechanism on its own.
+        List<String> fingerprints = sent.stream()
+                .map(r -> r.scoringWeights() + "|" + r.avoidanceGeojson())
+                .distinct()
+                .toList();
+        assertThat(fingerprints).hasSize(scenarios.size());
+
+        // Minimum Cost accepts land crossings more readily; Minimum Land Impact resists them.
+        double balancedParcelCost = parcelCostIn(sent.get(0));
+        assertThat(parcelCostIn(sent.get(1))).isLessThan(balancedParcelCost);
+        assertThat(parcelCostIn(sent.get(2))).isGreaterThan(balancedParcelCost);
+
+        // Hard exclusions cannot carry a cost, so the environmental scenario buys clearance instead.
+        assertThat(restrictedBufferIn(sent.get(3))).isGreaterThan(restrictedBufferIn(sent.get(0)));
+
+        // Minimum Cost is the only scenario that reweights scoring toward raw route length.
+        assertThat((Double) sent.get(1).scoringWeights().get("route_length_weight"))
+                .isGreaterThan((Double) sent.get(0).scoringWeights().get("route_length_weight"));
+    }
+
+    private Polygon squareAt(double lon, double lat) {
+        double d = 0.01;
+        LinearRing ring = geometryFactory.createLinearRing(new Coordinate[]{
+                new Coordinate(lon, lat),
+                new Coordinate(lon + d, lat),
+                new Coordinate(lon + d, lat + d),
+                new Coordinate(lon, lat + d),
+                new Coordinate(lon, lat)
+        });
+        return geometryFactory.createPolygon(ring);
+    }
+
+    private static double parcelCostIn(PythonOptimisationRequest request) {
+        return (Double) constraintProperties(request, "parcel").get("cost_weight");
+    }
+
+    private static double restrictedBufferIn(PythonOptimisationRequest request) {
+        return (Double) constraintProperties(request, "restricted_area").get("buffer_m");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> constraintProperties(PythonOptimisationRequest request, String constraintType) {
+        List<Map<String, Object>> features =
+                (List<Map<String, Object>>) request.avoidanceGeojson().get("features");
+        return features.stream()
+                .map(f -> (Map<String, Object>) f.get("properties"))
+                .filter(p -> constraintType.equals(p.get("constraint_type")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No " + constraintType + " constraint was sent"));
     }
 
     /**
