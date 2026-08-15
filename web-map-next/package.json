@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "SURGE - Smart Utility Routing & Grid Evacuation Web Map (React)",
   "type": "module",
+  "//engines": "CI and the production image both run Node 20. Declared so a dependency that quietly requires a newer runtime fails at install here rather than only in CI — jsdom 30 pulled an undici needing Node 22 and passed locally on Node 24 while breaking the pipeline.",
+  "engines": {
+    "node": ">=20.18.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -36,7 +40,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
-    "jsdom": "^30.0.1",
+    "jsdom": "^26.1.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
     "typescript": "^5.6.3",

@@ -284,10 +284,12 @@ def _enrich_segment(
             "active_loss_mw": (
                 round(segment.active_loss_mw, 6) if segment is not None else None
             ),
-            # Same quantity in kilowatts. Emitted alongside the megawatt figure rather than
-            # replacing it: consumers reading `active_loss_mw` keep working, while a caller that
-            # reports losses in kW no longer has to convert (or, as the backend did, silently fall
-            # back to a distance heuristic because no field with a kW name was ever present).
+            # Same quantity in kilowatts. Emitted alongside the megawatt
+            # figure rather than replacing it, so readers of
+            # `active_loss_mw` keep working while a caller that reports in
+            # kW no longer has to convert -- or, as the backend did, fall
+            # back to a distance heuristic because no kW-named field
+            # existed.
             "electrical_losses_kw": (
                 round(segment.active_loss_mw * 1000.0, 4)
                 if segment is not None and segment.active_loss_mw is not None
