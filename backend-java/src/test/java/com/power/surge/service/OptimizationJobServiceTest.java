@@ -86,6 +86,9 @@ class OptimizationJobServiceTest {
     @Mock
     private SseProgressService sseProgressService;
 
+    @Mock
+    private AuditLogService auditLogService;
+
     private OptimizationJobService jobService;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
 
@@ -104,7 +107,8 @@ class OptimizationJobServiceTest {
                 poleService,
                 pythonClient,
                 new ObjectMapper(),
-                sseProgressService
+                sseProgressService,
+                auditLogService
         );
     }
 

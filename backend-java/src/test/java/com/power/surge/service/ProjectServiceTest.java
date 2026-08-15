@@ -12,6 +12,7 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -28,6 +29,9 @@ class ProjectServiceTest {
     @Mock
     private ProjectRepository projectRepository;
 
+    @Mock
+    private AuditLogService auditLogService;
+
     @Captor
     private ArgumentCaptor<Project> projectCaptor;
 
@@ -37,6 +41,8 @@ class ProjectServiceTest {
     @Test
     void createsProjectFromRequest() {
         Project savedProject = new Project("North Ridge", "Wind farm project");
+        // A persisted entity always carries an id; the audit entry references it.
+        ReflectionTestUtils.setField(savedProject, "id", UUID.randomUUID());
         when(projectRepository.save(any(Project.class))).thenReturn(savedProject);
 
         ProjectResponse response = projectService.createProject(
@@ -53,6 +59,7 @@ class ProjectServiceTest {
     void updatesExistingProject() {
         UUID projectId = UUID.randomUUID();
         Project project = new Project("North Ridge", "Original description");
+        ReflectionTestUtils.setField(project, "id", projectId);
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
 
         ProjectResponse response = projectService.updateProject(

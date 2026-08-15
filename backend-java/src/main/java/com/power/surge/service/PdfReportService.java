@@ -31,14 +31,22 @@ public class PdfReportService {
 
     private final ProjectService projectService;
     private final ReportService reportService;
+    private final AuditLogService auditLogService;
 
-    public PdfReportService(ProjectService projectService, ReportService reportService) {
+    public PdfReportService(
+            ProjectService projectService,
+            ReportService reportService,
+            AuditLogService auditLogService
+    ) {
         this.projectService = projectService;
         this.reportService = reportService;
+        this.auditLogService = auditLogService;
     }
 
     public byte[] generateExecutivePdfReport(UUID projectId) {
         ProjectResponse project = projectService.getProject(projectId);
+        auditLogService.record("REPORT_EXPORTED", "PROJECT", projectId.toString(),
+                "Exported executive PDF report for project '" + project.name() + "'");
         EngineeringBomReportResponse bomReport = reportService.generateBomReport(projectId, null);
         ScenarioComparisonResponse scenarioResponse = reportService.getScenarioComparison(projectId);
 

@@ -268,10 +268,7 @@ green, frontend typecheck and build clean.
 >
 > - **Phase 1 — authentication (✅ done, see §3.3)**
 > - **Phase 2 — admin panel (✅ done, see §3.4)**
-> - **Phase 3 — audit coverage:** `recordAudit` is currently called from only two
->   places in the whole codebase (`USER_LOGIN`, `USER_REGISTERED`), so the log knows
->   who signed in and nothing about what they did. Instrumenting project create/delete,
->   asset import, job runs and report exports is the real work behind "who did what".
+> - **Phase 3 — audit coverage (✅ done, see §3.5)**
 
 **Why second:** every other feature sits behind this. Shipping Tier 1
 before this is fine (still local/demo-safe), but nothing here should be
@@ -453,6 +450,69 @@ routes. Suite: 182 Java tests green, frontend build clean.
 **Note:** a malformed UUID in any path still returns 500 via the catch-all rather than
 400. Pre-existing across every `{id}` route, not introduced here — worth a small
 `MethodArgumentTypeMismatchException` handler when convenient.
+
+### 3.5 Phase 3 outcome — audit coverage (done 2026-08-15)
+
+Before this, `recordAudit` was called from exactly two places in the whole codebase, so
+the log could say who signed in and nothing about what they did.
+
+**Attribution without plumbing.** `AuditLogService.record(action, resourceType,
+resourceId, details)` resolves the acting user from the security context. Threading a
+username through every service signature is what leads to a log that covers two call
+sites instead of the application. Two properties matter:
+
+- It runs in its own transaction (`REQUIRES_NEW`), so a record survives even when the
+  surrounding work rolls back — a failed import or rejected job is exactly what you
+  want in the log.
+- A storage failure is swallowed and reported to the application log. Audit logging is
+  observability, not business logic; it must never take down the operation it records.
+
+**Now instrumented:** project created, project updated (naming the rename explicitly),
+assets imported (both the reviewed preview/commit path and the one-step upload), an
+optimisation completing or failing, and report exports.
+
+**Deliberately not instrumented:** `generateBomReport`, which also backs the
+always-visible BOM panel. Auditing it would bury real actions under a stream of page
+renders. Only taking data *out* of the system — the CSV and PDF exports — is recorded.
+
+**Details carry the facts, not just the verb.** "Imported a file" is useless six weeks
+later; "95 WTG, 9 substation, 2 restricted" explains why a project's results changed.
+Likewise the optimisation entry names the scenario and turbine count, so a change in
+output has a visible cause.
+
+**One correction during verification.** The KMZ upload endpoint converts to GeoJSON
+before reaching the service, so it was logging "Direct GeoJSON import" — describing the
+internal plumbing rather than what the operator did. It now records the actual entry
+point and filename.
+
+**A real trail from a real run** (create project → upload the Uravakonda KMZ → run an
+optimisation → export a PDF):
+
+```text
+admin | USER_LOGIN              | Successful user authentication
+admin | PROJECT_CREATED         | Created project 'Audit Trace v2'
+admin | ASSETS_IMPORTED         | One-step KMZ/KML upload of 'Uravakonda WTG Substation
+                                  Restricted.kmz' into 'Audit Trace v2': 106 features
+                                  (95 WTG, 9 substation, 0 tower, 0 line, 0 parcel,
+                                  2 restricted)
+admin | OPTIMIZATION_COMPLETED  | Scenario 'Minimum Environmental Impact' completed for
+                                  project 'Audit Trace v2' (38 optimisable WTG, 33 kV)
+admin | REPORT_EXPORTED         | Exported executive PDF report for project
+                                  'Audit Trace v2'
+```
+
+**Audit pane** now shows the entry count, colours by consequence (failures and
+suspensions in red, creations in accent, changes in amber) so a problem stands out when
+skimming, and shows a date for entries older than today rather than a bare time.
+
+**Tests:** `AuditLogServiceTest` gains attribution from the security context, the
+anonymous fallback, and proof that a storage failure does not propagate. Suite: 185
+Java tests green, frontend build clean.
+
+**Known limits:** the endpoint returns the most recent 50 entries with no pagination,
+filtering or retention policy — fine at this scale, but worth revisiting before the log
+becomes long enough to hide something. There is still no DELETE endpoint anywhere in
+the application, so no deletion auditing was needed.
 
 ---
 

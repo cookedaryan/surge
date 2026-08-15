@@ -122,7 +122,7 @@ class ProjectAssetControllerTest {
 
         when(kmzConverter.convert(any())).thenReturn(
                 new KmzConversionResult(featureCollection, 1, 1, 0, 0, 0, Map.of()));
-        when(assetService.importGeoJson(eq(projectId), any(String.class))).thenReturn(response);
+        when(assetService.importGeoJson(eq(projectId), any(String.class), any(String.class))).thenReturn(response);
 
         MockMultipartFile file = new MockMultipartFile(
                 "file",

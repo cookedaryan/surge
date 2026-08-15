@@ -27,11 +27,14 @@ class PdfReportServiceTest {
     @Mock
     private ReportService reportService;
 
+    @Mock
+    private AuditLogService auditLogService;
+
     private PdfReportService pdfReportService;
 
     @BeforeEach
     void setUp() {
-        pdfReportService = new PdfReportService(projectService, reportService);
+        pdfReportService = new PdfReportService(projectService, reportService, auditLogService);
     }
 
     @Test

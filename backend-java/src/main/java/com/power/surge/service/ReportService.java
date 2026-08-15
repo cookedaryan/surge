@@ -36,19 +36,22 @@ public class ReportService {
     private final GeneratedRouteRepository routeRepository;
     private final GeneratedPoleRepository poleRepository;
     private final CadastralParcelRepository parcelRepository;
+    private final AuditLogService auditLogService;
 
     public ReportService(
             ProjectRepository projectRepository,
             OptimizationJobRepository jobRepository,
             GeneratedRouteRepository routeRepository,
             GeneratedPoleRepository poleRepository,
-            CadastralParcelRepository parcelRepository
+            CadastralParcelRepository parcelRepository,
+            AuditLogService auditLogService
     ) {
         this.projectRepository = projectRepository;
         this.jobRepository = jobRepository;
         this.routeRepository = routeRepository;
         this.poleRepository = poleRepository;
         this.parcelRepository = parcelRepository;
+        this.auditLogService = auditLogService;
     }
 
     public EngineeringBomReportResponse generateBomReport(UUID projectId, UUID jobId) {
@@ -128,6 +131,13 @@ public class ReportService {
 
     public String generateBomCsv(UUID projectId, UUID jobId) {
         EngineeringBomReportResponse report = generateBomReport(projectId, jobId);
+
+        // Audited here rather than in generateBomReport: that method also backs the always-visible
+        // BOM panel, so auditing it would bury real actions under a stream of page renders. Taking
+        // data out of the system is the event worth recording.
+        auditLogService.record("REPORT_EXPORTED", "PROJECT", projectId.toString(),
+                "Exported BOM CSV for project '" + report.projectName() + "'"
+                        + (report.jobId() != null ? " (job " + report.jobId() + ")" : ""));
 
         StringBuilder csv = new StringBuilder();
         csv.append("SURGE Engineering Bill of Materials (BOM) Report\n");

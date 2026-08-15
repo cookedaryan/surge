@@ -56,6 +56,7 @@ public class OptimizationJobService {
     private final PythonOptimizationClient pythonClient;
     private final ObjectMapper objectMapper;
     private final SseProgressService sseProgressService;
+    private final AuditLogService auditLogService;
 
     public OptimizationJobService(
             ProjectRepository projectRepository,
@@ -70,7 +71,8 @@ public class OptimizationJobService {
             PoleService poleService,
             PythonOptimizationClient pythonClient,
             ObjectMapper objectMapper,
-            SseProgressService sseProgressService
+            SseProgressService sseProgressService,
+            AuditLogService auditLogService
     ) {
         this.projectRepository = projectRepository;
         this.jobRepository = jobRepository;
@@ -85,6 +87,7 @@ public class OptimizationJobService {
         this.pythonClient = pythonClient;
         this.objectMapper = objectMapper;
         this.sseProgressService = sseProgressService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -184,10 +187,15 @@ public class OptimizationJobService {
                     poleService.savePolesFromGeoJson(job.getId(), pythonResp.polesGeojson());
                 }
                 job.markCompleted(summaryJson);
+                auditLogService.record("OPTIMIZATION_COMPLETED", "JOB", String.valueOf(job.getId()),
+                        "Scenario '" + scenario + "' completed for project '" + project.getName() + "' ("
+                                + wtgs.size() + " optimisable WTG, " + voltage(req) + " kV)");
                 sseProgressService.completeProgress(job.getId(), "Optimization job completed successfully!", true);
             } else {
                 String errMsg = describeFailure(pythonResp);
                 job.markFailed(errMsg, summaryJson);
+                auditLogService.record("OPTIMIZATION_FAILED", "JOB", String.valueOf(job.getId()),
+                        "Scenario '" + scenario + "' failed for project '" + project.getName() + "': " + errMsg);
                 sseProgressService.completeProgress(job.getId(), errMsg, false);
             }
 
@@ -195,6 +203,8 @@ public class OptimizationJobService {
             log.error("Failed to run optimization job {}", job.getId(), e);
             String errMsg = "Error dispatching optimization job: " + e.getMessage();
             job.markFailed(errMsg);
+            auditLogService.record("OPTIMIZATION_FAILED", "JOB", String.valueOf(job.getId()),
+                    "Job for project '" + project.getName() + "' failed: " + errMsg);
             sseProgressService.completeProgress(job.getId(), errMsg, false);
         }
 
@@ -367,6 +377,10 @@ public class OptimizationJobService {
         feature.put("geometry", geometry);
         feature.put("properties", properties);
         return feature;
+    }
+
+    private static String voltage(CreateOptimizationJobRequest req) {
+        return req.voltageKv() != null ? req.voltageKv().toPlainString() : "33";
     }
 
     private static String lineConstraintType(LineType lineType) {

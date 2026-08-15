@@ -77,6 +77,7 @@ public class AssetService {
     private final AssetClassifier assetClassifier;
     private final AssetImportStagingService stagingService;
     private final ObjectMapper objectMapper;
+    private final AuditLogService auditLogService;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
 
     public AssetService(
@@ -89,7 +90,8 @@ public class AssetService {
             RestrictedAreaRepository restrictedAreaRepository,
             AssetClassifier assetClassifier,
             AssetImportStagingService stagingService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AuditLogService auditLogService
     ) {
         this.projectRepository = projectRepository;
         this.wtgLocationRepository = wtgLocationRepository;
@@ -101,6 +103,7 @@ public class AssetService {
         this.assetClassifier = assetClassifier;
         this.stagingService = stagingService;
         this.objectMapper = objectMapper;
+        this.auditLogService = auditLogService;
     }
 
     // ------------------------------------------------------------------
@@ -183,6 +186,7 @@ public class AssetService {
         );
 
         stagingService.discard(request.importId());
+        auditImport("ASSETS_IMPORTED", project, response, "Reviewed KMZ/KML import committed");
         return response;
     }
 
@@ -195,6 +199,16 @@ public class AssetService {
      */
     @Transactional
     public GeoJsonImportResponse importGeoJson(UUID projectId, String geoJsonContent) {
+        return importGeoJson(projectId, geoJsonContent, "Direct GeoJSON import");
+    }
+
+    /**
+     * @param sourceLabel what the operator actually did, for the audit record. A KMZ upload is
+     *                    converted to GeoJSON before reaching here, and the log should describe the
+     *                    file the operator chose rather than the internal representation.
+     */
+    @Transactional
+    public GeoJsonImportResponse importGeoJson(UUID projectId, String geoJsonContent, String sourceLabel) {
         Project project = getProjectOrThrow(projectId);
 
         if (geoJsonContent == null || geoJsonContent.isBlank()) {
@@ -213,7 +227,28 @@ public class AssetService {
             features.add(objectMapper.convertValue(node, Map.class));
         }
 
-        return persist(project, features, Map.of(), Map.of(), null, false);
+        GeoJsonImportResponse response = persist(project, features, Map.of(), Map.of(), null, false);
+        auditImport("ASSETS_IMPORTED", project, response, sourceLabel);
+        return response;
+    }
+
+    /**
+     * Records what an import actually changed. The counts are the point: "imported a file" is not
+     * useful six weeks later, whereas "95 turbines, 9 substations, 2 restricted areas" explains why
+     * a project's optimisation results changed.
+     */
+    private void auditImport(String action, Project project, GeoJsonImportResponse response, String source) {
+        auditLogService.record(action, "PROJECT", String.valueOf(project.getId()),
+                source + " into '" + project.getName() + "': "
+                        + response.totalImported() + " features"
+                        + " (" + response.wtgsImported() + " WTG, "
+                        + response.substationsImported() + " substation, "
+                        + response.towersImported() + " tower, "
+                        + response.linesImported() + " line, "
+                        + response.parcelsImported() + " parcel, "
+                        + response.restrictedAreasImported() + " restricted)"
+                        + (response.duplicatesSkipped() > 0 ? ", " + response.duplicatesSkipped() + " duplicate(s) skipped" : "")
+                        + (response.unclassified() > 0 ? ", " + response.unclassified() + " unclassified" : ""));
     }
 
     // ------------------------------------------------------------------

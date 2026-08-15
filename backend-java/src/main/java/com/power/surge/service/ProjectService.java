@@ -17,15 +17,19 @@ import java.util.UUID;
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
+    private final AuditLogService auditLogService;
 
-    public ProjectService(ProjectRepository projectRepository) {
+    public ProjectService(ProjectRepository projectRepository, AuditLogService auditLogService) {
         this.projectRepository = projectRepository;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
     public ProjectResponse createProject(CreateProjectRequest request) {
-        Project project = new Project(request.name(), request.description());
-        return toResponse(projectRepository.save(project));
+        Project project = projectRepository.save(new Project(request.name(), request.description()));
+        auditLogService.record("PROJECT_CREATED", "PROJECT", String.valueOf(project.getId()),
+                "Created project '" + project.getName() + "'");
+        return toResponse(project);
     }
 
     public List<ProjectResponse> listProjects() {
@@ -42,7 +46,12 @@ public class ProjectService {
     @Transactional
     public ProjectResponse updateProject(UUID projectId, UpdateProjectRequest request) {
         Project project = findProject(projectId);
+        String previousName = project.getName();
         project.updateDetails(request.name(), request.description());
+        auditLogService.record("PROJECT_UPDATED", "PROJECT", String.valueOf(project.getId()),
+                previousName.equals(project.getName())
+                        ? "Updated project '" + project.getName() + "'"
+                        : "Renamed project '" + previousName + "' to '" + project.getName() + "'");
         return toResponse(project);
     }
 

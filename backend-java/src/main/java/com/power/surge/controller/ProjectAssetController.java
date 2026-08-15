@@ -108,7 +108,8 @@ public class ProjectAssetController {
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to serialize GeoJSON: " + e.getMessage(), e);
         }
-        GeoJsonImportResponse response = assetService.importGeoJson(projectId, geoJsonContent);
+        GeoJsonImportResponse response = assetService.importGeoJson(
+                projectId, geoJsonContent, "One-step KMZ/KML upload of '" + file.getOriginalFilename() + "'");
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 

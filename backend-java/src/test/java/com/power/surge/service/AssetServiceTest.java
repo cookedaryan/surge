@@ -67,6 +67,9 @@ class AssetServiceTest {
     @Mock
     private RestrictedAreaRepository restrictedAreaRepository;
 
+    @Mock
+    private AuditLogService auditLogService;
+
     @Captor
     private ArgumentCaptor<List<WtgLocation>> wtgListCaptor;
 
@@ -90,7 +93,8 @@ class AssetServiceTest {
                 restrictedAreaRepository,
                 new AssetClassifier(),
                 new AssetImportStagingService(),
-                new ObjectMapper()
+                new ObjectMapper(),
+                auditLogService
         );
     }
 
