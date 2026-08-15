@@ -20,6 +20,10 @@ from app.optimisation.scenario_models import (
     ScenarioGenerationError,
 )
 from app.optimisation.scenarios import generate_pnc_scenarios
+from app.optimisation.search_cache import (
+    CandidateEvaluationCache,
+    compute_evaluation_context_id,
+)
 from app.optimisation.workflow_models import (
     CandidateFailure,
     OptimisationConfig,
@@ -207,6 +211,8 @@ def _compute_electrical_context_id(
 def optimise_project(
     project_input: ProjectInput,
     config: OptimisationConfig,
+    *,
+    evaluation_cache: CandidateEvaluationCache | None = None,
 ) -> OptimisationWorkflowResult:
     """Run the complete end-to-end Surge optimisation workflow."""
 
@@ -219,6 +225,11 @@ def optimise_project(
         project_input.operating_points,
         config.electrical,
     )
+    evaluation_context_id = compute_evaluation_context_id(
+        project_input, config, electrical_context_id
+    )
+    if evaluation_cache is None:
+        evaluation_cache = CandidateEvaluationCache()
 
     # Inject project_id to avoid dual ownership issues
     scenario_config = ScenarioGenerationConfig(
@@ -308,6 +319,8 @@ def optimise_project(
             cost_surface=project_input.cost_surface,
             substation_node_id=substation_node_id,
             electrical_context_id=electrical_context_id,
+            evaluation_context_id=evaluation_context_id,
+            evaluation_cache=evaluation_cache,
         )
     except Exception as exc:
         logger.exception("Candidate evaluation/search failed")

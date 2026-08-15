@@ -79,13 +79,17 @@ def _find_next_capacity_upgrade(
     ordered_cables: list[LoadFlowCableType],
 ) -> LoadFlowCableType | None:
     current_idx = next(
-        (i for i, c in enumerate(ordered_cables) if c.cable_type_id == current_cable_id),
+        (
+            i
+            for i, c in enumerate(ordered_cables)
+            if c.cable_type_id == current_cable_id
+        ),
         None,
     )
     if current_idx is None:
         return None
 
-    for candidate in ordered_cables[current_idx + 1:]:
+    for candidate in ordered_cables[current_idx + 1 :]:
         if candidate.cable_type_id == current_cable_id:
             continue
         if _effective_ampacity(candidate) >= required_current_a:
@@ -99,7 +103,11 @@ def _find_next_voltage_upgrade(
     is_undervoltage: bool,
 ) -> LoadFlowCableType | None:
     current_idx = next(
-        (i for i, c in enumerate(ordered_cables) if c.cable_type_id == current_cable_id),
+        (
+            i
+            for i, c in enumerate(ordered_cables)
+            if c.cable_type_id == current_cable_id
+        ),
         None,
     )
     if current_idx is None:
@@ -107,16 +115,24 @@ def _find_next_voltage_upgrade(
 
     current = ordered_cables[current_idx]
     current_amp = _effective_ampacity(current)
-    current_z = math.hypot(current.resistance_ohm_per_km, current.reactance_ohm_per_km) / current.parallel_count
+    current_z = (
+        math.hypot(current.resistance_ohm_per_km, current.reactance_ohm_per_km)
+        / current.parallel_count
+    )
     current_c = current.capacitance_nf_per_km * current.parallel_count
 
-    for candidate in ordered_cables[current_idx + 1:]:
+    for candidate in ordered_cables[current_idx + 1 :]:
         if candidate.cable_type_id == current_cable_id:
             continue
         if _effective_ampacity(candidate) >= current_amp:
-            cand_z = math.hypot(candidate.resistance_ohm_per_km, candidate.reactance_ohm_per_km) / candidate.parallel_count
+            cand_z = (
+                math.hypot(
+                    candidate.resistance_ohm_per_km, candidate.reactance_ohm_per_km
+                )
+                / candidate.parallel_count
+            )
             cand_c = candidate.capacitance_nf_per_km * candidate.parallel_count
-            
+
             if is_undervoltage:
                 if cand_z < current_z - 1e-9:
                     return candidate
@@ -160,32 +176,37 @@ def repair_electrical_design(
             initial_cable_sizing=None,
         )
 
-    current_config = replace(config, segment_cable_type_ids=dict(sizing.segment_cable_type_ids))
+    current_config = replace(
+        config, segment_cable_type_ids=dict(sizing.segment_cable_type_ids)
+    )
     repair_actions: list[RepairAction] = []
     pending_actions: list[RepairAction] = []
     ordered_cables = _ordered_cable_types(config)
 
     for iteration in range(1, max_iterations + 1):
         lf_result = run_load_flow(network, operating_points, current_config)
-        
+
         if pending_actions:
             segment_loadings = {
                 s.segment_id: s.loading_percent for s in lf_result.segments
             }
-            bus_voltages = {
-                b.node_id: b.voltage_pu for b in lf_result.buses
-            }
+            bus_voltages = {b.node_id: b.voltage_pu for b in lf_result.buses}
             for pa in pending_actions:
                 repair_actions.append(
                     replace(
                         pa,
                         post_repair_loading_pct=segment_loadings.get(pa.segment_id),
-                        post_repair_voltage_pu=bus_voltages.get(pa.trigger_bus_id) if pa.trigger_bus_id else None,
+                        post_repair_voltage_pu=bus_voltages.get(pa.trigger_bus_id)
+                        if pa.trigger_bus_id
+                        else None,
                     )
                 )
             pending_actions.clear()
-        
-        if not lf_result.converged or any(v.code == LoadFlowViolationCode.RESULT_NOT_FINITE for v in lf_result.violations):
+
+        if not lf_result.converged or any(
+            v.code == LoadFlowViolationCode.RESULT_NOT_FINITE
+            for v in lf_result.violations
+        ):
             return ClosedLoopRepairResult(
                 status=RepairStatus.LOAD_FLOW_FAILED,
                 final_electrical_config=current_config,
@@ -193,7 +214,7 @@ def repair_electrical_design(
                 repair_log=tuple(repair_actions),
                 initial_cable_sizing=sizing,
             )
-            
+
         if lf_result.is_valid:
             return ClosedLoopRepairResult(
                 status=RepairStatus.VALID,
@@ -212,32 +233,45 @@ def repair_electrical_design(
                 initial_cable_sizing=sizing,
             )
 
-        overloads = [v for v in lf_result.violations if v.code == LoadFlowViolationCode.CABLE_OVERLOAD]
-        voltage_violations = [
-            v for v in lf_result.violations 
-            if v.code in (LoadFlowViolationCode.BUS_UNDERVOLTAGE, LoadFlowViolationCode.BUS_OVERVOLTAGE)
+        overloads = [
+            v
+            for v in lf_result.violations
+            if v.code == LoadFlowViolationCode.CABLE_OVERLOAD
         ]
-        
+        voltage_violations = [
+            v
+            for v in lf_result.violations
+            if v.code
+            in (
+                LoadFlowViolationCode.BUS_UNDERVOLTAGE,
+                LoadFlowViolationCode.BUS_OVERVOLTAGE,
+            )
+        ]
+
         new_assignments = dict(current_config.segment_cable_type_ids)
         made_upgrade = False
         segment_results_by_id = {s.segment_id: s for s in lf_result.segments}
-        
+
         if overloads:
             overloads.sort(key=lambda v: str(v.segment_id))
-            
+
             for overload in overloads:
                 seg_id = overload.segment_id
                 if not seg_id:
                     continue
-                    
+
                 current_cable_id = new_assignments[seg_id]
                 seg_result = segment_results_by_id.get(seg_id)
                 if not seg_result:
                     continue
-                
-                required_current_a = max(seg_result.current_from_a, seg_result.current_to_a)
-                next_cable = _find_next_capacity_upgrade(current_cable_id, required_current_a, ordered_cables)
-                
+
+                required_current_a = max(
+                    seg_result.current_from_a, seg_result.current_to_a
+                )
+                next_cable = _find_next_capacity_upgrade(
+                    current_cable_id, required_current_a, ordered_cables
+                )
+
                 if next_cable:
                     new_assignments[seg_id] = next_cable.cable_type_id
                     made_upgrade = True
@@ -256,7 +290,7 @@ def repair_electrical_design(
                             reason_code=RepairReason.OVERLOAD_CAPACITY_UPGRADE,
                         )
                     )
-            
+
             if not made_upgrade:
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
@@ -265,8 +299,9 @@ def repair_electrical_design(
                     repair_log=tuple(repair_actions),
                     initial_cable_sizing=sizing,
                 )
-                
+
         elif voltage_violations:
+
             def severity(v: LoadFlowViolation) -> float:
                 if v.measured_value is None or v.limit_value is None:
                     return 0.0
@@ -275,7 +310,7 @@ def repair_electrical_design(
             voltage_violations.sort(key=lambda v: (-severity(v), str(v.node_id)))
             target_violation = voltage_violations[0]
             target_node_id = target_violation.node_id
-            
+
             if not target_node_id:
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
@@ -284,8 +319,10 @@ def repair_electrical_design(
                     repair_log=tuple(repair_actions),
                     initial_cable_sizing=sizing,
                 )
-                
-            target_feeder = next((f for f in network.feeders if target_node_id in f.wtg_ids), None)
+
+            target_feeder = next(
+                (f for f in network.feeders if target_node_id in f.wtg_ids), None
+            )
             if not target_feeder:
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
@@ -294,9 +331,11 @@ def repair_electrical_design(
                     repair_log=tuple(repair_actions),
                     initial_cable_sizing=sizing,
                 )
-            
+
             try:
-                path = nx.shortest_path(target_feeder.mst_graph, target_feeder.substation_id, target_node_id)
+                path = nx.shortest_path(
+                    target_feeder.mst_graph, target_feeder.substation_id, target_node_id
+                )
             except nx.NetworkXNoPath:
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
@@ -313,38 +352,42 @@ def repair_electrical_design(
                     repair_log=tuple(repair_actions),
                     initial_cable_sizing=sizing,
                 )
-                
-            is_undervoltage = target_violation.code == LoadFlowViolationCode.BUS_UNDERVOLTAGE
+
+            is_undervoltage = (
+                target_violation.code == LoadFlowViolationCode.BUS_UNDERVOLTAGE
+            )
             node_voltages = {b.node_id: b.voltage_pu for b in lf_result.buses}
-            
+
             edge_to_segment = {}
             for seg in target_feeder.segments:
                 u, v = seg.from_node_id, seg.to_node_id
                 edge_to_segment[(u, v)] = seg.segment_id
                 edge_to_segment[(v, u)] = seg.segment_id
-                
+
             path_segments = []
             for u, v in itertools.pairwise(path):
                 v_u = node_voltages.get(u, 1.0)
                 v_v = node_voltages.get(v, 1.0)
-                
+
                 delta_v = v_u - v_v if is_undervoltage else v_v - v_u
                 seg_id = edge_to_segment.get((u, v))
                 if seg_id:
                     path_segments.append((delta_v, seg_id))
-                    
+
             path_segments.sort(key=lambda x: (-x[0], x[1]))
-            
-            for delta_v, seg_id in path_segments:
+
+            for _, seg_id in path_segments:
                 current_cable_id = new_assignments[seg_id]
-                next_cable = _find_next_voltage_upgrade(current_cable_id, ordered_cables, is_undervoltage)
+                next_cable = _find_next_voltage_upgrade(
+                    current_cable_id, ordered_cables, is_undervoltage
+                )
                 if next_cable:
                     new_assignments[seg_id] = next_cable.cable_type_id
                     made_upgrade = True
-                    
+
                     seg_result = segment_results_by_id.get(seg_id)
                     loading = seg_result.loading_percent if seg_result else None
-                    
+
                     pending_actions.append(
                         RepairAction(
                             segment_id=seg_id,
@@ -357,11 +400,13 @@ def repair_electrical_design(
                             post_repair_loading_pct=None,
                             post_repair_voltage_pu=None,
                             repair_iteration=iteration,
-                            reason_code=RepairReason.UNDERVOLTAGE_IMPEDANCE_REDUCTION if is_undervoltage else RepairReason.OVERVOLTAGE_IMPEDANCE_REDUCTION,
+                            reason_code=RepairReason.UNDERVOLTAGE_IMPEDANCE_REDUCTION
+                            if is_undervoltage
+                            else RepairReason.OVERVOLTAGE_IMPEDANCE_REDUCTION,
                         )
                     )
                     break
-                    
+
             if not made_upgrade:
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
@@ -380,10 +425,10 @@ def repair_electrical_design(
                 repair_log=tuple(repair_actions),
                 initial_cable_sizing=sizing,
             )
-                
+
         current_config = replace(current_config, segment_cable_type_ids=new_assignments)
 
-    # Note: We should never reach here because the iteration == max_iterations returns inside the loop.
+    # Unreachable in normal operation: the final iteration returns inside the loop.
     return ClosedLoopRepairResult(
         status=RepairStatus.MAX_ITERATIONS_REACHED,
         final_electrical_config=current_config,

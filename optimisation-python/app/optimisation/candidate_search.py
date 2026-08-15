@@ -16,6 +16,7 @@ from app.algorithms.wtg_grouping import FeederAssignment, FeederGroupingResult
 from app.gis.cost_surface import CostSurface
 from app.models.spatial import WindTurbine
 from app.optimisation.candidate_evaluation import evaluate_candidate
+from app.optimisation.candidate_validation import validate_candidate_structure
 from app.optimisation.scenario_builder import materialize_candidate_design
 from app.optimisation.scenario_models import (
     AttemptOutcome,
@@ -29,12 +30,19 @@ from app.optimisation.scoring_models import (
     EngineeringEvaluatedScenario,
     OptimizationRecommendation,
 )
+from app.optimisation.search_cache import (
+    CandidateEvaluationCache,
+    CandidateEvaluationOutcome,
+    compute_candidate_evaluation_fingerprint,
+)
 from app.optimisation.search_models import (
     CandidateLineage,
     CandidateSearchResult,
+    CandidateSearchStatistics,
     EdgeReconnectMutation,
     FeederReassignmentMutation,
     FeederSwapMutation,
+    SearchTerminationReason,
 )
 from app.optimisation.workflow_models import (
     CandidateWorkflowResult,
@@ -98,8 +106,7 @@ def _generate_reassignment_mutations(
         for t_id in assignment.turbine_ids:
             wtg_to_feeder[t_id] = assignment.feeder_id
 
-    mutations = []
-    seen = set()
+    mutations: dict[tuple[str, str], tuple[float, FeederReassignmentMutation]] = {}
 
     for u, v, data in base_graph.edges(data=True):
         u_raw = _raw_wtg_id(u)
@@ -119,20 +126,20 @@ def _generate_reassignment_mutations(
         if feeder_capacities[f_v] + u_cap <= feeder_capacity_mw:
             mut = FeederReassignmentMutation(u_raw, f_u, f_v)
             mut_tuple = (mut.wtg_id, mut.target_feeder_id)
-            if mut_tuple not in seen:
-                seen.add(mut_tuple)
-                mutations.append((weight, mut))
+            previous = mutations.get(mut_tuple)
+            if previous is None or weight < previous[0]:
+                mutations[mut_tuple] = (weight, mut)
 
         # Consider moving v to f_u
         v_cap = _get_turbine(turbines_by_id, v_raw).capacity_mw or 0.0
         if feeder_capacities[f_u] + v_cap <= feeder_capacity_mw:
             mut = FeederReassignmentMutation(v_raw, f_v, f_u)
             mut_tuple = (mut.wtg_id, mut.target_feeder_id)
-            if mut_tuple not in seen:
-                seen.add(mut_tuple)
-                mutations.append((weight, mut))
+            previous = mutations.get(mut_tuple)
+            if previous is None or weight < previous[0]:
+                mutations[mut_tuple] = (weight, mut)
 
-    return mutations
+    return list(mutations.values())
 
 
 def _generate_swap_mutations(
@@ -201,25 +208,25 @@ def _generate_reconnect_mutations(
 
             comp1, comp2 = components
 
-            best_edge = None
-            best_weight = float("inf")
             original_weight = (
                 base_graph[u][v].get("weight", 0.0)
                 if base_graph.has_edge(u, v)
                 else 0.0
             )
 
-            for n1 in comp1:
-                for n2 in comp2:
-                    if base_graph.has_edge(n1, n2):
-                        w = base_graph[n1][n2].get("weight", float("inf"))
-                        if (n1 == u and n2 == v) or (n1 == v and n2 == u):
-                            continue
-                        if w < best_weight:
-                            best_weight = w
-                            best_edge = (min(n1, n2), max(n1, n2))
+            alternatives = (
+                (
+                    base_graph[n1][n2].get("weight", float("inf")),
+                    (min(n1, n2), max(n1, n2)),
+                )
+                for n1 in comp1
+                for n2 in comp2
+                if base_graph.has_edge(n1, n2) and {n1, n2} != {u, v}
+            )
+            best = min(alternatives, default=None)
 
-            if best_edge:
+            if best:
+                best_weight, best_edge = best
                 mut = EdgeReconnectMutation(
                     feeder.feeder_id, (min(u, v), max(u, v)), best_edge
                 )
@@ -403,6 +410,8 @@ def run_candidate_beam_search(
     cost_surface: CostSurface,
     substation_node_id: str,
     electrical_context_id: str,
+    evaluation_context_id: str,
+    evaluation_cache: CandidateEvaluationCache,
 ) -> tuple[
     tuple[CandidateWorkflowResult, ...],
     OptimizationRecommendation | None,
@@ -411,19 +420,48 @@ def run_candidate_beam_search(
     """Runs deterministic beam search to improve network candidates."""
     search_config = config.search
     archive = {seed.scenario.scenario_id: seed for seed in seeds}
-    if not search_config.enabled:
+
+    stats_proposed = 0
+    stats_unique = 0
+    stats_duplicate = 0
+    stats_structural_reject = 0
+    stats_cache_hit = 0
+    stats_evaluations_used = 0
+    stats_feasible = 0
+    stats_failure = 0
+    if (
+        not search_config.enabled
+        or search_config.max_search_evaluations == 0
+        or search_config.max_candidate_proposals == 0
+    ):
         scored_archive, recommendation = _score_archive(
             archive, config, electrical_context_id
+        )
+        if not search_config.enabled:
+            termination_reason = SearchTerminationReason.SEARCH_DISABLED
+        elif search_config.max_search_evaluations == 0:
+            termination_reason = SearchTerminationReason.EVALUATION_BUDGET_EXHAUSTED
+        else:
+            termination_reason = SearchTerminationReason.PROPOSAL_BUDGET_EXHAUSTED
+        stats = CandidateSearchStatistics(
+            proposed_count=0,
+            unique_count=0,
+            duplicate_count=0,
+            structural_rejection_count=0,
+            evaluation_cache_hit_count=0,
+            search_evaluations_used=0,
+            feasible_count=0,
+            failure_count=0,
+            search_evaluation_budget=search_config.max_search_evaluations,
+            proposed_candidate_budget=search_config.max_candidate_proposals,
+            termination_reason=termination_reason,
         )
         return (
             tuple(scored_archive.values()),
             recommendation,
             CandidateSearchResult(
                 rounds_completed=0,
-                designs_generated=0,
-                duplicate_designs_skipped=0,
-                candidates_evaluated=0,
-                candidates_failed=0,
+                statistics=stats,
                 initial_best_scenario_id=None,
                 final_best_scenario_id=None,
                 initial_route_length_m=None,
@@ -432,11 +470,6 @@ def run_candidate_beam_search(
                 final_lifecycle_cost=None,
             ),
         )
-
-    designs_generated = 0
-    duplicate_designs_skipped = 0
-    candidates_evaluated = 0
-    candidates_failed = 0
 
     archive, current_rec = _score_archive(archive, config, electrical_context_id)
 
@@ -473,15 +506,20 @@ def run_candidate_beam_search(
         if rank != inf:
             frontier_pool.append((rank, s.scenario.scenario_id, grouping, topology))
 
-    frontier_pool.sort(key=lambda x: x[0])
+    frontier_pool.sort(key=lambda item: (item[0], item[1]))
     frontier_pool = frontier_pool[: search_config.beam_width]
 
     rounds_completed = 0
     candidate_sequence = 0
+    termination_reason = SearchTerminationReason.MAX_ROUNDS_REACHED
+
     for round_idx in range(search_config.max_rounds):
         if not frontier_pool:
+            termination_reason = SearchTerminationReason.NO_FEASIBLE_SEARCH_CANDIDATES
             break
         next_frontier_candidates = []
+        unique_before_round = stats_unique
+        budget_reason: SearchTerminationReason | None = None
 
         for _, parent_id, grouping, topology in frontier_pool:
             top_mutations = nsmallest(
@@ -503,10 +541,12 @@ def run_candidate_beam_search(
                 ),
                 key=lambda item: (item[0], repr(item[1])),
             )
-
             for _, mutation in top_mutations:
-                designs_generated += 1
+                if stats_proposed >= search_config.max_candidate_proposals:
+                    budget_reason = SearchTerminationReason.PROPOSAL_BUDGET_EXHAUSTED
+                    break
 
+                stats_proposed += 1
                 if isinstance(mutation, EdgeReconnectMutation):
                     new_grouping = grouping
                     new_topology = _apply_topology_mutation(
@@ -522,12 +562,23 @@ def run_candidate_beam_search(
                 else:
                     raise TypeError(f"Unsupported search mutation: {mutation!r}")
 
-                fp = design_fingerprint(new_grouping, new_topology, substation_node_id)
-                if fp in evaluated_fingerprints:
-                    duplicate_designs_skipped += 1
+                fingerprint = design_fingerprint(
+                    new_grouping, new_topology, substation_node_id
+                )
+                if fingerprint in evaluated_fingerprints:
+                    stats_duplicate += 1
                     continue
 
-                evaluated_fingerprints.add(fp)
+                evaluated_fingerprints.add(fingerprint)
+                stats_unique += 1
+                if not validate_candidate_structure(
+                    new_grouping,
+                    new_topology,
+                    project_input,
+                    substation_node_id,
+                ):
+                    stats_structural_reject += 1
+                    continue
 
                 candidate_sequence += 1
                 child_id = f"SCN-S{round_idx + 1}-{candidate_sequence:03d}"
@@ -547,36 +598,67 @@ def run_candidate_beam_search(
                         parameter_set_id=f"SEARCH-{round_idx + 1:02d}",
                         strategy=ScenarioStrategy.SEARCH,
                     ),
-                    comparison_group_id=seeds[0].scenario.comparison_group_id
-                    if seeds
-                    else "search",
-                    topology_fingerprint=fp,
+                    comparison_group_id=(
+                        seeds[0].scenario.comparison_group_id if seeds else "search"
+                    ),
+                    topology_fingerprint=fingerprint,
                 )
-
-                if outcome != AttemptOutcome.ACCEPTED or not scenario:
-                    candidates_failed += 1
+                if outcome != AttemptOutcome.ACCEPTED or scenario is None:
+                    stats_failure += 1
                     continue
 
                 scenario = replace(scenario, lineage=lineage)
-                candidates_evaluated += 1
-
-                eval_res = evaluate_candidate(scenario, project_input, config)
-                if (
-                    eval_res.execution_failure
-                    and eval_res.execution_failure.code
-                    == WorkflowFailureCode.UNEXPECTED_EXCEPTION
-                ):
-                    raise RuntimeError(eval_res.execution_failure.message)
-                if eval_res.execution_failure:
-                    candidates_failed += 1
-                    archive[child_id] = eval_res
+                candidate_fingerprint = compute_candidate_evaluation_fingerprint(
+                    scenario
+                )
+                cached_outcome = evaluation_cache.get(
+                    candidate_fingerprint, evaluation_context_id
+                )
+                if cached_outcome is not None:
+                    stats_cache_hit += 1
+                    candidate = cached_outcome.to_candidate(scenario)
                 else:
-                    archive[child_id] = eval_res
+                    if stats_evaluations_used >= search_config.max_search_evaluations:
+                        budget_reason = (
+                            SearchTerminationReason.EVALUATION_BUDGET_EXHAUSTED
+                        )
+                        break
+
+                    stats_evaluations_used += 1
+                    candidate = evaluate_candidate(scenario, project_input, config)
+                    if (
+                        candidate.execution_failure
+                        and candidate.execution_failure.code
+                        == WorkflowFailureCode.UNEXPECTED_EXCEPTION
+                    ):
+                        raise RuntimeError(candidate.execution_failure.message)
+                    evaluation_cache.put(
+                        candidate_fingerprint,
+                        evaluation_context_id,
+                        CandidateEvaluationOutcome.from_candidate(candidate),
+                    )
+
+                archive[child_id] = candidate
+                if candidate.execution_failure:
+                    stats_failure += 1
+                else:
+                    stats_feasible += 1
                     next_frontier_candidates.append(
                         (new_grouping, new_topology, child_id)
                     )
+
+            if budget_reason is not None:
+                break
+
         rounds_completed = round_idx + 1
         archive, current_rec = _score_archive(archive, config, electrical_context_id)
+
+        if budget_reason is not None:
+            termination_reason = budget_reason
+            break
+        if stats_unique == unique_before_round:
+            termination_reason = SearchTerminationReason.NO_NEW_UNIQUE_CANDIDATES
+            break
 
         new_frontier = []
         for new_g, new_t, child_id in next_frontier_candidates:
@@ -585,8 +667,11 @@ def run_candidate_beam_search(
             if rank != inf:
                 new_frontier.append((rank, child_id, new_g, new_t))
 
-        new_frontier.sort(key=lambda x: x[0])
+        new_frontier.sort(key=lambda item: (item[0], item[1]))
         frontier_pool = new_frontier[: search_config.beam_width]
+        if not frontier_pool:
+            termination_reason = SearchTerminationReason.NO_FEASIBLE_SEARCH_CANDIDATES
+            break
 
     final_rec = current_rec
 
@@ -600,12 +685,23 @@ def run_candidate_beam_search(
         if winner.cost_assessment and winner.cost_assessment.cost:
             final_lifecycle_cost = float(winner.cost_assessment.cost.lifecycle_cost)
 
+    stats = CandidateSearchStatistics(
+        proposed_count=stats_proposed,
+        unique_count=stats_unique,
+        duplicate_count=stats_duplicate,
+        structural_rejection_count=stats_structural_reject,
+        evaluation_cache_hit_count=stats_cache_hit,
+        search_evaluations_used=stats_evaluations_used,
+        feasible_count=stats_feasible,
+        failure_count=stats_failure,
+        search_evaluation_budget=search_config.max_search_evaluations,
+        proposed_candidate_budget=search_config.max_candidate_proposals,
+        termination_reason=termination_reason,
+    )
+
     search_result = CandidateSearchResult(
         rounds_completed=rounds_completed,
-        designs_generated=designs_generated,
-        duplicate_designs_skipped=duplicate_designs_skipped,
-        candidates_evaluated=candidates_evaluated,
-        candidates_failed=candidates_failed,
+        statistics=stats,
         initial_best_scenario_id=initial_best_scenario_id,
         final_best_scenario_id=final_best_scenario_id,
         initial_route_length_m=initial_route_length,

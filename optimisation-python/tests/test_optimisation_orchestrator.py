@@ -20,7 +20,11 @@ from app.optimisation.scoring_models import (
     ScoringPolicyMode,
     SpatialScoringWeights,
 )
-from app.optimisation.search_models import CandidateSearchConfig
+from app.optimisation.search_cache import CandidateEvaluationCache
+from app.optimisation.search_models import (
+    CandidateSearchConfig,
+    SearchTerminationReason,
+)
 from app.optimisation.workflow_models import (
     OptimisationConfig,
     OptimisationInputError,
@@ -157,6 +161,7 @@ def test_enabled_candidate_search_evaluates_neighbors(
     assert result.status == OptimisationStatus.SUCCESS
     assert result.search_result is not None
     assert result.search_result.rounds_completed == 1
+    assert result.search_result.statistics.search_evaluations_used == 1
     assert result.search_result.candidates_evaluated == 1
     search_candidates = [
         candidate
@@ -165,6 +170,58 @@ def test_enabled_candidate_search_evaluates_neighbors(
     ]
     assert len(search_candidates) == 1
     assert search_candidates[0].scenario.lineage.search_round == 1
+
+
+def test_candidate_search_reuses_evaluations_between_workflows(
+    project_input: ProjectInput, base_config: OptimisationConfig
+) -> None:
+    config = replace(
+        base_config,
+        search=CandidateSearchConfig(
+            enabled=True,
+            max_rounds=1,
+            beam_width=1,
+            max_neighbors_per_parent=1,
+        ),
+    )
+    cache = CandidateEvaluationCache()
+
+    first = optimise_project(project_input, config, evaluation_cache=cache)
+    second = optimise_project(project_input, config, evaluation_cache=cache)
+    changed_context = optimise_project(
+        replace(project_input, row_width_m=project_input.row_width_m + 1.0),
+        config,
+        evaluation_cache=cache,
+    )
+
+    assert first.search_result is not None
+    assert second.search_result is not None
+    assert changed_context.search_result is not None
+    assert first.search_result.statistics.search_evaluations_used == 1
+    assert second.search_result.statistics.search_evaluations_used == 0
+    assert second.search_result.statistics.evaluation_cache_hit_count == 1
+    assert changed_context.search_result.statistics.search_evaluations_used == 1
+    assert changed_context.search_result.statistics.evaluation_cache_hit_count == 0
+
+
+def test_candidate_search_reports_proposal_budget_exhaustion(
+    project_input: ProjectInput, base_config: OptimisationConfig
+) -> None:
+    config = replace(
+        base_config,
+        search=CandidateSearchConfig(
+            enabled=True,
+            max_candidate_proposals=0,
+        ),
+    )
+
+    result = optimise_project(project_input, config)
+
+    assert result.search_result is not None
+    assert (
+        result.search_result.statistics.termination_reason
+        == SearchTerminationReason.PROPOSAL_BUDGET_EXHAUSTED
+    )
 
 
 def test_candidate_search_config_requires_positive_integers() -> None:
