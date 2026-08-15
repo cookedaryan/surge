@@ -12,7 +12,7 @@ interface MapAreaContentProps {
 
 export function MapAreaContent({ mapRef }: MapAreaContentProps) {
   const currentProjectId = useUiStore((s) => s.currentProjectId);
-  const currentJobId = useUiStore((s) => s.currentJobId);
+  const resultJobId = useUiStore((s) => s.resultJobId);
   const layerVisibility = useUiStore((s) => s.layerVisibility);
   const parcelOpacity = useUiStore((s) => s.parcelOpacity);
   const restrictedOpacity = useUiStore((s) => s.restrictedOpacity);
@@ -20,15 +20,15 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
   const setLiveBomOverride = useUiStore((s) => s.setLiveBomOverride);
   const routeColorOverride = useUiStore((s) => s.routeColorOverride);
 
-  const data = useProjectData(currentProjectId, currentJobId);
+  const data = useProjectData(currentProjectId, resultJobId);
 
   useEffect(() => {
     if (!data.isLoading) mapRef.current?.fitAllBounds();
-  }, [currentProjectId, currentJobId, data.isLoading]);
+  }, [currentProjectId, resultJobId, data.isLoading]);
 
   useEffect(() => {
     setLiveBomOverride(null);
-  }, [currentProjectId, currentJobId, setLiveBomOverride]);
+  }, [currentProjectId, resultJobId, setLiveBomOverride]);
 
   return (
     <>

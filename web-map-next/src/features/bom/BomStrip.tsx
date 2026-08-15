@@ -3,11 +3,11 @@ import { useProjectData } from '../map/useProjectData';
 
 export function BomStrip() {
   const currentProjectId = useUiStore((s) => s.currentProjectId);
-  const currentJobId = useUiStore((s) => s.currentJobId);
+  const resultJobId = useUiStore((s) => s.resultJobId);
   const liveOverride = useUiStore((s) => s.liveBomOverride);
   const elevationDrawerOpen = useUiStore((s) => s.elevationDrawerOpen);
   const activeSidebarTab = useUiStore((s) => s.activeSidebarTab);
-  const { bom } = useProjectData(currentProjectId, currentJobId);
+  const { bom } = useProjectData(currentProjectId, resultJobId);
 
   // The BOM pane shows these same four figures, larger and with the exports beside them. Repeating
   // them over the map while it is open costs map area and says nothing new.

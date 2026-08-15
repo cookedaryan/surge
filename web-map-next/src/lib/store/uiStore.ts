@@ -14,8 +14,20 @@ interface UiState {
   currentProjectId: string | null;
   setCurrentProjectId: (id: string | null) => void;
 
+  /** The job being followed — set as soon as a run is queued, while it is still producing nothing. */
   currentJobId: string | null;
   setCurrentJobId: (id: string | null) => void;
+
+  /**
+   * The job whose results are on screen. Only advances once a run finishes.
+   *
+   * Kept separate from {@link currentJobId} because the map is keyed on it: pointing the map at a
+   * job the moment it is queued makes it fetch results that do not exist yet, blanking the display
+   * for the entire run. Holding the previous result until the new one is ready means the operator
+   * keeps something to look at.
+   */
+  resultJobId: string | null;
+  setResultJobId: (id: string | null) => void;
 
   layerVisibility: Record<LayerName, boolean>;
   toggleLayer: (layer: LayerName) => void;
@@ -57,10 +69,20 @@ export const useUiStore = create<UiState>((set) => ({
   setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
 
   currentProjectId: null,
-  setCurrentProjectId: (id) => set({ currentProjectId: id }),
+  // Job ids belong to a project. Carrying them across a switch would poll and render another
+  // project's run against the newly selected one, which the API answers with 400s.
+  setCurrentProjectId: (id) =>
+    set((state) =>
+      state.currentProjectId === id
+        ? { currentProjectId: id }
+        : { currentProjectId: id, currentJobId: null, resultJobId: null }
+    ),
 
   currentJobId: null,
   setCurrentJobId: (id) => set({ currentJobId: id }),
+
+  resultJobId: null,
+  setResultJobId: (id) => set({ resultJobId: id }),
 
   layerVisibility: {
     wtgs: true, substations: true, towers: true, referenceLines: true,

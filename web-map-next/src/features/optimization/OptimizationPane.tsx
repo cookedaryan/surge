@@ -33,13 +33,17 @@ export function OptimizationPane() {
   const setCurrentJobId = useUiStore((s) => s.setCurrentJobId);
   const showToast = useUiStore((s) => s.showToast);
   const setLiveBomOverride = useUiStore((s) => s.setLiveBomOverride);
+  const resultJobId = useUiStore((s) => s.resultJobId);
+  const setResultJobId = useUiStore((s) => s.setResultJobId);
 
   const [scenario, setScenario] = useState('Balanced');
   const [feederCapacityMw, setFeederCapacityMw] = useState(20.0);
   const [maxSpanMeters, setMaxSpanMeters] = useState(150);
   const [voltageKv, setVoltageKv] = useState(33.0);
 
-  const { counts, isLoading: assetsLoading } = useProjectData(currentProjectId, currentJobId);
+  // Only the asset counts are needed here, and those are project-scoped. Passing the in-flight job
+  // would fetch routes and poles for a run that has not produced any yet, on every run.
+  const { counts, isLoading: assetsLoading } = useProjectData(currentProjectId, resultJobId);
 
   const runOptimization = useRunOptimization(currentProjectId);
 
@@ -65,17 +69,27 @@ export function OptimizationPane() {
     }
   }
 
-  /** Refreshes everything derived from the run, and reports the outcome once. */
-  function handleSettled(settledJob: Job) {
+  /** Publishes the finished run, then reports it — in that order. */
+  async function handleSettled(settledJob: Job) {
     queryClient.invalidateQueries({ queryKey: ['job', currentProjectId, settledJob.id] });
-    queryClient.invalidateQueries({ queryKey: ['routes', currentProjectId] });
-    queryClient.invalidateQueries({ queryKey: ['poles', currentProjectId] });
-    queryClient.invalidateQueries({ queryKey: ['bom', currentProjectId] });
+
     if (settledJob.status === 'FAILED') {
       showToast('Optimization failed: ' + (settledJob.errorMessage || 'unknown error'), 'error');
-    } else {
-      showToast('Optimization completed cleanly!', 'success');
+      return;
     }
+
+    // Point the map at the finished run and wait for its data to actually arrive before saying so.
+    // Announcing completion first meant the success message appeared while the map was still empty
+    // and the results had not even been requested yet.
+    setResultJobId(settledJob.id);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['routes', currentProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['poles', currentProjectId] }),
+      queryClient.invalidateQueries({ queryKey: ['bom', currentProjectId] })
+    ]).catch(() => {
+      // A refresh failure should not swallow the outcome; the panels show their own error states.
+    });
+    showToast('Optimization completed cleanly!', 'success');
   }
 
   const isRunning = runOptimization.isPending || (!!currentJobId && !!job && !isSettled);
