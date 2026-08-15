@@ -349,12 +349,12 @@ def test_v2_reports_failed_workflow(
     mvp_v2_payload: JsonObject,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.optimisation import orchestrator
-
     def fail_repair(*args: object, **kwargs: object) -> None:
         raise CandidateElectricalEvaluationError("candidate evaluation failed")
 
-    monkeypatch.setattr(orchestrator, "repair_electrical_design", fail_repair)
+    monkeypatch.setattr(
+        "app.optimisation.candidate_evaluation.repair_electrical_design", fail_repair
+    )
 
     response = client.post("/api/v2/optimise", json=mvp_v2_payload)
 

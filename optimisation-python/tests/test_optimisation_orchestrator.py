@@ -10,9 +10,8 @@ from app.algorithms.pole_placement import (
     place_poles_on_network,
 )
 from app.electrical.errors import CandidateElectricalEvaluationError
-from app.electrical.load_flow.analysis import run_load_flow
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
-from app.electrical.load_flow.models import LoadFlowNetworkResult, WTGOperatingPoint
+from app.electrical.load_flow.models import WTGOperatingPoint
 from app.optimisation.orchestrator import optimise_project
 from app.optimisation.scenario_models import ScenarioGenerationConfig
 from app.optimisation.scoring_models import (
@@ -21,6 +20,7 @@ from app.optimisation.scoring_models import (
     ScoringPolicyMode,
     SpatialScoringWeights,
 )
+from app.optimisation.search_models import CandidateSearchConfig
 from app.optimisation.workflow_models import (
     OptimisationConfig,
     OptimisationInputError,
@@ -137,6 +137,43 @@ def test_complete_successful_workflow(
     assert tuple(c.scenario.scenario_id for c in result.candidates) == tuple(
         s.scenario_id for s in result.generation_result.candidates
     )
+
+
+def test_enabled_candidate_search_evaluates_neighbors(
+    project_input: ProjectInput, base_config: OptimisationConfig
+) -> None:
+    config = replace(
+        base_config,
+        search=CandidateSearchConfig(
+            enabled=True,
+            max_rounds=1,
+            beam_width=1,
+            max_neighbors_per_parent=1,
+        ),
+    )
+
+    result = optimise_project(project_input, config)
+
+    assert result.status == OptimisationStatus.SUCCESS
+    assert result.search_result is not None
+    assert result.search_result.rounds_completed == 1
+    assert result.search_result.candidates_evaluated == 1
+    search_candidates = [
+        candidate
+        for candidate in result.candidates
+        if candidate.scenario.lineage is not None
+    ]
+    assert len(search_candidates) == 1
+    assert search_candidates[0].scenario.lineage.search_round == 1
+
+
+def test_candidate_search_config_requires_positive_integers() -> None:
+    with pytest.raises(ValueError, match="max_rounds"):
+        CandidateSearchConfig(max_rounds=0)
+    with pytest.raises(ValueError, match="beam_width"):
+        CandidateSearchConfig(beam_width=-1)
+    with pytest.raises(ValueError, match="max_neighbors_per_parent"):
+        CandidateSearchConfig(max_neighbors_per_parent=True)
 
 
 def test_workflow_returns_canonical_poles_for_recommended_network(
@@ -374,13 +411,10 @@ def test_electrical_execution_failure_isolation(
     base_config: OptimisationConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.electrical.repair import ClosedLoopRepairResult
-    from app.optimisation import orchestrator
+    from app.electrical.repair import ClosedLoopRepairResult, repair_electrical_design
 
     # We will just patch repair_electrical_design to throw on the second call
     call_count = 0
-
-    from app.electrical.repair import repair_electrical_design
 
     def side_effect_repair_electrical_design(
         *args: object, **kwargs: object
@@ -391,7 +425,10 @@ def test_electrical_execution_failure_isolation(
             raise CandidateElectricalEvaluationError("Pandapower crashed on scenario 2")
         return repair_electrical_design(*args, **kwargs)
 
-    monkeypatch.setattr(orchestrator, "repair_electrical_design", side_effect_repair_electrical_design)
+    monkeypatch.setattr(
+        "app.optimisation.candidate_evaluation.repair_electrical_design",
+        side_effect_repair_electrical_design,
+    )
 
     result = optimise_project(project_input, base_config)
     assert result.status == OptimisationStatus.PARTIAL_SUCCESS
@@ -470,12 +507,12 @@ def test_scoring_failure_returns_structured_failure(
     base_config: OptimisationConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from app.optimisation import orchestrator
-
     def fail_scoring(*args: Any, **kwargs: Any) -> NoReturn:
         raise RuntimeError("scoring crashed")
 
-    monkeypatch.setattr(orchestrator, "evaluate_cohort", fail_scoring)
+    monkeypatch.setattr(
+        "app.optimisation.candidate_search.evaluate_cohort", fail_scoring
+    )
 
     result = optimise_project(project_input, base_config)
 

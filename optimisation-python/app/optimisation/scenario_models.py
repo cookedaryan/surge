@@ -22,6 +22,7 @@ from enum import StrEnum
 # import from this package.
 # ---------------------------------------------------------------------------
 from app.algorithms.wtg_grouping import GroupingObjective  # noqa: F401
+from app.optimisation.search_models import CandidateLineage
 from app.pnc.models import ProjectPNCNetwork
 
 # ---------------------------------------------------------------------------
@@ -66,6 +67,7 @@ class ScenarioStrategy(StrEnum):
     BALANCED_FEEDERS = "balanced_feeders"
     LONG_EDGE_PENALTY = "long_edge_penalty"
     ALTERNATIVE_GROUPING_BALANCED = "alternative_grouping_balanced"
+    SEARCH = "search"
 
 
 class TopologyWeightProfile(StrEnum):
@@ -333,6 +335,7 @@ class PNCScenario:
     total_route_length_m: float
     route_length_by_feeder: dict[str, float]
     wtg_count_by_feeder: dict[str, int]
+    lineage: CandidateLineage | None = None
 
     def __post_init__(self) -> None:
         # Validate copied metrics against authoritative network values.

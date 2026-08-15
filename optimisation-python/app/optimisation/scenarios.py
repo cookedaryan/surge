@@ -12,6 +12,9 @@ topology_fingerprint_from_grouping(grouping, graph)
     Compute a topology fingerprint from a grouping + graph before running A*,
     allowing early duplicate suppression before expensive routing.
 
+design_fingerprint(grouping, topology, substation_node_id)
+    Compute a logical network design fingerprint.
+
 Internal helpers (prefixed with _) are not part of the public API.
 
 Design principles
@@ -148,12 +151,12 @@ def scenario_fingerprint(network: ProjectPNCNetwork) -> str:
     return _fingerprint_feeder_records(feeder_records)
 
 
-def _topology_fingerprint_from_grouping_and_mst(
+def design_fingerprint(
     grouping: FeederGroupingResult,
     topology: CollectorTopologyResult,
     substation_node_id: str,
 ) -> str:
-    """Compute a topology fingerprint before physical routing.
+    """Compute a logical network design fingerprint before physical routing.
 
     Used for early duplicate suppression to avoid running A* on a topology
     that is structurally identical to an already-accepted candidate.
@@ -317,9 +320,7 @@ def _generate_candidate(
     topology: CollectorTopologyResult = build_feeder_mst(working_graph, grouping)
 
     # 4. Topology fingerprint — early duplicate suppression before A* --
-    topo_fp = _topology_fingerprint_from_grouping_and_mst(
-        grouping, topology, substation_node
-    )
+    topo_fp = design_fingerprint(grouping, topology, substation_node)
     if topo_fp in accepted_fingerprints:
         return (
             None,

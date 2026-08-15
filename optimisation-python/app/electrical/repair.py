@@ -13,6 +13,7 @@ from app.electrical.load_flow.analysis import run_load_flow
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import (
     LoadFlowNetworkResult,
+    LoadFlowViolation,
     LoadFlowViolationCode,
     WTGOperatingPoint,
 )
@@ -390,4 +391,3 @@ def repair_electrical_design(
         repair_log=tuple(repair_actions),
         initial_cable_sizing=sizing,
     )
-
