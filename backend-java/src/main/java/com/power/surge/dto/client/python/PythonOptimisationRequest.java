@@ -12,6 +12,7 @@ public record PythonOptimisationRequest(
         @JsonProperty("substation_geojson") Map<String, Object> substationGeojson,
         @JsonProperty("electrical_params") Map<String, Object> electricalParams,
         @JsonProperty("pole_config") Map<String, Object> poleConfig,
-        @JsonProperty("avoidance_geojson") Map<String, Object> avoidanceGeojson
+        @JsonProperty("avoidance_geojson") Map<String, Object> avoidanceGeojson,
+        @JsonProperty("scoring_weights") Map<String, Object> scoringWeights
 ) {
 }

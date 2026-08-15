@@ -18,6 +18,7 @@ export interface AuthResponse {
 export interface Job {
   id: string;
   status?: string;
+  scenario?: string;
   errorMessage?: string;
   resultSummaryJson?: string;
 }
