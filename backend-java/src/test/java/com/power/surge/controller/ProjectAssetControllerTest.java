@@ -53,6 +53,11 @@ class ProjectAssetControllerTest {
     @MockBean
     private JwtTokenProvider jwtTokenProvider;
 
+    // The authentication filter now resolves the account behind the token, so every slice that
+    // builds the security chain needs the repository it reads.
+    @MockBean
+    private com.power.surge.repository.UserRepository userRepository;
+
     @MockBean
     private AuthService authService;
 

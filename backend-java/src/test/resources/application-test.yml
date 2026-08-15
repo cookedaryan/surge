@@ -10,3 +10,10 @@ spring:
     show-sql: false
   flyway:
     enabled: false
+
+app:
+  jwt:
+    # Fixed test key. There is deliberately no default in the application, so every context that
+    # builds a JwtTokenProvider has to supply one; a real deployment gets a random value from
+    # APP_JWT_SECRET. Never use this outside tests.
+    secret: test-only-signing-key-at-least-32-bytes-long

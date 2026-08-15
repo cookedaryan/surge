@@ -30,6 +30,9 @@ services:
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-postgres}
       PYTHON_ENGINE_URL: http://optimizer:8000
+      # Must be set per deployment. The code default is a constant in a public repository, so
+      # leaving it unset lets anyone forge an administrator token.
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?APP_JWT_SECRET must be set in .env}
     depends_on:
       db:
         condition: service_healthy

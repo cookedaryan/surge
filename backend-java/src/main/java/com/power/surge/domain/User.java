@@ -44,6 +44,17 @@ public class User {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /**
+     * When this account's credentials or privileges last changed.
+     *
+     * <p>Tokens are stateless and last a day, so without this a password reset, a demotion or a
+     * disabled account changed nothing for anyone already holding one. The authentication filter
+     * rejects tokens issued before this instant, which is what actually makes the admin panel take
+     * effect. Bumped by the setters below rather than by their callers, so it cannot be forgotten.
+     */
+    @Column(name = "credentials_updated_at", nullable = false)
+    private Instant credentialsUpdatedAt;
+
     protected User() {
     }
 
@@ -54,6 +65,7 @@ public class User {
         this.role = role != null ? role : UserRole.ROLE_ENGINEER;
         this.enabled = true;
         this.createdAt = Instant.now();
+        this.credentialsUpdatedAt = this.createdAt;
     }
 
     public UUID getId() {
@@ -74,6 +86,7 @@ public class User {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+        credentialsChanged();
     }
 
     public UserRole getRole() {
@@ -81,7 +94,11 @@ public class User {
     }
 
     public void setRole(UserRole role) {
-        this.role = Objects.requireNonNull(role, "Role is required.");
+        UserRole newRole = Objects.requireNonNull(role, "Role is required.");
+        if (newRole != this.role) {
+            this.role = newRole;
+            credentialsChanged();
+        }
     }
 
     public boolean isEnabled() {
@@ -89,10 +106,25 @@ public class User {
     }
 
     public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
+        if (enabled != this.enabled) {
+            this.enabled = enabled;
+            credentialsChanged();
+        }
     }
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Instant getCredentialsUpdatedAt() {
+        return credentialsUpdatedAt;
+    }
+
+    /**
+     * Invalidates every token issued before now. Re-enabling an account bumps this too: whoever
+     * held a token while it was disabled should have to log in again rather than resume silently.
+     */
+    private void credentialsChanged() {
+        this.credentialsUpdatedAt = Instant.now();
     }
 }

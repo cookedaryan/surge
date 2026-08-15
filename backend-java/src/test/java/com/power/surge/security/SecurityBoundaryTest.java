@@ -46,8 +46,22 @@ class SecurityBoundaryTest {
     @MockBean
     private AuthService authService;
 
+    @Autowired
+    private com.power.surge.repository.UserRepository userRepository;
+
+    /**
+     * Mints a token for a real account.
+     *
+     * <p>It used to invent a username out of thin air. That passed only because the filter trusted
+     * the token's claims and never looked the account up — the same reason a disabled or demoted
+     * user kept their access. Now that the filter resolves the row, the fixture has to be a row.
+     */
     private String bearer(UserRole role) {
-        return "Bearer " + tokenProvider.generateToken(UUID.randomUUID(), "someone", role);
+        String username = "boundary-" + role.name().toLowerCase();
+        com.power.surge.domain.User user = userRepository.findByUsername(username)
+                .orElseGet(() -> userRepository.save(new com.power.surge.domain.User(
+                        username, username + "@surge.energy", "irrelevant-hash", role)));
+        return "Bearer " + tokenProvider.generateToken(user.getId(), user.getUsername(), user.getRole());
     }
 
     // --- anonymous access -------------------------------------------------
