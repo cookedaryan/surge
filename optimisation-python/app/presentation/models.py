@@ -7,7 +7,7 @@ or electrical calculation.
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PresentationModel(BaseModel):
@@ -83,6 +83,20 @@ class FeederResult(PresentationModel):
     violations: list[ViolationPresentation]
 
 
+class RepairActionResult(PresentationModel):
+    segment_id: str
+    original_cable_type_id: str
+    upgraded_cable_type_id: str
+    trigger_violation_type: str
+    trigger_bus_id: str | None
+    pre_repair_loading_pct: float | None
+    post_repair_loading_pct: float | None
+    pre_repair_voltage_pu: float | None
+    post_repair_voltage_pu: float | None
+    repair_iteration: int
+    reason_code: str
+
+
 class ProjectOptimizationResult(PresentationModel):
     schema_version: str = "1.0.0"
     project_id: str
@@ -94,3 +108,4 @@ class ProjectOptimizationResult(PresentationModel):
     violations: list[ViolationPresentation]
     feature_collection: dict[str, Any]
     source_crs: str
+    recommended_candidate_repair_log: list[RepairActionResult] = Field(default_factory=list)

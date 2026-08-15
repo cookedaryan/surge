@@ -1,7 +1,10 @@
 """Builder for the final presentation result boundary."""
 
 import math
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from app.electrical.repair import RepairAction
 
 import pyproj
 
@@ -35,6 +38,7 @@ from app.presentation.models import (
     NetworkSummary,
     PoleSummary,
     ProjectOptimizationResult,
+    RepairActionResult,
     SpatialConstraintSummary,
     ViolationPresentation,
 )
@@ -45,6 +49,7 @@ def build_project_result(
     load_flow_result: LoadFlowNetworkResult,
     pole_network: CollectorPoleResult | None = None,
     constraint_layers: tuple[ConstraintLayer, ...] = (),
+    repair_log: tuple["RepairAction", ...] = (),
 ) -> ProjectOptimizationResult:
     """Merge PNC physical network and AC load flow results into a
     single presentation model.
@@ -215,6 +220,22 @@ def build_project_result(
         constraint_layers,
     )
 
+    recommended_candidate_repair_log = [
+        RepairActionResult(
+            segment_id=log.segment_id,
+            original_cable_type_id=log.original_cable_type_id,
+            upgraded_cable_type_id=log.upgraded_cable_type_id,
+            trigger_violation_type=log.trigger_violation_type,
+            trigger_bus_id=log.trigger_bus_id,
+            pre_repair_loading_pct=log.pre_repair_loading_pct,
+            post_repair_loading_pct=log.post_repair_loading_pct,
+            pre_repair_voltage_pu=log.pre_repair_voltage_pu,
+            post_repair_voltage_pu=log.post_repair_voltage_pu,
+            repair_iteration=log.repair_iteration,
+            reason_code=log.reason_code,
+        ) for log in repair_log
+    ]
+
     return ProjectOptimizationResult(
         project_id=pnc_network.project_id,
         network_summary=network_summary,
@@ -225,6 +246,7 @@ def build_project_result(
         violations=violations,
         feature_collection=feature_collection,
         source_crs=pnc_network.crs.to_string(),
+        recommended_candidate_repair_log=recommended_candidate_repair_log,
     )
 
 

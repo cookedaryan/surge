@@ -9,6 +9,7 @@ from typing import Literal
 from app.costing.models import CandidateCostAssessment
 from app.electrical.cable_sizing import CableSizingResult
 from app.electrical.load_flow.models import LoadFlowNetworkResult
+from app.electrical.repair import RepairAction
 from app.optimisation.engineering_metric_models import (
     CandidateEngineeringAssessment,
     CandidateEngineeringMetrics,
@@ -161,6 +162,7 @@ class ElectricallyEvaluatedScenario:
     load_flow_result: LoadFlowNetworkResult
     electrical_context_id: str
     cable_sizing: CableSizingResult | None = None
+    repair_log: tuple[RepairAction, ...] = ()
 
 
 @dataclass(frozen=True)
