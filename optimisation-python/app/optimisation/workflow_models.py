@@ -17,6 +17,7 @@ from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult, WTGOperatingPoint
 from app.gis.constraints import ConstraintLayer
 from app.gis.cost_surface import CostSurface
+from app.land.models import LandCommercialContext
 from app.models.spatial import ProjectSpatialData
 from app.optimisation.engineering_metric_models import CandidateEngineeringAssessment
 from app.optimisation.scenario_models import (
@@ -55,6 +56,7 @@ class ProjectInput:
     feeder_capacity_mw: float
     operating_points: tuple[WTGOperatingPoint, ...]
     constraint_layers: tuple[ConstraintLayer, ...] = ()
+    land_context: LandCommercialContext | None = None
     row_width_m: float = 18.0
 
 
@@ -94,6 +96,7 @@ class WorkflowFailureCode(StrEnum):
     ELECTRICAL_EXECUTION_ERROR = "ELECTRICAL_EXECUTION_ERROR"
     ELECTRICAL_VALIDATION_FAILED = "ELECTRICAL_VALIDATION_FAILED"
     SCORING_FAILED = "SCORING_FAILED"
+    LAND_PARCEL_UNAVAILABLE = "LAND_PARCEL_UNAVAILABLE"
     POLE_NETWORK_GENERATION_FAILED = "POLE_NETWORK_GENERATION_FAILED"
     PACKAGING_FAILED = "PACKAGING_FAILED"
     UNEXPECTED_EXCEPTION = "UNEXPECTED_EXCEPTION"

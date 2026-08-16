@@ -21,6 +21,7 @@ class CandidateEngineeringMetrics:
     total_route_length_m: float
     total_traversal_cost: float
     affected_parcel_count: int
+    owner_interaction_count: int
     road_crossing_count: int
     soft_constraint_overlap_length_m: float
     environmental_overlap_m2: float
@@ -53,6 +54,7 @@ class CandidateEngineeringMetrics:
 
         counts = {
             "affected_parcel_count": self.affected_parcel_count,
+            "owner_interaction_count": self.owner_interaction_count,
             "road_crossing_count": self.road_crossing_count,
             "physical_pole_count": self.physical_pole_count,
         }

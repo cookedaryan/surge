@@ -50,6 +50,8 @@ def build_candidate_engineering_metrics(
     load_flow_result: LoadFlowNetworkResult,
     load_flow_config: LoadFlowConfig,
     constraint_layers: tuple[ConstraintLayer, ...] = (),
+    *,
+    owner_interaction_count: int = 0,
     pole_config: PolePlacementConfig | None = None,
     row_corridor_width_m: float = 18.0,
 ) -> CandidateEngineeringAssessment:
@@ -189,6 +191,7 @@ def build_candidate_engineering_metrics(
                 total_route_length_m=total_route_length_m,
                 total_traversal_cost=total_traversal_cost,
                 affected_parcel_count=affected_parcel_count,
+                owner_interaction_count=owner_interaction_count,
                 road_crossing_count=road_crossing_count,
                 soft_constraint_overlap_length_m=soft_overlap_length_m,
                 environmental_overlap_m2=environmental_overlap_m2,

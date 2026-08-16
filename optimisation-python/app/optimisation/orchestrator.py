@@ -214,7 +214,7 @@ def _compute_electrical_context_id(
 def derive_land_constraint_layers(
     project_input: ProjectInput,
 ) -> tuple[ConstraintLayer, ...]:
-    if project_input.land_context is None:
+    if not hasattr(project_input, "land_context") or project_input.land_context is None:
         return project_input.constraint_layers
 
     profiles_by_id = {
@@ -226,21 +226,23 @@ def derive_land_constraint_layers(
         return project_input.constraint_layers
 
     new_layers = list(project_input.constraint_layers)
-    for parcel in project_input.project_data.parcels:
-        profile = profiles_by_id.get(parcel.parcel_id)
+    for layer in project_input.constraint_layers:
+        if layer.layer_type != ConstraintType.PARCEL:
+            continue
+        profile = profiles_by_id.get(layer.layer_id)
         if not profile:
             continue
 
         if profile.availability_status == LandAvailabilityStatus.UNAVAILABLE:
             new_layers.append(
                 ConstraintLayer(
-                    layer_id=f"land-unavailable-{parcel.parcel_id}",
+                    layer_id=layer.layer_id,
                     layer_type=ConstraintType.PARCEL,
                     mode=ConstraintMode.HARD_EXCLUSION,
-                    geometry=parcel.geometry,
-                    buffer_m=0.0,
+                    geometry=layer.geometry,
+                    buffer_m=layer.buffer_m,
                     cost_weight=None,
-                    crs=project_input.cost_surface.crs,
+                    crs=layer.crs,
                 )
             )
         else:
@@ -262,13 +264,13 @@ def derive_land_constraint_layers(
 
             new_layers.append(
                 ConstraintLayer(
-                    layer_id=f"land-preference-{parcel.parcel_id}",
+                    layer_id=layer.layer_id,
                     layer_type=ConstraintType.PARCEL,
                     mode=ConstraintMode.SOFT_PENALTY,
-                    geometry=parcel.geometry,
-                    buffer_m=0.0,
+                    geometry=layer.geometry,
+                    buffer_m=layer.buffer_m,
                     cost_weight=penalty,
-                    crs=project_input.cost_surface.crs,
+                    crs=layer.crs,
                 )
             )
 
@@ -292,9 +294,12 @@ def optimise_project(
         project_input.operating_points,
         config.electrical,
     )
-    land_economic_context_id = compute_land_economic_context_id(
-        project_input.land_context
-    )
+    if not hasattr(project_input, "land_context") or project_input.land_context is None:
+        land_economic_context_id = "default"
+    else:
+        land_economic_context_id = compute_land_economic_context_id(
+            project_input.land_context
+        )
     
     # Inject UNAVAILABLE parcels as hard routing constraints
     effective_constraints = derive_land_constraint_layers(project_input)

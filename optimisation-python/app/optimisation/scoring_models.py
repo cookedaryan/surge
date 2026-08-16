@@ -57,6 +57,7 @@ class ScoringMetric(StrEnum):
     AFFECTED_PARCEL_COUNT = "AFFECTED_PARCEL_COUNT"
     ROAD_CROSSING_COUNT = "ROAD_CROSSING_COUNT"
     SOFT_CONSTRAINT_OVERLAP_LENGTH = "SOFT_CONSTRAINT_OVERLAP_LENGTH"
+    OWNER_INTERACTION_COUNT = "OWNER_INTERACTION_COUNT"
     PHYSICAL_POLE_COUNT = "PHYSICAL_POLE_COUNT"
     ACTIVE_LOSS = "ACTIVE_LOSS"
     CABLE_LOADING = "CABLE_LOADING"
@@ -69,6 +70,7 @@ class SpatialScoringWeights:
     affected_parcels: float
     road_crossings: float
     soft_overlap_length: float
+    owner_interactions: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -113,13 +115,17 @@ class CandidateScoringConfig:
             self.spatial_subweights.affected_parcels,
             self.spatial_subweights.road_crossings,
             self.spatial_subweights.soft_overlap_length,
+            self.spatial_subweights.owner_interactions,
         ]
         self._validate_weights(spatial_subs, "Spatial subweight")
         if self.spatial_weight > 0.0:
-            if not math.isclose(
-                math.fsum(spatial_subs), 1.0, rel_tol=1e-9, abs_tol=1e-9
-            ):
-                raise ValueError("Active spatial subweights must sum to 1.0")
+            if self.spatial_subweights.owner_interactions > 0.0:
+                if not math.isclose(math.fsum(spatial_subs), 1.0, rel_tol=1e-9, abs_tol=1e-9):
+                    raise ValueError("Spatial subweights must sum to 1.0 when owner_interactions > 0")
+            else:
+                legacy_subs = spatial_subs[:-1]
+                if not math.isclose(math.fsum(legacy_subs), 1.0, rel_tol=1e-9, abs_tol=1e-9):
+                    raise ValueError("Legacy spatial subweights must sum to 1.0")
         else:
             if any(w != 0.0 for w in spatial_subs):
                 raise ValueError(
