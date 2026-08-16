@@ -123,6 +123,7 @@ def test_complete_successful_workflow(
     assert result.recommended_result == winner_candidate.presentation_result
     assert len([c for c in result.candidates if c.presentation_result is not None]) == 1
     assert all(candidate.packaging_failure is None for candidate in result.candidates)
+    assert all(candidate.cable_sizing is not None for candidate in result.candidates)
     assert all(
         candidate.engineering_assessment is not None for candidate in result.candidates
     )
@@ -270,7 +271,10 @@ def test_segment_cable_type_ids_not_empty_raises(
         ),
         scoring=base_config.scoring,
     )
-    with pytest.raises(OptimisationInputError, match="must be empty"):
+    with pytest.raises(
+        OptimisationInputError,
+        match="Manual segment_cable_type_ids are not accepted",
+    ):
         optimise_project(project_input, invalid_config)
 
 
@@ -359,11 +363,10 @@ def test_all_electrical_candidates_infeasible(
 
     result = optimise_project(project_input, impossible_config)
     assert result.status == OptimisationStatus.NO_FEASIBLE_CANDIDATE
-    assert result.recommendation is not None
-    assert result.recommendation.recommended_scenario_id is None
+    assert result.recommendation is None
     assert result.recommended_result is None
-    # No execution failures, just domain infeasibility
-    assert len(result.failures) == 0
+    assert len(result.failures) == 2
+    assert result.failures[0].code == WorkflowFailureCode.ELECTRICAL_VALIDATION_FAILED
 
 
 def test_electrical_execution_failure_isolation(
@@ -371,23 +374,24 @@ def test_electrical_execution_failure_isolation(
     base_config: OptimisationConfig,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from app.electrical.repair import ClosedLoopRepairResult
     from app.optimisation import orchestrator
 
-    # We will just patch run_load_flow to throw on the second call
+    # We will just patch repair_electrical_design to throw on the second call
     call_count = 0
 
-    def side_effect_run_load_flow(
-        pnc_network: ProjectPNCNetwork,
-        operating_points: tuple[WTGOperatingPoint, ...],
-        config: LoadFlowConfig,
-    ) -> LoadFlowNetworkResult:
+    from app.electrical.repair import repair_electrical_design
+
+    def side_effect_repair_electrical_design(
+        *args: object, **kwargs: object
+    ) -> ClosedLoopRepairResult:
         nonlocal call_count
         call_count += 1
         if call_count == 2:
             raise CandidateElectricalEvaluationError("Pandapower crashed on scenario 2")
-        return run_load_flow(pnc_network, operating_points, config)
+        return repair_electrical_design(*args, **kwargs)
 
-    monkeypatch.setattr(orchestrator, "run_load_flow", side_effect_run_load_flow)
+    monkeypatch.setattr(orchestrator, "repair_electrical_design", side_effect_repair_electrical_design)
 
     result = optimise_project(project_input, base_config)
     assert result.status == OptimisationStatus.PARTIAL_SUCCESS

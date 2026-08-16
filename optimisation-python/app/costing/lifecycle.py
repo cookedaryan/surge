@@ -350,6 +350,11 @@ def evaluate_candidate_cost(
             catalogue_price_basis_date=catalogue.price_basis_date,
             energy_price_basis_date=config.energy_price_basis_date,
             cost_model_version="1.0",
+            analysis_period_years=config.analysis_period_years,
+            discount_rate=config.discount_rate,
+            annual_operating_hours=config.annual_operating_hours,
+            loss_load_factor=config.loss_load_factor,
+            energy_price_per_mwh=config.energy_price_per_mwh,
         )
 
     return CandidateCostAssessment(
@@ -377,4 +382,9 @@ def evaluate_candidate_cost(
         catalogue_price_basis_date=catalogue.price_basis_date,
         energy_price_basis_date=config.energy_price_basis_date,
         cost_model_version="1.0",
+        analysis_period_years=config.analysis_period_years,
+        discount_rate=config.discount_rate,
+        annual_operating_hours=config.annual_operating_hours,
+        loss_load_factor=config.loss_load_factor,
+        energy_price_per_mwh=config.energy_price_per_mwh,
     )

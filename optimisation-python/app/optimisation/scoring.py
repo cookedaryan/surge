@@ -43,6 +43,11 @@ def compute_economic_context_id(assessment: CandidateCostAssessment) -> str:
         "catalogue_price_basis_date": cost.catalogue_price_basis_date.isoformat(),
         "energy_price_basis_date": cost.energy_price_basis_date.isoformat(),
         "cost_model_version": cost.cost_model_version,
+        "analysis_period_years": cost.analysis_period_years,
+        "discount_rate": str(cost.discount_rate.normalize()),
+        "annual_operating_hours": cost.annual_operating_hours,
+        "loss_load_factor": str(cost.loss_load_factor.normalize()),
+        "energy_price_per_mwh": str(cost.energy_price_per_mwh.normalize()),
     }
     serialized = json.dumps(state, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()

@@ -1,6 +1,6 @@
 import datetime
 import math
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from decimal import Decimal
 
 from app.algorithms.pole_placement import PolePlacementConfig
@@ -532,6 +532,7 @@ def to_api_response(
                 }
                 if c.execution_failure
                 else None,
+                cable_sizing=asdict(c.cable_sizing) if c.cable_sizing else None,
             )
         )
 

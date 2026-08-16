@@ -11,9 +11,9 @@ from app.algorithms.physical_routing import validate_cost_surface
 from app.algorithms.pole_placement import place_poles_on_network
 from app.costing.lifecycle import evaluate_candidate_cost
 from app.electrical.errors import CandidateElectricalEvaluationError
-from app.electrical.load_flow.analysis import run_load_flow
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import WTGOperatingPoint
+from app.electrical.repair import RepairStatus, repair_electrical_design
 from app.gis.cost_surface import world_to_grid
 from app.optimisation.engineering_metrics import build_candidate_engineering_metrics
 from app.optimisation.scenario_models import (
@@ -160,9 +160,123 @@ def _validate_input(project_input: ProjectInput, config: OptimisationConfig) -> 
     # Configuration invariants
     if config.electrical.segment_cable_type_ids:
         raise OptimisationInputError(
-            "segment_cable_type_ids must be empty for orchestrator cohort MVP. "
-            "Use one default_cable_type_id to avoid cross-candidate assignment errors."
+            "Manual segment_cable_type_ids are not accepted by automatic "
+            "candidate design mode."
         )
+    cable_ids = {cable.cable_type_id for cable in config.electrical.cable_types}
+    if config.electrical.default_cable_type_id not in cable_ids:
+        raise OptimisationInputError(
+            "default_cable_type_id must reference a configured cable type."
+        )
+
+
+def _compute_electrical_context_id(
+    operating_points: tuple[WTGOperatingPoint, ...],
+    config: LoadFlowConfig,
+) -> str:
+    """Compute a stable hash representing the electrical evaluation context."""
+    ops = sorted(
+        [
+            (op.node_id, op.active_power_mw, op.reactive_power_mvar)
+            for op in operating_points
+        ]
+    )
+    cables = sorted(
+        [
+            (
+                c.cable_type_id,
+                c.resistance_ohm_per_km,
+                c.reactance_ohm_per_km,
+                c.capacitance_nf_per_km,
+                c.max_current_a,
+                c.parallel_count,
+                c.derating_factor,
+            )
+            for c in config.cable_types
+        ]
+    )
+
+    state: dict[str, Any] = {
+        "operating_points": ops,
+        "cable_types": cables,
+        "default_cable": config.default_cable_type_id,
+        "system_base": config.system_base_mva,
+        "voltage_kv": config.nominal_voltage_kv,
+        "slack_pu": config.slack_voltage_pu,
+        "min_pu": config.min_voltage_pu,
+        "max_pu": config.max_voltage_pu,
+    }
+
+    serialized = json.dumps(state, sort_keys=True)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def optimise_project(
+    project_input: ProjectInput,
+    config: OptimisationConfig,
+) -> OptimisationWorkflowResult:
+    """Run the complete end-to-end Surge optimisation workflow."""
+
+    # 1. Validation
+    _validate_input(project_input, config)
+    logger.info("Starting optimisation for %s", project_input.project_id)
+
+    # 2. Stable Electrical Context
+    electrical_context_id = _compute_electrical_context_id(
+        project_input.operating_points,
+        config.electrical,
+    )
+
+    # Inject project_id to avoid dual ownership issues
+    scenario_config = ScenarioGenerationConfig(
+        candidate_count=config.scenario.candidate_count,
+        base_seed=config.scenario.base_seed,
+        project_id=project_input.project_id,
+    )
+
+    # 3. Scenario Generation
+    try:
+        generation_result = generate_pnc_scenarios(
+            project_data=project_input.project_data,
+            feeder_capacity_mw=project_input.feeder_capacity_mw,
+            cost_surface=project_input.cost_surface,
+            config=scenario_config,
+        )
+    except ScenarioGenerationError as e:
+        logger.error("Generation failed completely: %s", str(e))
+        return OptimisationWorkflowResult(
+            status=OptimisationStatus.FAILED,
+            generation_result=None,
+            candidates=(),
+            recommendation=None,
+            recommended_result=None,
+            failures=(
+                CandidateFailure(
+                    stage=WorkflowStage.PNC_GENERATION,
+                    code=WorkflowFailureCode.GENERATION_FAILED,
+                    message=str(e),
+                ),
+            ),
+        )
+
+    logger.info("Generated %d scenario definitions", len(generation_result.candidates))
+
+    if not generation_result.candidates:
+        failure = CandidateFailure(
+            stage=WorkflowStage.PNC_GENERATION,
+            code=WorkflowFailureCode.GENERATION_FAILED,
+            message="Scenario generation returned no candidates.",
+        )
+        return OptimisationWorkflowResult(
+            status=OptimisationStatus.FAILED,
+            generation_result=generation_result,
+            candidates=(),
+            recommendation=None,
+            recommended_result=None,
+            failures=(failure,),
+        )
+
+    # 4. Electrical Validation
     cable_ids = {cable.cable_type_id for cable in config.electrical.cable_types}
     if config.electrical.default_cable_type_id not in cable_ids:
         raise OptimisationInputError(
@@ -280,22 +394,59 @@ def optimise_project(
     candidates = []
     failures = []
     evaluated_scenarios = []
+    candidate_electrical_configs: dict[str, LoadFlowConfig] = {}
+
+    wtg_active_power_mw = {
+        op.node_id: op.active_power_mw for op in project_input.operating_points
+    }
+    wtg_reactive_power_mvar = {
+        op.node_id: op.reactive_power_mvar for op in project_input.operating_points
+    }
 
     for scenario in generation_result.candidates:
         try:
-            lf_result = run_load_flow(
-                pnc_network=scenario.network,
+            repair_result = repair_electrical_design(
+                network=scenario.network,
                 operating_points=project_input.operating_points,
                 config=config.electrical,
+                wtg_active_power_mw=wtg_active_power_mw,
+                wtg_reactive_power_mvar=wtg_reactive_power_mvar,
+                max_iterations=10, # Bounded iterations
             )
-            logger.info("%s electrical validation completed", scenario.scenario_id)
-            evaluated_scenarios.append(
-                ElectricallyEvaluatedScenario(
-                    scenario=scenario,
-                    load_flow_result=lf_result,
-                    electrical_context_id=electrical_context_id,
+            
+            if repair_result.status == RepairStatus.VALID:
+                assert repair_result.load_flow_result is not None
+                logger.info("%s electrical validation completed", scenario.scenario_id)
+                candidate_electrical_configs[scenario.scenario_id] = repair_result.final_electrical_config
+                evaluated_scenarios.append(
+                    ElectricallyEvaluatedScenario(
+                        scenario=scenario,
+                        load_flow_result=repair_result.load_flow_result,
+                        electrical_context_id=electrical_context_id,
+                        cable_sizing=repair_result.initial_cable_sizing,
+                        repair_log=repair_result.repair_log,
+                    )
                 )
-            )
+            else:
+                logger.warning("%s electrical repair stopped with status: %s", scenario.scenario_id, repair_result.status.value)
+                failures.append(
+                    CandidateFailure(
+                        stage=WorkflowStage.ELECTRICAL_VALIDATION,
+                        code=WorkflowFailureCode.ELECTRICAL_VALIDATION_FAILED,
+                        message=f"Electrical repair failed: {repair_result.status.value}",
+                        scenario_id=scenario.scenario_id,
+                    )
+                )
+                candidates.append(
+                    CandidateWorkflowResult(
+                        scenario=scenario,
+                        load_flow_result=repair_result.load_flow_result,
+                        evaluation=None,
+                        execution_failure=failures[-1],
+                        cable_sizing=repair_result.initial_cable_sizing,
+                        repair_log=repair_result.repair_log,
+                    )
+                )
         except CandidateElectricalEvaluationError as e:
             logger.warning(
                 "%s electrical execution failed: %s", scenario.scenario_id, str(e)
@@ -342,7 +493,9 @@ def optimise_project(
         assessment = build_candidate_engineering_metrics(
             scenario=evaluated.scenario,
             load_flow_result=evaluated.load_flow_result,
-            load_flow_config=config.electrical,
+            load_flow_config=candidate_electrical_configs[
+                evaluated.scenario.scenario_id
+            ],
             constraint_layers=project_input.constraint_layers,
             pole_config=config.pole,
             row_corridor_width_m=project_input.row_width_m,
@@ -367,7 +520,9 @@ def optimise_project(
             cost_assessment = evaluate_candidate_cost(
                 scenario=evaluated.scenario,
                 load_flow_result=evaluated.load_flow_result,
-                electrical_config=config.electrical,
+                electrical_config=candidate_electrical_configs[
+                    evaluated.scenario.scenario_id
+                ],
                 engineering_assessment=engineering_assessments[
                     evaluated.scenario.scenario_id
                 ],
@@ -433,7 +588,115 @@ def optimise_project(
                         es.scenario.scenario_id
                     ],
                     cost_assessment=cost_assessments.get(es.scenario.scenario_id),
+                    cable_sizing=es.cable_sizing,
                 )
+            )
+
+    # Ensure deterministic order based on generation
+    candidate_map = {c.scenario.scenario_id: c for c in candidates}
+    ordered_candidates = tuple(
+        candidate_map[s.scenario_id] for s in generation_result.candidates
+    )
+
+    # 8. Recommendation and Status
+    recommended_result = None
+    pole_network = None
+    if recommendation and recommendation.recommended_scenario_id:
+        winner_id = recommendation.recommended_scenario_id
+        winner_candidate = candidate_map[winner_id]
+
+        # Verify invariants before packaging
+        load_flow_result = winner_candidate.load_flow_result
+        if load_flow_result is None:
+            raise RuntimeError("Recommended scenario is missing a load flow result.")
+        if (
+            not winner_candidate.evaluation
+            or not winner_candidate.evaluation.assessment.eligible
+        ):
+            raise RuntimeError("Recommended scenario must be eligible.")
+
+        if config.pole is not None:
+            try:
+                winner_assessment = winner_candidate.engineering_assessment
+                pole_network = (
+                    winner_assessment.pole_result
+                    if winner_assessment is not None
+                    and winner_assessment.pole_result is not None
+                    else place_poles_on_network(
+                        winner_candidate.scenario.network,
+                        config.pole,
+                    )
+                )
+            except Exception as exc:
+                logger.exception("Pole network generation failed for %s", winner_id)
+                failure = CandidateFailure(
+                    stage=WorkflowStage.POLE_PLACEMENT,
+                    code=WorkflowFailureCode.POLE_NETWORK_GENERATION_FAILED,
+                    message=str(exc),
+                    scenario_id=winner_id,
+                )
+                failures.append(failure)
+                winner_candidate = replace(winner_candidate, pole_failure=failure)
+                candidate_map[winner_id] = winner_candidate
+                ordered_candidates = tuple(
+                    candidate_map[s.scenario_id] for s in generation_result.candidates
+                )
+                return OptimisationWorkflowResult(
+                    status=OptimisationStatus.FAILED,
+                    generation_result=generation_result,
+                    candidates=ordered_candidates,
+                    recommendation=None,
+                    recommended_result=None,
+                    failures=tuple(failures),
+                )
+
+        try:
+            presentation = build_project_result(
+                pnc_network=winner_candidate.scenario.network,
+                load_flow_result=load_flow_result,
+                pole_network=pole_network,
+                constraint_layers=project_input.constraint_layers,
+            )
+            # Create a new instance with the presentation result
+            winner_candidate = replace(
+                winner_candidate, presentation_result=presentation
+            )
+            candidate_map[winner_id] = winner_candidate
+            # Update ordered_candidates
+            ordered_candidates = tuple(
+                candidate_map[s.scenario_id] for s in generation_result.candidates
+            )
+            recommended_result = presentation
+            logger.info("Recommended candidate: %s", winner_id)
+        except PresentationDataMismatchError as exc:
+            logger.warning("%s packaging failed: %s", winner_id, str(exc))
+            failure = CandidateFailure(
+                stage=WorkflowStage.PACKAGING,
+                code=WorkflowFailureCode.PACKAGING_FAILED,
+                message=str(exc),
+                scenario_id=winner_id,
+            )
+            failures.append(failure)
+
+            winner_candidate = replace(winner_candidate, packaging_failure=failure)
+            candidate_map[winner_id] = winner_candidate
+            ordered_candidates = tuple(
+                candidate_map[s.scenario_id] for s in generation_result.candidates
+            )
+
+            return OptimisationWorkflowResult(
+                status=OptimisationStatus.FAILED,
+                generation_result=generation_result,
+                candidates=ordered_candidates,
+                recommendation=None,
+                recommended_result=None,
+                failures=tuple(failures),
+            )
+        except Exception as exc:
+            logger.exception("Unexpected packaging failure for %s", winner_id)
+            failure = CandidateFailure(
+                stage=WorkflowStage.PACKAGING,
+                code=WorkflowFailureCode.PACKAGING_FAILED,
             )
 
     # Ensure deterministic order based on generation
@@ -569,7 +832,11 @@ def optimise_project(
         else:
             status = OptimisationStatus.SUCCESS
     else:
-        if not evaluated_scenarios:
+        if all(
+            c.execution_failure is not None
+            and c.execution_failure.code == WorkflowFailureCode.ELECTRICAL_EXECUTION_ERROR
+            for c in ordered_candidates
+        ):
             # Everything execution-failed, this means FAILED workflow
             status = OptimisationStatus.FAILED
         else:

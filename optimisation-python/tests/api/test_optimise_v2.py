@@ -91,6 +91,7 @@ def test_v2_optimise_endpoint_success(mvp_v2_payload: JsonObject) -> None:
     assert all(c.eligible is True for c in validated.candidates)
     assert all(c.engineering_metrics is not None for c in validated.candidates)
     assert all(c.group_scores is not None for c in validated.candidates)
+    assert all(c.cable_sizing is not None for c in validated.candidates)
     assert all(
         c.engineering_metrics is not None
         and c.engineering_metrics.environmental_overlap_m2 >= 0.0
@@ -339,7 +340,8 @@ def test_v2_reports_no_feasible_candidate(mvp_v2_payload: JsonObject) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "NO_FEASIBLE_CANDIDATE"
-    assert "recommended_scenario_id" not in body["recommendation"]
+    if "recommendation" in body and body["recommendation"] is not None:
+        assert "recommended_scenario_id" not in body["recommendation"]
     assert "recommended_result" not in body
 
 
@@ -349,10 +351,10 @@ def test_v2_reports_failed_workflow(
 ) -> None:
     from app.optimisation import orchestrator
 
-    def fail_load_flow(*args: object, **kwargs: object) -> None:
+    def fail_repair(*args: object, **kwargs: object) -> None:
         raise CandidateElectricalEvaluationError("candidate evaluation failed")
 
-    monkeypatch.setattr(orchestrator, "run_load_flow", fail_load_flow)
+    monkeypatch.setattr(orchestrator, "repair_electrical_design", fail_repair)
 
     response = client.post("/api/v2/optimise", json=mvp_v2_payload)
 

@@ -335,6 +335,11 @@ def make_cost_assessment(
         catalogue_price_basis_date=basis_date,
         energy_price_basis_date=basis_date,
         cost_model_version="1.0",
+        analysis_period_years=25,
+        discount_rate=Decimal("0.08"),
+        annual_operating_hours=8760,
+        loss_load_factor=Decimal("0.3"),
+        energy_price_per_mwh=Decimal("50.0"),
     )
     return CandidateCostAssessment(
         scenario_id=scenario_id,
@@ -885,6 +890,54 @@ def test_cost_aware_context_mismatch_disqualifies_incomparable_cohort(
         == DisqualificationCode.ECONOMIC_CONTEXT_MISMATCH
         for evaluation in recommendation.evaluations
     )
+
+
+def test_economic_context_decimal_normalization_yields_same_fingerprint() -> None:
+    from app.optimisation.scoring import compute_economic_context_id
+
+    basis_date = datetime.date(2026, 1, 1)
+
+    def make_assessment_with_rate(rate: str) -> CandidateCostAssessment:
+        cost = CandidateLifecycleCost(
+            scenario_id="SCN-1",
+            conductor_capex=Decimal("100"),
+            pole_capex=Decimal("0"),
+            land_capex=Decimal("0"),
+            total_capex=Decimal("100"),
+            annual_loss_energy_mwh=Decimal("0"),
+            annual_loss_cost=Decimal("0"),
+            present_value_factor=Decimal("0"),
+            present_value_opex=Decimal("0"),
+            lifecycle_cost=Decimal("100"),
+            line_items=(),
+            currency="USD",
+            catalogue_id="CAT-1",
+            catalogue_version="1.0",
+            catalogue_price_basis_date=basis_date,
+            energy_price_basis_date=basis_date,
+            cost_model_version="1.0",
+            analysis_period_years=25,
+            discount_rate=Decimal(rate),
+            annual_operating_hours=8760,
+            loss_load_factor=Decimal("0.3"),
+            energy_price_per_mwh=Decimal("50.0"),
+        )
+        return CandidateCostAssessment(
+            scenario_id="SCN-1",
+            cost=cost,
+            failures=(),
+        )
+
+    assessment_1 = make_assessment_with_rate("0.08")
+    assessment_2 = make_assessment_with_rate("0.080")
+    assessment_3 = make_assessment_with_rate("0.0800")
+
+    fp1 = compute_economic_context_id(assessment_1)
+    fp2 = compute_economic_context_id(assessment_2)
+    fp3 = compute_economic_context_id(assessment_3)
+
+    assert fp1 == fp2
+    assert fp2 == fp3
 
 
 def test_zero_lifecycle_cost_is_valid_tie_breaker(

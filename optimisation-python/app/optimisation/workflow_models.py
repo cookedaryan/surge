@@ -1,5 +1,9 @@
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.electrical.repair import RepairAction
 
 from app.algorithms.pole_placement import CollectorPoleResult, PolePlacementConfig
 from app.costing.failures import CostConfigurationError
@@ -8,6 +12,7 @@ from app.costing.models import (
     EngineeringCostCatalogue,
     LifecycleCostConfig,
 )
+from app.electrical.cable_sizing import CableSizingResult
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult, WTGOperatingPoint
 from app.gis.constraints import ConstraintLayer
@@ -85,6 +90,7 @@ class WorkflowStage(StrEnum):
 class WorkflowFailureCode(StrEnum):
     GENERATION_FAILED = "GENERATION_FAILED"
     ELECTRICAL_EXECUTION_ERROR = "ELECTRICAL_EXECUTION_ERROR"
+    ELECTRICAL_VALIDATION_FAILED = "ELECTRICAL_VALIDATION_FAILED"
     SCORING_FAILED = "SCORING_FAILED"
     POLE_NETWORK_GENERATION_FAILED = "POLE_NETWORK_GENERATION_FAILED"
     PACKAGING_FAILED = "PACKAGING_FAILED"
@@ -111,6 +117,8 @@ class CandidateWorkflowResult:
     presentation_result: ProjectOptimizationResult | None = None
     pole_failure: CandidateFailure | None = None
     packaging_failure: CandidateFailure | None = None
+    cable_sizing: CableSizingResult | None = None
+    repair_log: tuple["RepairAction", ...] = ()
 
     def __post_init__(self) -> None:
         if self.execution_failure is not None:
@@ -118,15 +126,18 @@ class CandidateWorkflowResult:
                 raise ValueError(
                     "Execution failure must use the ELECTRICAL_VALIDATION stage."
                 )
-            if (
-                self.execution_failure.code
-                != WorkflowFailureCode.ELECTRICAL_EXECUTION_ERROR
+            if self.execution_failure.code not in (
+                WorkflowFailureCode.ELECTRICAL_EXECUTION_ERROR,
+                WorkflowFailureCode.ELECTRICAL_VALIDATION_FAILED,
             ):
                 raise ValueError(
-                    "Execution failure must use ELECTRICAL_EXECUTION_ERROR."
+                    "Execution failure must use ELECTRICAL_EXECUTION_ERROR or ELECTRICAL_VALIDATION_FAILED."
                 )
-            if self.load_flow_result is not None:
-                raise ValueError("Execution failure cannot have a load-flow result.")
+            if (
+                self.execution_failure.code == WorkflowFailureCode.ELECTRICAL_EXECUTION_ERROR 
+                and self.load_flow_result is not None
+            ):
+                raise ValueError("ELECTRICAL_EXECUTION_ERROR cannot have a load-flow result.")
             if self.evaluation is not None:
                 raise ValueError("Execution failure cannot have an evaluation.")
             if self.engineering_assessment is not None:
@@ -288,11 +299,7 @@ class OptimisationWorkflowResult:
         elif self.status == OptimisationStatus.NO_FEASIBLE_CANDIDATE:
             if not self.candidates:
                 raise ValueError("NO_FEASIBLE_CANDIDATE requires evaluated candidates.")
-            if not self.recommendation:
-                raise ValueError(
-                    "NO_FEASIBLE_CANDIDATE requires a recommendation object."
-                )
-            if self.recommendation.recommended_scenario_id is not None:
+            if self.recommendation is not None and self.recommendation.recommended_scenario_id is not None:
                 raise ValueError(
                     "NO_FEASIBLE_CANDIDATE must have recommended_scenario_id=None."
                 )
