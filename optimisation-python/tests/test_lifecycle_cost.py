@@ -192,6 +192,7 @@ def test_evaluate_candidate_cost_success(
         engineering_assessment=dummy_engineering_assessment,
         catalogue=dummy_catalogue,
         config=dummy_lifecycle_config,
+        land_assessment=None,
     )
 
     assert assessment.scenario_id == "s1"
@@ -201,7 +202,7 @@ def test_evaluate_candidate_cost_success(
     assert assessment.pole_capex_amount == Decimal("10000.00")
 
     # Land: 1 parcel * 1000 + 5000 m2 * 10 = 51000
-    assert assessment.land_capex_amount == Decimal("51000.00")
+    assert assessment.land_purchase_capex_amount == Decimal("51000.00")
 
     assert assessment.total_capex_amount == Decimal("161000.00")
 
@@ -244,6 +245,7 @@ def test_rejects_mixed_catalogue_and_energy_currencies(
             engineering_assessment=dummy_engineering_assessment,
             catalogue=replace(dummy_catalogue, currency="EUR"),
             config=dummy_lifecycle_config,
+            land_assessment=None,
         )
 
 
@@ -272,9 +274,10 @@ def test_spatial_failure_does_not_publish_zero_land_cost(
         engineering_assessment=dummy_engineering_assessment,
         catalogue=dummy_catalogue,
         config=dummy_lifecycle_config,
+        land_assessment=None,
     )
 
-    assert assessment.land_capex_amount is None
+    assert assessment.land_purchase_capex_amount is None
     assert assessment.total_capex_amount is None
     assert not assessment.capex_available
     assert any(

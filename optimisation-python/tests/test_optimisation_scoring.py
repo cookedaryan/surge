@@ -271,6 +271,7 @@ def make_wrapper(
             maximum_loading_percent=result.maximum_loading_percent,
             voltage_margin_pu=v_margin,
             environmental_overlap_m2=0.0,
+            owner_interaction_count=0,
         )
 
     assessment = CandidateEngineeringAssessment(
@@ -321,8 +322,10 @@ def make_cost_assessment(
         scenario_id=scenario_id,
         conductor_capex=amount,
         pole_capex=Decimal(0),
-        land_capex=Decimal(0),
+        land_purchase_capex=Decimal(0),
         total_capex=amount,
+        land_recurring_cost_pv=Decimal(0),
+        land_access_present_value=Decimal(0),
         annual_loss_energy_mwh=Decimal(0),
         annual_loss_cost=Decimal(0),
         present_value_factor=Decimal(0),
@@ -347,8 +350,13 @@ def make_cost_assessment(
         failures=(),
         conductor_capex_amount=amount,
         pole_capex_amount=Decimal(0),
-        land_capex_amount=Decimal(0),
+        land_purchase_capex_amount=Decimal(0),
         total_capex_amount=amount,
+        land_recurring_cost_pv_amount=Decimal(0),
+        land_access_present_value_amount=Decimal(0),
+        annual_loss_energy_mwh=Decimal(0),
+        annual_loss_cost_amount=Decimal(0),
+        present_value_factor=Decimal(0),
         present_value_opex_amount=Decimal(0),
     )
 
@@ -881,8 +889,7 @@ def test_cost_aware_context_mismatch_disqualifies_incomparable_cohort(
 
     assert recommendation == repeated
     assert (
-        recommendation.status
-        == OptimizationRecommendationStatus.NO_FEASIBLE_CANDIDATE
+        recommendation.status == OptimizationRecommendationStatus.NO_FEASIBLE_CANDIDATE
     )
     assert recommendation.economic_context_id is None
     assert all(
@@ -902,8 +909,10 @@ def test_economic_context_decimal_normalization_yields_same_fingerprint() -> Non
             scenario_id="SCN-1",
             conductor_capex=Decimal("100"),
             pole_capex=Decimal("0"),
-            land_capex=Decimal("0"),
+            land_purchase_capex=Decimal("0"),
             total_capex=Decimal("100"),
+            land_recurring_cost_pv=Decimal("0"),
+            land_access_present_value=Decimal("0"),
             annual_loss_energy_mwh=Decimal("0"),
             annual_loss_cost=Decimal("0"),
             present_value_factor=Decimal("0"),
@@ -1006,9 +1015,7 @@ def test_cost_aware_legacy_cost_mapping_remains_supported(
     recommendation = evaluate_cohort(
         (wrapper,),
         scoring_config,
-        cost_assessments={
-            "SCN-001": make_cost_assessment("SCN-001", "100.00")
-        },
+        cost_assessments={"SCN-001": make_cost_assessment("SCN-001", "100.00")},
         cost_aware_config=CostAwareRecommendationConfig(0.6, 0.4),
     )
 
