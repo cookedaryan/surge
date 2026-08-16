@@ -10,6 +10,7 @@ import pytest
 from app.algorithms.pole_placement import CollectorPoleResult
 from app.costing.failures import CostConfigurationError, CostEvaluationFailureCode
 from app.costing.lifecycle import evaluate_candidate_cost
+from app.land.models import CandidateLandAssessment, LandCostBasis, OwnerInteractionBasis
 from app.costing.models import (
     ConductorCostItem,
     EngineeringCostCatalogue,
@@ -185,6 +186,21 @@ def test_evaluate_candidate_cost_success(
     dummy_catalogue: EngineeringCostCatalogue,
     dummy_lifecycle_config: LifecycleCostConfig,
 ) -> None:
+    dummy_land_assessment = CandidateLandAssessment(
+        scenario_id="s1",
+        parcel_decisions=(),
+        parcel_count=1,
+        owner_interaction_count=0,
+        owner_interaction_basis=OwnerInteractionBasis.PARCEL_PROXY,
+        unknown_owner_count=0,
+        unavailable_parcel_ids=(),
+        land_purchase_capex=Decimal("51000.00"),
+        land_recurring_cost_pv=Decimal("0.00"),
+        land_access_present_value=Decimal("51000.00"),
+        land_cost_basis=LandCostBasis.UNKNOWN,
+        is_feasible=True,
+    )
+
     assessment = evaluate_candidate_cost(
         scenario=dummy_scenario,
         load_flow_result=dummy_load_flow_result,
@@ -192,14 +208,15 @@ def test_evaluate_candidate_cost_success(
         engineering_assessment=dummy_engineering_assessment,
         catalogue=dummy_catalogue,
         config=dummy_lifecycle_config,
-        land_assessment=None,
+        land_assessment=dummy_land_assessment,
     )
 
     assert assessment.scenario_id == "s1"
-    assert not assessment.failures
     assert assessment.cost is not None
-    assert assessment.conductor_capex_amount == Decimal("100000.00")
-    assert assessment.pole_capex_amount == Decimal("10000.00")
+    assert assessment.cost.total_capex == Decimal("161000.00")
+    assert assessment.cost.land_purchase_capex == Decimal("51000.00")
+    assert assessment.cost.land_recurring_cost_pv == Decimal("0.00")
+    assert assessment.cost.land_access_present_value == Decimal("51000.00")
 
     # Land: 1 parcel * 1000 + 5000 m2 * 10 = 51000
     assert assessment.land_purchase_capex_amount == Decimal("51000.00")

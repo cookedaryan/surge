@@ -5,7 +5,7 @@ import pytest
 from app.optimisation.search_models import CandidateSearchConfig
 
 
-def test_search_config_validation():
+def test_search_config_validation() -> None:
     # Valid config
     config = CandidateSearchConfig(
         enabled=True,
@@ -23,4 +23,4 @@ def test_search_config_validation():
 
     # Boolean should fail
     with pytest.raises(ValueError):
-        CandidateSearchConfig(max_search_evaluations=True)  # type: ignore[arg-type]
+        CandidateSearchConfig(max_search_evaluations=True)

@@ -424,8 +424,8 @@ def to_api_response(
                     else None
                 ),
                 land_capex=(
-                    float(ca.land_capex_amount)
-                    if ca.land_capex_amount is not None
+                    float(ca.land_purchase_capex_amount)
+                    if ca.land_purchase_capex_amount is not None
                     else None
                 ),
                 total_capex=(

@@ -199,7 +199,7 @@ def test_v2_returns_partial_cost_components_with_failure_details(
         assert candidate.cost is not None
         assert candidate.cost.conductor_capex is None
         assert candidate.cost.pole_capex is not None
-        assert candidate.cost.land_purchase_capex == 0.0
+        assert candidate.cost.land_capex == 0.0
         assert candidate.cost.total_capex is None
         assert candidate.cost.present_value_opex is not None
         assert candidate.cost.lifecycle_cost is None

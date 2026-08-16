@@ -169,6 +169,7 @@ def test_enabled_candidate_search_evaluates_neighbors(
         if candidate.scenario.lineage is not None
     ]
     assert len(search_candidates) == 1
+    assert search_candidates[0].scenario.lineage is not None
     assert search_candidates[0].scenario.lineage.search_round == 1
 
 
@@ -480,7 +481,7 @@ def test_electrical_execution_failure_isolation(
         call_count += 1
         if call_count == 2:
             raise CandidateElectricalEvaluationError("Pandapower crashed on scenario 2")
-        return repair_electrical_design(*args, **kwargs)
+        return repair_electrical_design(*args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
         "app.optimisation.candidate_evaluation.repair_electrical_design",

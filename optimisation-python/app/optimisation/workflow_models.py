@@ -19,7 +19,10 @@ from app.gis.constraints import ConstraintLayer
 from app.gis.cost_surface import CostSurface
 from app.land.models import LandCommercialContext
 from app.models.spatial import ProjectSpatialData
-from app.optimisation.engineering_metric_models import CandidateEngineeringAssessment
+from app.land.models import CandidateLandAssessment
+from app.optimisation.engineering_metric_models import (
+    CandidateEngineeringAssessment,
+)
 from app.optimisation.scenario_models import (
     PNCScenario,
     ScenarioGenerationConfig,
@@ -117,6 +120,7 @@ class CandidateWorkflowResult:
     load_flow_result: LoadFlowNetworkResult | None
     evaluation: CandidateEvaluation | None
     execution_failure: CandidateFailure | None
+    land_assessment: CandidateLandAssessment | None = None
     engineering_assessment: CandidateEngineeringAssessment | None = None
     cost_assessment: CandidateCostAssessment | None = None
     presentation_result: ProjectOptimizationResult | None = None
@@ -127,13 +131,14 @@ class CandidateWorkflowResult:
 
     def __post_init__(self) -> None:
         if self.execution_failure is not None:
-            if self.execution_failure.stage != WorkflowStage.ELECTRICAL_VALIDATION:
+            if self.execution_failure.stage not in (WorkflowStage.ELECTRICAL_VALIDATION, WorkflowStage.SCORING):
                 raise ValueError(
-                    "Execution failure must use the ELECTRICAL_VALIDATION stage."
+                    "Execution failure must use the ELECTRICAL_VALIDATION or SCORING stage."
                 )
             if self.execution_failure.code not in (
                 WorkflowFailureCode.ELECTRICAL_EXECUTION_ERROR,
                 WorkflowFailureCode.ELECTRICAL_VALIDATION_FAILED,
+                WorkflowFailureCode.LAND_PARCEL_UNAVAILABLE,
                 WorkflowFailureCode.UNEXPECTED_EXCEPTION,
             ):
                 raise ValueError("Execution failure has an invalid failure code.")

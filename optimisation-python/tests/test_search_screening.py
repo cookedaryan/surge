@@ -1,16 +1,20 @@
 """Tests for structural screening during search."""
 
 import networkx as nx
+import numpy as np
+from affine import Affine
+import pyproj
 from shapely.geometry import Point
 
 from app.algorithms.topology import CollectorTopologyResult, FeederTopology
 from app.algorithms.wtg_grouping import FeederAssignment, FeederGroupingResult
+from app.gis.cost_surface import CostSurface
 from app.models.spatial import ProjectSpatialData, Substation, WindTurbine
 from app.optimisation.candidate_validation import validate_candidate_structure
 from app.optimisation.workflow_models import ProjectInput
 
 
-def test_structural_screening_rejects_cycles():
+def test_structural_screening_rejects_cycles() -> None:
     # Simple cycle A -> B -> C -> A
     mst = nx.Graph()
     mst.add_edges_from([("wtg:A", "wtg:B"), ("wtg:B", "wtg:C"), ("wtg:C", "wtg:A")])
@@ -41,10 +45,10 @@ def test_structural_screening_rejects_cycles():
                 WindTurbine(turbine_id="B", location=Point(1, 1), capacity_mw=3.0),
                 WindTurbine(turbine_id="C", location=Point(2, 2), capacity_mw=4.0),
             ),
-            projected_crs="EPSG:32631",
+            projected_crs=pyproj.CRS.from_epsg(32631),
         ),
         constraint_layers=(),
-        cost_surface=None,
+        cost_surface=CostSurface(costs=np.zeros((10,10)), transform=Affine.identity(), crs=pyproj.CRS.from_epsg(32631), width=10, height=10, resolution_m=10.0),
         feeder_capacity_mw=100.0,
         operating_points=(),
     )
@@ -53,7 +57,7 @@ def test_structural_screening_rejects_cycles():
     assert not is_valid
 
 
-def test_structural_screening_accepts_valid_tree():
+def test_structural_screening_accepts_valid_tree() -> None:
     mst = nx.Graph()
     mst.add_edges_from([("SUB", "wtg:A"), ("wtg:A", "wtg:B")])
 
@@ -82,10 +86,10 @@ def test_structural_screening_accepts_valid_tree():
                 WindTurbine(turbine_id="A", location=Point(0, 0), capacity_mw=5.0),
                 WindTurbine(turbine_id="B", location=Point(1, 1), capacity_mw=5.0),
             ),
-            projected_crs="EPSG:32631",
+            projected_crs=pyproj.CRS.from_epsg(32631),
         ),
         constraint_layers=(),
-        cost_surface=None,
+        cost_surface=CostSurface(costs=np.zeros((10,10)), transform=Affine.identity(), crs=pyproj.CRS.from_epsg(32631), width=10, height=10, resolution_m=10.0),
         feeder_capacity_mw=100.0,
         operating_points=(),
     )
