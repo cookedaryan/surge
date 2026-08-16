@@ -20,6 +20,11 @@ from app.costing.models import (
 )
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult
+from app.land.models import (
+    CandidateLandAssessment,
+    LandCostBasis,
+    OwnerInteractionBasis,
+)
 from app.optimisation.engineering_metric_models import (
     CandidateEngineeringAssessment,
     CandidateEngineeringMetrics,
@@ -212,6 +217,51 @@ def test_evaluate_candidate_cost_success(
     assert assessment.cost.annual_loss_energy_mwh == Decimal("3942.00")
     assert assessment.cost.annual_loss_cost == Decimal("197100.00")
     assert assessment.cost.lifecycle_cost > assessment.cost.total_capex
+
+
+def test_commercial_land_costs_replace_catalogue_policy(
+    dummy_scenario: PNCScenario,
+    dummy_load_flow_result: LoadFlowNetworkResult,
+    dummy_electrical_config: LoadFlowConfig,
+    dummy_engineering_assessment: CandidateEngineeringAssessment,
+    dummy_catalogue: EngineeringCostCatalogue,
+    dummy_lifecycle_config: LifecycleCostConfig,
+) -> None:
+    land_assessment = CandidateLandAssessment(
+        scenario_id="s1",
+        parcel_decisions=(),
+        parcel_count=1,
+        owner_interaction_count=1,
+        owner_interaction_basis=OwnerInteractionBasis.CONFIRMED_OWNER_IDS,
+        unknown_owner_count=0,
+        unavailable_parcel_ids=(),
+        land_purchase_capex=Decimal("100.00"),
+        land_recurring_cost_pv=Decimal("25.00"),
+        land_access_present_value=Decimal("125.00"),
+        land_cost_basis=LandCostBasis.QUOTED,
+        is_feasible=True,
+    )
+
+    assessment = evaluate_candidate_cost(
+        scenario=dummy_scenario,
+        load_flow_result=dummy_load_flow_result,
+        electrical_config=dummy_electrical_config,
+        engineering_assessment=dummy_engineering_assessment,
+        catalogue=dummy_catalogue,
+        config=dummy_lifecycle_config,
+        land_assessment=land_assessment,
+    )
+
+    assert assessment.cost is not None
+    assert assessment.land_purchase_capex_amount == Decimal("100.00")
+    assert assessment.land_recurring_cost_pv_amount == Decimal("25.00")
+    assert assessment.land_access_present_value_amount == Decimal("125.00")
+    assert assessment.total_capex_amount == Decimal("110100.00")
+    assert assessment.cost.lifecycle_cost == (
+        assessment.cost.total_capex
+        + assessment.cost.land_recurring_cost_pv
+        + assessment.cost.present_value_opex
+    )
 
 
 def test_lifecycle_module_imports_without_orchestrator_preload() -> None:

@@ -338,8 +338,10 @@ class CostFailureSummary(ApiModel):
 class CandidateCostSummary(ApiModel):
     conductor_capex: float | None = None
     pole_capex: float | None = None
-    land_capex: float | None = None
+    land_purchase_capex: float | None = None
     total_capex: float | None = None
+    land_recurring_cost_pv: float | None = None
+    land_access_present_value: float | None = None
     annual_loss_energy_mwh: float | None = None
     annual_loss_cost: float | None = None
     present_value_factor: float | None = None

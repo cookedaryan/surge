@@ -66,6 +66,45 @@ _DISTANCE_EPSILON = 1e-9  # metres — treat distances this close as equal
 
 
 @dataclass(frozen=True)
+class PoleMicroSitingConfig:
+    """
+    Configuration for deterministic local pole micro-siting.
+
+    Attributes
+    ----------
+    enabled:
+        Whether the micro-siting optimization pass is active.
+    search_radius_m:
+        Maximum distance a pole can be moved along the route from its original
+        position (in metres).
+    candidate_spacing_m:
+        Step size (in metres) for generating candidate pole positions along
+        the search radius.
+    max_passes:
+        Maximum number of coordinate-descent sweep passes over the network.
+    min_improvement:
+        Strict minimum score improvement required to accept a local pole move.
+    """
+    enabled: bool = False
+    search_radius_m: float = 15.0
+    candidate_spacing_m: float = 5.0
+    max_passes: int = 2
+    min_improvement: float = 1.0
+
+    def __post_init__(self) -> None:
+        if self.search_radius_m < 0:
+            raise ValueError(
+                f"search_radius_m must be non-negative, got {self.search_radius_m}"
+            )
+        if self.candidate_spacing_m <= 0:
+            raise ValueError(
+                f"candidate_spacing_m must be positive, got {self.candidate_spacing_m}"
+            )
+        if self.max_passes <= 0:
+            raise ValueError(f"max_passes must be positive, got {self.max_passes}")
+
+
+@dataclass(frozen=True)
 class PolePlacementConfig:
     """
     Immutable configuration for the pole placement engine.
@@ -100,6 +139,8 @@ class PolePlacementConfig:
         Maximum projected distance used by ``deduplicate_pole_endpoints`` for
         terminal records that declare the same topology node.  Route-local
         placement does not use this value.
+    micro_siting:
+        Optional configuration for local optimization of pole positions.
     """
 
     target_span_m: float
@@ -107,6 +148,7 @@ class PolePlacementConfig:
     max_span_m: float
     angle_pole_threshold_deg: float = 10.0
     coordinate_tolerance_m: float = 0.1
+    micro_siting: PoleMicroSitingConfig | None = None
 
     def __post_init__(self) -> None:
         # Finiteness checks first — NaN comparisons are always False, so

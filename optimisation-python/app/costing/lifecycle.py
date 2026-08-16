@@ -23,6 +23,7 @@ from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult
 
 if TYPE_CHECKING:
+    from app.land.models import CandidateLandAssessment
     from app.optimisation.engineering_metric_models import (
         CandidateEngineeringAssessment,
     )
@@ -41,6 +42,7 @@ def evaluate_candidate_cost(
     engineering_assessment: CandidateEngineeringAssessment,
     catalogue: EngineeringCostCatalogue,
     config: LifecycleCostConfig,
+    land_assessment: CandidateLandAssessment | None = None,
 ) -> CandidateCostAssessment:
     if catalogue.currency.upper() != config.currency.upper():
         raise CostConfigurationError(
@@ -52,7 +54,9 @@ def evaluate_candidate_cost(
 
     conductor_capex_amount: Decimal | None = None
     pole_capex_amount: Decimal | None = None
-    land_capex_amount: Decimal | None = None
+    land_purchase_capex_amount: Decimal | None = None
+    land_recurring_cost_pv_amount: Decimal | None = None
+    land_access_present_value_amount: Decimal | None = None
     total_capex_amount: Decimal | None = None
     present_value_opex_amount: Decimal | None = None
 
@@ -173,7 +177,7 @@ def evaluate_candidate_cost(
         if not any(f.component == "pole_capex" for f in failures):
             pole_capex_amount = pole_total
 
-    # 3. Land CAPEX
+    # 3. Land access costs
     spatial_analysis_failed = any(
         failure.code == "SPATIAL_ANALYSIS_FAILED"
         for failure in engineering_assessment.extraction_failures
@@ -182,12 +186,16 @@ def evaluate_candidate_cost(
         failures.append(
             CostEvaluationFailure(
                 code=CostEvaluationFailureCode.LAND_EXPOSURE_UNAVAILABLE,
-                component="land_capex",
+                component="land_purchase_capex",
                 message=(
                     "Parcel exposure is unavailable because spatial analysis failed"
                 ),
             )
         )
+    elif land_assessment is not None:
+        land_purchase_capex_amount = land_assessment.land_purchase_capex
+        land_recurring_cost_pv_amount = land_assessment.land_recurring_cost_pv
+        land_access_present_value_amount = land_assessment.land_access_present_value
     else:
         land_total = Decimal(0)
         policy = catalogue.land_policy
@@ -251,15 +259,19 @@ def evaluate_candidate_cost(
                 )
             land_total += var_amount
 
-        land_capex_amount = land_total
+        land_purchase_capex_amount = land_total
+        land_recurring_cost_pv_amount = Decimal(0)
+        land_access_present_value_amount = land_total
 
     if (
         conductor_capex_amount is not None
         and pole_capex_amount is not None
-        and land_capex_amount is not None
+        and land_purchase_capex_amount is not None
     ):
         total_capex_amount = (
-            conductor_capex_amount + pole_capex_amount + land_capex_amount
+            conductor_capex_amount
+            + pole_capex_amount
+            + land_purchase_capex_amount
         )
 
     # 4. OPEX Losses
@@ -326,7 +338,9 @@ def evaluate_candidate_cost(
     if (
         conductor_capex_amount is not None
         and pole_capex_amount is not None
-        and land_capex_amount is not None
+        and land_purchase_capex_amount is not None
+        and land_recurring_cost_pv_amount is not None
+        and land_access_present_value_amount is not None
         and total_capex_amount is not None
         and present_value_opex_amount is not None
     ):
@@ -334,14 +348,20 @@ def evaluate_candidate_cost(
             scenario_id=scenario.scenario_id,
             conductor_capex=_quantize_money(conductor_capex_amount),
             pole_capex=_quantize_money(pole_capex_amount),
-            land_capex=_quantize_money(land_capex_amount),
+            land_purchase_capex=_quantize_money(land_purchase_capex_amount),
             total_capex=_quantize_money(total_capex_amount),
+            land_recurring_cost_pv=_quantize_money(land_recurring_cost_pv_amount),
+            land_access_present_value=_quantize_money(
+                land_access_present_value_amount
+            ),
             annual_loss_energy_mwh=annual_loss_energy_mwh,
             annual_loss_cost=_quantize_money(annual_loss_cost),
             present_value_factor=pv_factor,
             present_value_opex=_quantize_money(present_value_opex_amount),
             lifecycle_cost=_quantize_money(
-                total_capex_amount + present_value_opex_amount
+                total_capex_amount
+                + land_recurring_cost_pv_amount
+                + present_value_opex_amount
             ),
             line_items=tuple(line_items),
             currency=config.currency,
@@ -363,8 +383,10 @@ def evaluate_candidate_cost(
         failures=tuple(failures),
         conductor_capex_amount=conductor_capex_amount,
         pole_capex_amount=pole_capex_amount,
-        land_capex_amount=land_capex_amount,
+        land_purchase_capex_amount=land_purchase_capex_amount,
         total_capex_amount=total_capex_amount,
+        land_recurring_cost_pv_amount=land_recurring_cost_pv_amount,
+        land_access_present_value_amount=land_access_present_value_amount,
         present_value_opex_amount=present_value_opex_amount,
         annual_loss_energy_mwh=(
             annual_loss_energy_mwh if present_value_opex_amount is not None else None

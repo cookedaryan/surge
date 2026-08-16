@@ -161,8 +161,10 @@ class CandidateLifecycleCost:
     scenario_id: str
     conductor_capex: Decimal
     pole_capex: Decimal
-    land_capex: Decimal
+    land_purchase_capex: Decimal
     total_capex: Decimal
+    land_recurring_cost_pv: Decimal
+    land_access_present_value: Decimal
     annual_loss_energy_mwh: Decimal
     annual_loss_cost: Decimal
     present_value_factor: Decimal
@@ -192,8 +194,10 @@ class CandidateCostAssessment:
 
     conductor_capex_amount: Decimal | None = None
     pole_capex_amount: Decimal | None = None
-    land_capex_amount: Decimal | None = None
+    land_purchase_capex_amount: Decimal | None = None
     total_capex_amount: Decimal | None = None
+    land_recurring_cost_pv_amount: Decimal | None = None
+    land_access_present_value_amount: Decimal | None = None
     present_value_opex_amount: Decimal | None = None
     annual_loss_energy_mwh: Decimal | None = None
     annual_loss_cost_amount: Decimal | None = None
@@ -217,7 +221,7 @@ class CandidateCostAssessment:
         return (
             self.conductor_capex_amount is not None
             and self.pole_capex_amount is not None
-            and self.land_capex_amount is not None
+            and self.land_purchase_capex_amount is not None
             and self.total_capex_amount is not None
         )
 

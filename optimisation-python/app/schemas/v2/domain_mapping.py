@@ -423,14 +423,24 @@ def to_api_response(
                     if ca.pole_capex_amount is not None
                     else None
                 ),
-                land_capex=(
-                    float(ca.land_capex_amount)
-                    if ca.land_capex_amount is not None
+                land_purchase_capex=(
+                    float(ca.land_purchase_capex_amount)
+                    if ca.land_purchase_capex_amount is not None
                     else None
                 ),
                 total_capex=(
                     float(ca.total_capex_amount)
                     if ca.total_capex_amount is not None
+                    else None
+                ),
+                land_recurring_cost_pv=(
+                    float(ca.land_recurring_cost_pv_amount)
+                    if ca.land_recurring_cost_pv_amount is not None
+                    else None
+                ),
+                land_access_present_value=(
+                    float(ca.land_access_present_value_amount)
+                    if ca.land_access_present_value_amount is not None
                     else None
                 ),
                 annual_loss_energy_mwh=(

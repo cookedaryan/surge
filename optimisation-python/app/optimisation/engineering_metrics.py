@@ -1,10 +1,16 @@
 """Candidate-level extraction of canonical raw engineering quantities."""
 
 import math
+from collections import defaultdict
+from dataclasses import dataclass
 
 from shapely.ops import unary_union
 
-from app.algorithms.pole_placement import PolePlacementConfig, place_poles_on_network
+from app.algorithms.pole_placement import (
+    CollectorPoleResult,
+    PolePlacementConfig,
+    place_poles_on_network,
+)
 from app.algorithms.route_refinement import RefinedPhysicalRoute
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult
@@ -31,6 +37,24 @@ from app.optimisation.engineering_metric_models import (
 from app.optimisation.scenario_models import PNCScenario
 from app.pnc.models import ProjectPNCNetwork
 
+__all__ = [
+    "SpatialExtractionResult",
+    "build_candidate_engineering_metrics",
+    "calculate_voltage_margin",
+    "extract_spatial_metrics",
+    "place_poles_on_network",
+]
+
+
+@dataclass
+class SpatialExtractionResult:
+    affected_parcel_count: int
+    road_crossing_count: int
+    soft_overlap_length_m: float
+    environmental_overlap_m2: float
+    hard_violation_ids: tuple[str, ...]
+    parcel_exposures: tuple[ParcelEngineeringExposure, ...]
+
 
 def calculate_voltage_margin(
     minimum_voltage_pu: float,
@@ -50,12 +74,21 @@ def build_candidate_engineering_metrics(
     load_flow_result: LoadFlowNetworkResult,
     load_flow_config: LoadFlowConfig,
     constraint_layers: tuple[ConstraintLayer, ...] = (),
+    pole_config: PolePlacementConfig | None = None,
     *,
     owner_interaction_count: int = 0,
-    pole_config: PolePlacementConfig | None = None,
     row_corridor_width_m: float = 18.0,
+    spatial_result: SpatialExtractionResult | None = None,
+    pole_result: CollectorPoleResult | None = None,
 ) -> CandidateEngineeringAssessment:
-    """Extract engineering metrics without changing recommendation eligibility."""
+    """Extract canonical engineering metrics for one candidate.
+
+    Pre-computed ``spatial_result``/``pole_result`` may be supplied by the
+    caller; otherwise they are computed internally from ``constraint_layers``
+    and ``pole_config``.  Any failure is recorded as a structured extraction
+    failure rather than raising, so downstream scoring can disqualify the
+    candidate deterministically.
+    """
     failures: list[EngineeringMetricFailure] = []
     network = scenario.network
 
@@ -78,49 +111,54 @@ def build_candidate_engineering_metrics(
             )
         )
 
-    affected_parcel_count = 0
-    road_crossing_count = 0
-    soft_overlap_length_m = 0.0
-    environmental_overlap_m2 = 0.0
-    hard_violation_ids: tuple[str, ...] = ()
-    parcel_exposures: tuple[ParcelEngineeringExposure, ...] = ()
-    try:
-        (
-            affected_parcel_count,
-            road_crossing_count,
-            soft_overlap_length_m,
-            environmental_overlap_m2,
-            hard_violation_ids,
-            parcel_exposures,
-        ) = _extract_spatial_metrics(
-            network,
-            constraint_layers,
-            row_corridor_width_m=row_corridor_width_m,
-        )
-    except Exception as exc:
-        failures.append(
-            EngineeringMetricFailure(
-                EngineeringMetricFailureCode.SPATIAL_ANALYSIS_FAILED,
-                f"Spatial metric extraction failed: {exc}",
-            )
-        )
-
-    pole_result = None
-    if pole_config is None:
-        failures.append(
-            EngineeringMetricFailure(
-                EngineeringMetricFailureCode.POLE_CONFIG_MISSING,
-                "Pole configuration is required to calculate physical pole count",
-            )
-        )
-    else:
+    if spatial_result is None:
         try:
-            pole_result = place_poles_on_network(network, pole_config)
+            spatial_result = extract_spatial_metrics(
+                network=network,
+                constraint_layers=constraint_layers,
+                row_corridor_width_m=row_corridor_width_m,
+            )
         except Exception as exc:
             failures.append(
                 EngineeringMetricFailure(
-                    EngineeringMetricFailureCode.POLE_PLACEMENT_FAILED,
-                    f"Pole placement failed: {exc}",
+                    EngineeringMetricFailureCode.SPATIAL_ANALYSIS_FAILED,
+                    f"Spatial analysis failed: {exc}",
+                )
+            )
+            spatial_result = None
+
+    if spatial_result is None:
+        affected_parcel_count = 0
+        road_crossing_count = 0
+        soft_overlap_length_m = 0.0
+        environmental_overlap_m2 = 0.0
+        hard_violation_ids: tuple[str, ...] = ()
+        parcel_exposures: tuple[ParcelEngineeringExposure, ...] = ()
+    else:
+        affected_parcel_count = spatial_result.affected_parcel_count
+        road_crossing_count = spatial_result.road_crossing_count
+        soft_overlap_length_m = spatial_result.soft_overlap_length_m
+        environmental_overlap_m2 = spatial_result.environmental_overlap_m2
+        hard_violation_ids = spatial_result.hard_violation_ids
+        parcel_exposures = spatial_result.parcel_exposures
+
+    if pole_result is None:
+        if pole_config is not None:
+            try:
+                pole_result = place_poles_on_network(network, pole_config)
+            except Exception as exc:
+                failures.append(
+                    EngineeringMetricFailure(
+                        EngineeringMetricFailureCode.POLE_PLACEMENT_FAILED,
+                        f"Pole placement failed: {exc}",
+                    )
+                )
+                pole_result = None
+        else:
+            failures.append(
+                EngineeringMetricFailure(
+                    EngineeringMetricFailureCode.POLE_CONFIG_MISSING,
+                    "Pole configuration is required to calculate physical pole count",
                 )
             )
 
@@ -219,19 +257,12 @@ def build_candidate_engineering_metrics(
     )
 
 
-def _extract_spatial_metrics(
+def extract_spatial_metrics(
     network: ProjectPNCNetwork,
     constraint_layers: tuple[ConstraintLayer, ...],
     *,
     row_corridor_width_m: float,
-) -> tuple[
-    int,
-    int,
-    float,
-    float,
-    tuple[str, ...],
-    tuple[ParcelEngineeringExposure, ...],
-]:
+) -> SpatialExtractionResult:
     pnc_network = network
     routes = _network_routes(pnc_network)
     if any(not layer.crs.equals(pnc_network.crs) for layer in constraint_layers):
@@ -286,7 +317,6 @@ def _extract_spatial_metrics(
         )
     }
     parcel_exposures_list: list[ParcelEngineeringExposure] = []
-    from collections import defaultdict
 
     parcel_intersections = defaultdict(list)
     for intersection in soft_intersections:
@@ -306,21 +336,21 @@ def _extract_spatial_metrics(
         )
         parcel_exposures_list.append(exposure)
 
-    return (
-        len(affected_parcel_ids),
-        analysis.road_crossing_count,
-        math.fsum(
+    return SpatialExtractionResult(
+        affected_parcel_count=len(affected_parcel_ids),
+        road_crossing_count=analysis.road_crossing_count,
+        soft_overlap_length_m=math.fsum(
             intersection.route_overlap_length_m
             for intersection in soft_intersections
             if intersection.route_overlap_length_m > 0.0
         ),
-        (
+        environmental_overlap_m2=(
             float(unary_union(environmental_geometries).area)
             if environmental_geometries
             else 0.0
         ),
-        tuple(sorted(hard_ids)),
-        tuple(parcel_exposures_list),
+        hard_violation_ids=tuple(sorted(hard_ids)),
+        parcel_exposures=tuple(parcel_exposures_list),
     )
 
 
