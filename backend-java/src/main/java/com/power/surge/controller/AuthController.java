@@ -4,6 +4,9 @@ import com.power.surge.dto.auth.AuthResponse;
 import com.power.surge.dto.auth.LoginRequest;
 import com.power.surge.dto.auth.RegisterRequest;
 import com.power.surge.service.AuthService;
+import com.power.surge.service.ClientAddress;
+import com.power.surge.service.LoginThrottleService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final LoginThrottleService loginThrottleService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, LoginThrottleService loginThrottleService) {
         this.authService = authService;
+        this.loginThrottleService = loginThrottleService;
     }
 
     /**
@@ -38,10 +43,26 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * The throttle is checked before the credentials are, so a locked-out caller never reaches
+     * BCrypt. Hashing is intentionally slow; letting unauthenticated traffic drive it would be a
+     * second denial of service sitting underneath the guessing.
+     */
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<AuthResponse> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        String client = ClientAddress.of(httpRequest);
+        loginThrottleService.checkNotLockedOut(client);
+        try {
+            AuthResponse response = authService.login(request);
+            loginThrottleService.recordSuccess(client);
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            loginThrottleService.recordFailure(client, request.username());
+            throw e;
+        }
     }
 
     @GetMapping("/me")

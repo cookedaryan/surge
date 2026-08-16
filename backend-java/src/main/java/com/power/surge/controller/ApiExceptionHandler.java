@@ -34,6 +34,28 @@ public class ApiExceptionHandler {
         return errorResponse(HttpStatus.BAD_REQUEST, "Request validation failed.", fieldErrors);
     }
 
+    /**
+     * A refused sign-in is 429, not 400. The distinction matters to the operator staring at the
+     * screen: "wrong password" and "stop trying for fifteen minutes" are different problems, and
+     * only one of them is fixed by typing more carefully.
+     */
+    @ExceptionHandler(com.power.surge.service.TooManyLoginAttemptsException.class)
+    public ResponseEntity<ApiErrorResponse> handleTooManyLoginAttempts(
+            com.power.surge.service.TooManyLoginAttemptsException exception
+    ) {
+        long retryAfterSeconds = Math.max(1, exception.getRetryAfter().getSeconds());
+        ApiErrorResponse body = new ApiErrorResponse(
+                Instant.now(),
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase(),
+                exception.getMessage(),
+                Map.of()
+        );
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(org.springframework.http.HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds))
+                .body(body);
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiErrorResponse> handleInvalidArgument(
             IllegalArgumentException exception

@@ -841,7 +841,7 @@ later.
    during the tunnel test. Rotating the live instance did not change this; only a new deployment
    is affected. Give both the same fail-fast treatment `APP_JWT_SECRET` now has.
 
-2. **No brute-force protection on login.** Verified empirically: eight rapid failed attempts all
+2. ~~**No brute-force protection on login.**~~ **DONE 2026-08-16.** Verified empirically: eight rapid failed attempts all
    returned 400 with no throttling, lockout or delay. With an 8-character minimum and unlimited
    attempts, an exposed login page is guessable at leisure — `tester`/`tester123` was guessed by
    hand on the second try. A per-IP delay after ~5 failures is enough to change the economics.
