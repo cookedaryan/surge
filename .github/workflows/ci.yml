@@ -69,6 +69,7 @@ jobs:
       # A build never runs the application, so a throwaway value is the right thing here; the
       # guard still holds for anyone actually starting the stack.
       APP_JWT_SECRET: ci-build-only-value-never-used-to-sign-anything
+      DB_PASSWORD: ci-build-only-value-no-database-is-started
     steps:
       - uses: actions/checkout@v4
       - run: docker compose build

@@ -18,11 +18,16 @@ surge:
 
   # The single administrator created on a fresh database. Every other account is provisioned by an
   # administrator; nothing here ever overwrites an existing password, so credentials changed later
-  # survive a restart. Override the password before exposing the instance to anyone else.
+  # survive a restart.
+  #
+  # The password has no default on purpose. It used to fall back to "admin" with a warning in the
+  # logs, and an instance seeded that way reached the internet with administrator access while the
+  # warning went unread. Seeding now fails instead — but only when an account is actually being
+  # created, so an existing database still starts without this set.
   bootstrap-admin:
     username: ${SURGE_BOOTSTRAP_ADMIN_USERNAME:admin}
     email: ${SURGE_BOOTSTRAP_ADMIN_EMAIL:admin@surge.energy}
-    password: ${SURGE_BOOTSTRAP_ADMIN_PASSWORD:admin}
+    password: ${SURGE_BOOTSTRAP_ADMIN_PASSWORD:}
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:surgedb}

@@ -835,7 +835,7 @@ later.
 
 **Outstanding, in priority order:**
 
-1. **Credential defaults still ship insecure.** `SURGE_BOOTSTRAP_ADMIN_PASSWORD` defaults to
+1. ~~**Credential defaults still ship insecure.**~~ **DONE 2026-08-16.** `SURGE_BOOTSTRAP_ADMIN_PASSWORD` defaults to
    `admin` in `application.yml`, and `DB_PASSWORD` defaults to `postgres` in `docker-compose.yml`.
    A fresh database therefore seeds `admin`/`admin` — exactly the hole that was publicly reachable
    during the tunnel test. Rotating the live instance did not change this; only a new deployment
