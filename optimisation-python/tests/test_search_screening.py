@@ -2,8 +2,8 @@
 
 import networkx as nx
 import numpy as np
-from affine import Affine
 import pyproj
+from affine import Affine
 from shapely.geometry import Point
 
 from app.algorithms.topology import CollectorTopologyResult, FeederTopology
@@ -48,7 +48,14 @@ def test_structural_screening_rejects_cycles() -> None:
             projected_crs=pyproj.CRS.from_epsg(32631),
         ),
         constraint_layers=(),
-        cost_surface=CostSurface(costs=np.zeros((10,10)), transform=Affine.identity(), crs=pyproj.CRS.from_epsg(32631), width=10, height=10, resolution_m=10.0),
+        cost_surface=CostSurface(
+            costs=np.zeros((10, 10)),
+            transform=Affine.identity(),
+            crs=pyproj.CRS.from_epsg(32631),
+            width=10,
+            height=10,
+            resolution_m=10.0,
+        ),
         feeder_capacity_mw=100.0,
         operating_points=(),
     )
@@ -89,7 +96,14 @@ def test_structural_screening_accepts_valid_tree() -> None:
             projected_crs=pyproj.CRS.from_epsg(32631),
         ),
         constraint_layers=(),
-        cost_surface=CostSurface(costs=np.zeros((10,10)), transform=Affine.identity(), crs=pyproj.CRS.from_epsg(32631), width=10, height=10, resolution_m=10.0),
+        cost_surface=CostSurface(
+            costs=np.zeros((10, 10)),
+            transform=Affine.identity(),
+            crs=pyproj.CRS.from_epsg(32631),
+            width=10,
+            height=10,
+            resolution_m=10.0,
+        ),
         feeder_capacity_mw=100.0,
         operating_points=(),
     )

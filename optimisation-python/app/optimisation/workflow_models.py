@@ -17,9 +17,8 @@ from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult, WTGOperatingPoint
 from app.gis.constraints import ConstraintLayer
 from app.gis.cost_surface import CostSurface
-from app.land.models import LandCommercialContext
+from app.land.models import CandidateLandAssessment, LandCommercialContext
 from app.models.spatial import ProjectSpatialData
-from app.land.models import CandidateLandAssessment
 from app.optimisation.engineering_metric_models import (
     CandidateEngineeringAssessment,
 )
@@ -131,9 +130,14 @@ class CandidateWorkflowResult:
 
     def __post_init__(self) -> None:
         if self.execution_failure is not None:
-            if self.execution_failure.stage not in (WorkflowStage.ELECTRICAL_VALIDATION, WorkflowStage.SCORING):
+            valid_stages = (
+                WorkflowStage.ELECTRICAL_VALIDATION,
+                WorkflowStage.SCORING,
+            )
+            if self.execution_failure.stage not in valid_stages:
                 raise ValueError(
-                    "Execution failure must use the ELECTRICAL_VALIDATION or SCORING stage."
+                    "Execution failure must use the ELECTRICAL_VALIDATION "
+                    "or SCORING stage."
                 )
             if self.execution_failure.code not in (
                 WorkflowFailureCode.ELECTRICAL_EXECUTION_ERROR,

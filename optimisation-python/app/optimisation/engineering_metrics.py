@@ -24,10 +24,10 @@ from app.gis.row_analysis import (
 from app.optimisation.engineering_metric_models import (
     CandidateEngineeringAssessment,
     CandidateEngineeringMetrics,
+    CandidateSpatialResult,
     EngineeringMetricFailure,
     EngineeringMetricFailureCode,
     ParcelEngineeringExposure,
-    CandidateSpatialResult,
 )
 from app.optimisation.scenario_models import PNCScenario
 from app.pnc.models import ProjectPNCNetwork

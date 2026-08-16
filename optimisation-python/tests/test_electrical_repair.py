@@ -1,4 +1,3 @@
-from app.electrical.load_flow.config import LoadFlowConfig
 """Tests for closed-loop electrical repair logic."""
 
 import networkx as nx
@@ -15,7 +14,6 @@ from app.electrical.load_flow.models import (
     LoadFlowViolation,
     LoadFlowViolationCode,
 )
-from app.optimisation.workflow_models import OptimisationConfig
 from app.electrical.repair import (
     RepairStatus,
     repair_electrical_design,
@@ -67,7 +65,10 @@ def base_config() -> LoadFlowConfig:
     )
 
 
-def test_repair_valid_immediately(monkeypatch: pytest.MonkeyPatch, base_config: LoadFlowConfig) -> None:
+def test_repair_valid_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+    base_config: LoadFlowConfig,
+) -> None:
     mst = nx.Graph()
     mst.add_edges_from([("SS", "W1")])
     network = ProjectPNCNetwork(
@@ -147,7 +148,10 @@ def test_repair_valid_immediately(monkeypatch: pytest.MonkeyPatch, base_config: 
     assert result.final_electrical_config.segment_cable_type_ids["S1"] == "Cable-S"
 
 
-def test_overload_repair(monkeypatch: pytest.MonkeyPatch, base_config: LoadFlowConfig) -> None:
+def test_overload_repair(
+    monkeypatch: pytest.MonkeyPatch,
+    base_config: LoadFlowConfig,
+) -> None:
     mst = nx.Graph()
     mst.add_edges_from([("SS", "W1"), ("W1", "W2")])
     network = ProjectPNCNetwork(
@@ -299,7 +303,10 @@ def test_overload_repair(monkeypatch: pytest.MonkeyPatch, base_config: LoadFlowC
     assert result.final_electrical_config.segment_cable_type_ids["S2"] == "Cable-L"
 
 
-def test_voltage_repair(monkeypatch: pytest.MonkeyPatch, base_config: LoadFlowConfig) -> None:
+def test_voltage_repair(
+    monkeypatch: pytest.MonkeyPatch,
+    base_config: LoadFlowConfig,
+) -> None:
     mst = nx.Graph()
     mst.add_edges_from([("SS", "W1"), ("W1", "W2")])
     network = ProjectPNCNetwork(
@@ -465,7 +472,10 @@ def test_voltage_repair(monkeypatch: pytest.MonkeyPatch, base_config: LoadFlowCo
     assert result.final_electrical_config.segment_cable_type_ids["S2"] == "Cable-S"
 
 
-def test_voltage_upgrade_skips_worse_impedance(monkeypatch: pytest.MonkeyPatch, base_config: LoadFlowConfig) -> None:
+def test_voltage_upgrade_skips_worse_impedance(
+    monkeypatch: pytest.MonkeyPatch,
+    base_config: LoadFlowConfig,
+) -> None:
     mst = nx.Graph()
     mst.add_edges_from([("SS", "W1")])
     network = ProjectPNCNetwork(

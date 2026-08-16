@@ -4,10 +4,15 @@ import json
 from app.land.models import LandAvailabilityStatus, LandCommercialContext
 
 
+def _fingerprint(state: object) -> str:
+    serialized = json.dumps(state, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode()).hexdigest()
+
+
 def compute_land_routing_context_id(context: LandCommercialContext | None) -> str:
     """Hash the properties of land context that affect physical routing."""
     if context is None:
-        return hashlib.sha256(b"LAND_ROUTING_NONE").hexdigest()
+        return _fingerprint("LAND_ROUTING_NONE")
 
     # Unavailable parcels create hard exclusions, so their presence/absence
     # directly affects the valid geometry of a generated route.
@@ -17,19 +22,13 @@ def compute_land_routing_context_id(context: LandCommercialContext | None) -> st
         if p.availability_status == LandAvailabilityStatus.UNAVAILABLE
     )
 
-    state = {
-        "unavailable_parcels": unavailable_parcels,
-        # If we ever add other hard-exclusion criteria based on land state,
-        # they would go here.
-    }
-    serialized = json.dumps(state, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    return _fingerprint({"unavailable_parcels": unavailable_parcels})
 
 
 def compute_land_economic_context_id(context: LandCommercialContext | None) -> str:
     """Hash the properties of land context that affect cost and candidate ranking."""
     if context is None:
-        return hashlib.sha256(b"LAND_ECONOMIC_NONE").hexdigest()
+        return _fingerprint("LAND_ECONOMIC_NONE")
 
     profiles = []
     for p in sorted(context.parcel_profiles, key=lambda x: x.parcel_id):
@@ -60,5 +59,4 @@ def compute_land_economic_context_id(context: LandCommercialContext | None) -> s
         "as_of_date": context.as_of_date.isoformat(),
         "profiles": profiles,
     }
-    serialized = json.dumps(state, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    return _fingerprint(state)

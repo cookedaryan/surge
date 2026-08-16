@@ -5,7 +5,7 @@ from dataclasses import replace
 import networkx as nx
 import pyproj
 import pytest
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, Point
 
 from app.algorithms.pole_placement import PolePlacementConfig
 from app.algorithms.wtg_grouping import GroupingObjective

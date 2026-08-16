@@ -119,18 +119,22 @@ class CandidateScoringConfig:
         ]
         self._validate_weights(spatial_subs, "Spatial subweight")
         if self.spatial_weight > 0.0:
-            if self.spatial_subweights.owner_interactions > 0.0:
-                if not math.isclose(math.fsum(spatial_subs), 1.0, rel_tol=1e-9, abs_tol=1e-9):
-                    raise ValueError("Spatial subweights must sum to 1.0 when owner_interactions > 0")
-            else:
-                legacy_subs = spatial_subs[:-1]
-                if not math.isclose(math.fsum(legacy_subs), 1.0, rel_tol=1e-9, abs_tol=1e-9):
-                    raise ValueError("Legacy spatial subweights must sum to 1.0")
-        else:
-            if any(w != 0.0 for w in spatial_subs):
-                raise ValueError(
-                    "Inactive spatial group must have exactly 0.0 subweights"
-                )
+            active_subweights = (
+                spatial_subs
+                if self.spatial_subweights.owner_interactions > 0.0
+                else spatial_subs[:-1]
+            )
+            if not math.isclose(
+                math.fsum(active_subweights),
+                1.0,
+                rel_tol=1e-9,
+                abs_tol=1e-9,
+            ):
+                raise ValueError("Active spatial subweights must sum to 1.0")
+        elif any(weight != 0.0 for weight in spatial_subs):
+            raise ValueError(
+                "Inactive spatial group must have exactly 0.0 subweights"
+            )
 
         elec_subs = [
             self.electrical_subweights.active_loss,
@@ -139,7 +143,12 @@ class CandidateScoringConfig:
         ]
         self._validate_weights(elec_subs, "Electrical subweight")
         if self.electrical_weight > 0.0:
-            if not math.isclose(math.fsum(elec_subs), 1.0, rel_tol=1e-9, abs_tol=1e-9):
+            if not math.isclose(
+                math.fsum(elec_subs),
+                1.0,
+                rel_tol=1e-9,
+                abs_tol=1e-9,
+            ):
                 raise ValueError("Active electrical subweights must sum to 1.0")
         else:
             if any(w != 0.0 for w in elec_subs):

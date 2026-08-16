@@ -32,6 +32,7 @@ graph TD
 
     subgraph ScoringCosting["5. Multi-Objective Scoring & Lifecycle Costing"]
         PY026["Canonical Candidate Metrics (PY-026)"]
+        PY034["Land Parcel Decisions & Transaction NPV (PY-034)"]
         PY028["Lifecycle Cost Model with Decimal Precision (PY-028)"]
         PY018["Multi-Objective Recommendation & Ranking (PY-018)"]
     end
@@ -47,7 +48,7 @@ graph TD
     MST --> AStar --> Shortcut --> Poles
     Poles --> PncAssembly
     PncAssembly --> Pandapower --> Losses
-    Losses --> PY026 --> PY028 --> PY018 --> Presentation --> V1V2Out
+    Losses --> PY026 --> PY034 --> PY028 --> PY018 --> Presentation --> V1V2Out
 ```
 
 ---
@@ -114,6 +115,21 @@ graph TD
     $$\text{PV Loss OpEx} = \text{Annual Loss Cost} \times \left[\frac{1 - (1 + r)^{-N}}{r}\right]$$
     where $r$ is the discount rate and $N$ is the analysis period (years).
 
+### 10. Land Parcel and Landowner Decisions (PY-034)
+- The optional V2 `land_context` maps dated parcel availability, owner IDs,
+  and purchase, lease, or easement terms into frozen domain models.
+- Recurring payments use the project lifecycle discount rate and analysis
+  horizon. The engine deterministically selects the feasible option with the
+  lowest present value.
+- Matching `UNAVAILABLE` parcel layers become hard A* exclusions. Other
+  profiled parcel layers receive an additive interaction and economic penalty
+  before route generation without duplicating parcel layer IDs.
+- Candidate metrics count unique confirmed owners; incomplete ownership uses
+  one interaction proxy per unknown parcel.
+- Lifecycle results separate upfront land CapEx, recurring land-cost PV, and
+  total land-access PV. Unpriced affected parcels retain the catalogue's fixed
+  and variable fallback policy.
+
 ---
 
 ## Package Responsibilities
@@ -134,6 +150,7 @@ graph TD
 | `app/pnc` | Power Collection Network assembly and topological validation |
 | `app/electrical/load_flow` | Pandapower network builder and AC power flow execution |
 | `app/costing` | PY-028 Decimal lifecycle cost model and itemized CapEx/OpEx breakdowns |
+| `app/land` | PY-034 parcel availability, owner interaction, transaction NPV, and context fingerprints |
 | `app/optimisation` | Multi-candidate generation, scoring (PY-018), and recommendation orchestrator |
 | `app/presentation` | Presentation packaging and WGS84 GeoJSON serialization |
 

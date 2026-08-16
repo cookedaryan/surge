@@ -42,6 +42,7 @@ ProjectSpatialData -> uniform CostSurface + Affine transform
 | `route_refinement.py` | SURGE-PY-009 duplicate/collinear removal and supercover-validated visibility shortcuts | Implemented |
 | `pole_placement.py` | SURGE-PY-010/PY-023 route placement plus network endpoint deduplication | Implemented and integrated for the recommended PNC by PY-024 |
 | `app/gis/row_analysis.py` | SURGE-PY-011 projected ROW buffers, indexed constraint intersections, and impact aggregates | Implemented standalone; no constraint API input yet |
+| `app/land` | PY-034 parcel availability, owner interaction, transaction NPV selection, and economic-context fingerprints | Implemented and integrated with V2 optimisation |
 | `cost_function.py` | Lifecycle-cost evaluation | Placeholder |
 | `app/electrical` | SURGE-PY-013 deterministic electrical screening proxy (ampacity & voltage drop) | Implemented standalone; not service-integrated |
 | `app/pnc` | Canonical projected physical network assembly and base GeoJSON conversion | Implemented standalone; not service-integrated |
@@ -122,6 +123,30 @@ This is not pandapower validation. It ignores conductor losses when calculating 
 `build_project_result` reconciles an assembled `ProjectPNCNetwork` with the `LoadFlowNetworkResult` calculated for that network. Converged results require exact bus, segment, and feeder coverage plus consistent ownership and finite electrical metrics. Non-converged results retain the physical map but require empty electrical detail collections and an explicit `LOAD_FLOW_NOT_CONVERGED` violation.
 
 The boundary returns strict Pydantic summaries and enriched GeoJSON. The existing PNC converter performs projected-CRS to WGS-84 transformation; presentation enrichment adds stable feature IDs, nullable electrical telemetry, exact violation flags, and a collection bounding box. It also records the source projected CRS and groups WTG/segment violations under their owning feeder. The recommended presentation is exposed by both optimisation API versions; V1 additionally derives a segment-only `feeder_routes_geojson` collection for the existing Java importer. See [Python Presentation Boundary](presentation-boundary.md).
+
+## PY-034: Land Parcel and Landowner Decision Intelligence
+
+The V2 optimisation request accepts an optional `land_context` containing dated
+parcel profiles, availability, owner IDs, and purchase, lease, or easement
+terms. The land decision module values recurring payments with the lifecycle
+discount rate and analysis horizon, selects the lowest-present-value feasible
+option deterministically, counts unique confirmed owners (or uses a parcel
+proxy when ownership is incomplete), and rejects candidates that intersect an
+`UNAVAILABLE` parcel.
+
+Before A* generation, matching parcel constraint layers are replaced with an
+effective land policy. Unavailable parcels become hard exclusions. Other
+profiled parcels retain their original soft cost and receive an additive owner
+interaction and present-value penalty. The adjustment is burned into the
+prepared cost surface before scenario generation; layer IDs remain unique so
+ROW extraction continues to report the original parcel identity.
+
+Lifecycle costing publishes `land_purchase_capex`,
+`land_recurring_cost_pv`, and `land_access_present_value`. A selected quoted or
+estimated commercial option takes precedence. Affected parcels without a
+selectable commercial price use the existing catalogue policy (fixed cost plus
+the configured route-length or ROW-area rate). The legacy V2 `land_capex`
+response field remains as an alias for upfront land cost.
 
 ## Frozen MVP sequence
 
