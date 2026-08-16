@@ -19,8 +19,14 @@ public class AuthService {
 
     private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
-    /** Local-development fallback only; a deployed instance must override this. */
+    /**
+     * The password this project used to seed the first administrator with. No longer a default —
+     * it is published in this repository's history, so it is now explicitly refused.
+     */
     public static final String DEFAULT_BOOTSTRAP_PASSWORD = "admin";
+
+    /** Matches the minimum enforced on every account created through the admin panel. */
+    static final int MIN_BOOTSTRAP_PASSWORD_LENGTH = 8;
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -56,11 +62,39 @@ public class AuthService {
             log.info("Bootstrap administrator '{}' already exists; leaving its credentials untouched.", username);
             return;
         }
+        requireUsableBootstrapPassword(password);
         userRepository.save(new User(username, email, passwordEncoder.encode(password), UserRole.ROLE_ADMIN));
         log.info("Created bootstrap administrator '{}'.", username);
-        if (DEFAULT_BOOTSTRAP_PASSWORD.equals(password)) {
-            log.warn("Bootstrap administrator '{}' is using the built-in default password. "
-                    + "Set SURGE_BOOTSTRAP_ADMIN_PASSWORD before exposing this instance to anyone else.", username);
+    }
+
+    /**
+     * Refuses to create the first administrator without a real password.
+     *
+     * <p>This used to default to {@value #DEFAULT_BOOTSTRAP_PASSWORD} and merely log a warning. It
+     * did not work: an instance seeded that way was briefly reachable from the internet with
+     * administrator access, and the warning sat unread in container logs the whole time. A log line
+     * cannot compete with a service that starts successfully.
+     *
+     * <p>The check runs only when an account is actually about to be created, so an existing
+     * deployment keeps starting without configuration — the requirement lands on fresh databases,
+     * which are the only ones at risk.
+     */
+    private void requireUsableBootstrapPassword(String password) {
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException(
+                    "Refusing to create the bootstrap administrator without a password. Set "
+                            + "SURGE_BOOTSTRAP_ADMIN_PASSWORD to a value of at least "
+                            + MIN_BOOTSTRAP_PASSWORD_LENGTH + " characters. There is deliberately no default.");
+        }
+        if (DEFAULT_BOOTSTRAP_PASSWORD.equalsIgnoreCase(password)) {
+            throw new IllegalStateException(
+                    "SURGE_BOOTSTRAP_ADMIN_PASSWORD is set to the password this project used to default to. "
+                            + "It is published in this repository's history — choose another.");
+        }
+        if (password.length() < MIN_BOOTSTRAP_PASSWORD_LENGTH) {
+            throw new IllegalStateException(
+                    "SURGE_BOOTSTRAP_ADMIN_PASSWORD must be at least " + MIN_BOOTSTRAP_PASSWORD_LENGTH
+                            + " characters, matching the minimum enforced on every other account.");
         }
     }
 

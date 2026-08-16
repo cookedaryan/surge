@@ -87,6 +87,7 @@ export function OptimizationPane() {
     // in once its own request came back — which is why the map went blank while the toast and the
     // decision card were already claiming success.
     const pid = currentProjectId as string;
+    let loaded = true;
     await Promise.all([
       queryClient.fetchQuery({
         queryKey: ['routes', pid, settledJob.id],
@@ -98,11 +99,19 @@ export function OptimizationPane() {
       }),
       queryClient.invalidateQueries({ queryKey: ['bom', pid] })
     ]).catch(() => {
-      // A refresh failure must not swallow the outcome; the panels show their own error states.
+      loaded = false;
     });
 
     setResultJobId(settledJob.id);
-    showToast('Optimization completed cleanly!', 'success');
+
+    // The run succeeded either way — the job is stored. Only the fetch failed, and saying
+    // "completed cleanly" over a blank map is what makes that indistinguishable from a run that
+    // produced nothing.
+    if (loaded) {
+      showToast('Optimization completed cleanly!', 'success');
+    } else {
+      showToast('Optimization finished, but its results could not be loaded. Reload to view them.', 'error');
+    }
   }
 
   const isRunning = runOptimization.isPending || (!!currentJobId && !!job && !isSettled);

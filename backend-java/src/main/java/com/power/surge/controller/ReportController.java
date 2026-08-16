@@ -65,9 +65,25 @@ public class ReportController {
 
     @GetMapping(value = "/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
     public ResponseEntity<byte[]> downloadExecutivePdfReport(@PathVariable UUID projectId) {
-        byte[] pdfBytes = pdfReportService.generateExecutivePdfReport(projectId);
+        byte[] pdfBytes = pdfReportService.generateExecutivePdfReport(projectId, null);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"surge-executive-report-" + projectId + ".pdf\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"surge-report-" + projectId + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
+    }
+
+    /**
+     * The PDF for a specific run. Without this the export always described the most recent job,
+     * so exporting while viewing an earlier run produced a report for a different network.
+     */
+    @GetMapping(value = "/jobs/{jobId}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> downloadJobPdfReport(
+            @PathVariable UUID projectId,
+            @PathVariable UUID jobId
+    ) {
+        byte[] pdfBytes = pdfReportService.generateExecutivePdfReport(projectId, jobId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"surge-report-job-" + jobId + ".pdf\"")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdfBytes);
     }

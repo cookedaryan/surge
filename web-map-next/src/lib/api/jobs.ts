@@ -1,4 +1,4 @@
-import { API_BASE_URL, emptyGeoJson, fetchJson, getToken, notifyUnauthorized } from './client';
+import { API_BASE_URL, fetchJson, getToken, notifyUnauthorized } from './client';
 import type { FeatureCollection, Job, JobProgress, OptimizationParams } from './types';
 
 export async function getRoutesGeoJson(projectId: string, jobId?: string | null): Promise<FeatureCollection> {
@@ -8,26 +8,33 @@ export async function getRoutesGeoJson(projectId: string, jobId?: string | null)
   const url = jobId
     ? `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/routes/geojson`
     : `${API_BASE_URL}/projects/${projectId}/routes/latest/geojson`;
-  try {
-    const res = await fetchJson<FeatureCollection>(url);
-    if (res && Array.isArray(res.features)) return res;
-  } catch (e) {
-    console.warn('[Routes API Error]', e);
-  }
-  return emptyGeoJson();
+  return fetchGeoJsonOrThrow(url, 'routes');
 }
 
 export async function getPolesGeoJson(projectId: string, jobId?: string | null): Promise<FeatureCollection> {
   const url = jobId
     ? `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/poles/geojson`
     : `${API_BASE_URL}/projects/${projectId}/poles/latest/geojson`;
-  try {
-    const res = await fetchJson<FeatureCollection>(url);
-    if (res && Array.isArray(res.features)) return res;
-  } catch (e) {
-    console.warn('[Poles API Error]', e);
+  return fetchGeoJsonOrThrow(url, 'poles');
+}
+
+/**
+ * Fetches a feature collection, failing loudly when it cannot.
+ *
+ * <p>These used to catch every error and return an empty collection, which made a failed request
+ * indistinguishable from a network that genuinely has no routes: the map went blank, no error was
+ * shown, and the empty answer was cached as though it were the truth. That is how a
+ * transaction-visibility bug spent an hour looking like "the optimiser produced nothing".
+ *
+ * <p>Throwing instead lets the query layer mark the fetch as failed, so the panels can say so and
+ * a retry becomes possible. An empty collection is now only ever a real, empty answer.
+ */
+async function fetchGeoJsonOrThrow(url: string, what: string): Promise<FeatureCollection> {
+  const res = await fetchJson<FeatureCollection>(url);
+  if (!res || !Array.isArray(res.features)) {
+    throw new Error(`The server returned an unreadable ${what} response.`);
   }
-  return emptyGeoJson();
+  return res;
 }
 
 export async function runOptimization(projectId: string, params: Partial<OptimizationParams> = {}): Promise<Job> {

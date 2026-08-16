@@ -6,6 +6,7 @@ import { Button } from '../../components/ui';
 
 export function AuthGateway() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const sessionExpired = useAuthStore((s) => s.sessionExpired);
   const login = useAuthStore((s) => s.login);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +41,14 @@ export function AuthGateway() {
     <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/85 font-ui">
       <form onSubmit={handleSubmit} className="w-[320px] bg-panel border border-borderStrong rounded-lg p-5 flex flex-col gap-3">
         <h2 className="m-0 text-[13.5px] font-bold text-text">Sign in to SURGE</h2>
-        <p className="m-0 text-[11.5px] text-textFaint">Engineering access is required to load or edit project data.</p>
+        {sessionExpired ? (
+          <p role="status" className="m-0 rounded-md border border-borderStrong bg-surface2 px-2.5 py-2 text-[11.5px] text-text">
+            Your session expired and you were signed out. Sign in again to carry on — any run
+            already started keeps going on the server.
+          </p>
+        ) : (
+          <p className="m-0 text-[11.5px] text-textFaint">Engineering access is required to load or edit project data.</p>
+        )}
         <input
           className="h-8 rounded-md border border-borderStrong bg-surface2 px-2.5 text-[11.5px] text-text outline-none focus:border-accent"
           placeholder="Username"

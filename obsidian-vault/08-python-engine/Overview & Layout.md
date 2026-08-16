@@ -1,170 +1,251 @@
 # Python Microservice Overview & Layout
 
-The **SURGE Python GIS & Optimization Service** provides high-performance spatial algorithms and electrical calculations for the SURGE platform.
+The **SURGE Python GIS & Optimization Service** (located under `optimisation-python/`) is a high-performance spatial optimization, electrical simulation, and multi-objective routing microservice built with **FastAPI**, **NetworkX**, **Shapely**, **PyProj**, **SciPy**, and **Pandapower** running on **Python 3.11**.
+
+> [!note] Status & Test Coverage (as of 2026-08-16)
+> The microservice consists of **79 source files** across 12 domain packages and **~489 automated tests** spanning 28+ test suites in `tests/` (including comprehensive V1 and V2 API integration suites).
+
+---
 
 ## Directory Layout
 
 ```text
 optimisation-python/
-+--- .dockerignore
-+--- .env.example
-+--- .gitignore
-+--- Dockerfile
-+--- README.md
-+--- app
-|    +--- __init__.py
-|    +--- algorithms
-|    |    +--- __init__.py
-|    |    +--- a_star.py
-|    |    +--- cost_function.py
-|    |    +--- electrical_analysis.py
-|    |    +--- physical_routing.py
-|    |    +--- pole_placement.py
-|    |    +--- route_graph.py
-|    |    +--- route_refinement.py
-|    |    +--- route_scoring.py
-|    |    +--- topology.py
-|    |    \--- wtg_grouping.py
-|    +--- electrical
-|    |    +--- __init__.py
-|    |    +--- feeder_validation.py
-|    |    +--- load_flow
-|    |    |    +--- analysis.py
-|    |    |    +--- builder.py
-|    |    |    +--- config.py
-|    |    |    \--- models.py
-|    |    +--- models.py
-|    |    \--- voltage_drop.py
-|    +--- gis
-|    |    +--- __init__.py
-|    |    +--- crs.py
-|    |    +--- cost_surface.py
-|    |    +--- geojson.py
-|    |    +--- geometry.py
-|    |    +--- row_analysis.py
-|    |    \--- preprocessing.py
-|    +--- models
-|    |    +--- __init__.py
-|    |    \--- spatial.py
-|    +--- pnc
-|    |    +--- assembly.py
-|    |    +--- errors.py
-|    |    +--- geojson.py
-|    |    \--- models.py
-|    +--- presentation
-|    |    +--- exceptions.py
-|    |    +--- geojson.py
-|    |    +--- models.py
-|    |    \--- result_builder.py
-|    +--- api
-|    |    +--- __init__.py
-|    |    \--- v1
-|    |         +--- __init__.py
-|    |         +--- endpoints
-|    |         |    +--- __init__.py
-|    |         |    +--- health.py
-|    |         |    \--- optimise.py
-|    |         \--- router.py
-|    +--- core
-|    |    +--- __init__.py
-|    |    \--- config.py
-|    +--- main.py
-|    +--- schemas
-|    |    +--- __init__.py
-|    |    \--- optimise.py
-|    +--- services
-|    |    +--- __init__.py
-|    |    \--- optimisation_service.py
-|    \--- utils
-|         +--- __init__.py
-|         \--- coordinate_transform.py
-+--- notebooks
-|    \--- .gitkeep
-+--- pyproject.toml
-+--- requirements.lock.txt
-+--- requirements.txt
-\--- tests
-     +--- .gitkeep
-     +--- __init__.py
-     +--- test_a_star.py
-     +--- test_crs.py
-     +--- test_cost_surface.py
-     +--- test_feeder_validation.py
-     +--- test_geojson.py
-     +--- test_geometry.py
-     +--- test_health.py
-     +--- test_optimise.py
-     +--- test_physical_routing.py
-     +--- test_pole_placement.py
-     +--- test_preprocessing.py
-     +--- test_route_graph.py
-     +--- test_route_refinement.py
-     +--- test_route_scoring.py
-     +--- test_row_analysis.py
-     +--- test_topology.py
-     +--- test_voltage_drop.py
-     \--- test_wtg_grouping.py
+├── .dockerignore
+├── .env.example
+├── .gitignore
+├── Dockerfile
+├── README.md
+├── pyproject.toml
+├── requirements.lock.txt
+├── requirements.txt
+├── app/
+│   ├── __init__.py
+│   ├── main.py                                # FastAPI application entry point & CORS
+│   ├── algorithms/                            # Pure core graph, geometry, and placement algorithms
+│   │   ├── __init__.py
+│   │   ├── a_star.py                          # 8-connectivity grid A* routing over cost rasters
+│   │   ├── cost_function.py                   # Directional/terrain cost weighting functions
+│   │   ├── electrical_analysis.py             # Internal graph electrical helpers
+│   │   ├── physical_routing.py                # Projected segment A* corridor routing
+│   │   ├── pole_placement.py                  # Span-based pole placement & structural deduplication
+│   │   ├── route_graph.py                     # Candidate Delaunay/k-NN graph builder
+│   │   ├── route_refinement.py                # Supercover Bresenham shortcutting & collinear removal
+│   │   ├── route_scoring.py                   # Legacy standalone spatial scoring (SURGE-PY-012)
+│   │   ├── topology.py                        # Per-feeder capacity-constrained MST (Kruskal/NetworkX)
+│   │   └── wtg_grouping.py                    # Constrained K-Means + MILP balancing (PuLP)
+│   ├── api/                                   # REST API routing and endpoints
+│   │   ├── __init__.py
+│   │   ├── v1/
+│   │   │   ├── __init__.py
+│   │   │   ├── router.py                      # V1 API router
+│   │   │   └── endpoints/
+│   │   │       ├── __init__.py
+│   │   │       ├── health.py                  # GET /api/v1/health liveness probe
+│   │   │       └── optimise.py                # POST /api/v1/optimise (Java DTO backwards-compatible)
+│   │   └── v2/
+│   │       ├── __init__.py
+│   │       ├── router.py                      # V2 API router
+│   │       └── endpoints/
+│   │           ├── __init__.py
+│   │           └── optimise.py                # POST /api/v2/optimise (explicit engineering schema)
+│   ├── core/
+│   │   ├── __init__.py
+│   │   └── config.py                          # Pydantic Settings & environment configuration
+│   ├── costing/                               # Lifecycle & financial cost models (SURGE-PY-028)
+│   │   ├── __init__.py
+│   │   ├── catalogue.py                       # Component unit-cost catalogue loaders
+│   │   ├── failures.py                        # Cost calculation failure taxonomy
+│   │   ├── lifecycle.py                       # Decimal-precision CAPEX + OPEX NPV engine
+│   │   └── models.py                          # Cost catalogue, policy, and breakdown domain models
+│   ├── electrical/                            # Electrical modeling & load flow engines
+│   │   ├── __init__.py
+│   │   ├── errors.py                          # Electrical domain exception hierarchy
+│   │   ├── feeder_validation.py               # Analytical screening validator (SURGE-PY-013)
+│   │   ├── models.py                          # Conductor, impedance, & screening result models
+│   │   ├── voltage_drop.py                    # Balanced 3-phase linear voltage change calculations
+│   │   └── load_flow/                         # Pandapower AC Load-Flow package (SURGE-PY-015)
+│   │       ├── __init__.py
+│   │       ├── analysis.py                    # Newton-Raphson solver & non-convergence trapping
+│   │       ├── builder.py                     # Deterministic pandapowerNet graph construction
+│   │       ├── config.py                      # Load flow parameters & cable library mapping
+│   │       └── models.py                      # Bus, segment, feeder, and network result models
+│   ├── gis/                                   # Geospatial transformations and raster operations
+│   │   ├── __init__.py
+│   │   ├── constraints.py                     # Exclusion layers & crossing penalty rasterization
+│   │   ├── cost_surface.py                    # Uniform 2D raster grid abstraction & Bresenham line
+│   │   ├── crs.py                             # Dynamic UTM projection & transformation utilities
+│   │   ├── geojson.py                         # GeoJSON parsing, validation & RFC 7946 serialization
+│   │   ├── geometry.py                        # Shapely geometric repairs, buffers & validation
+│   │   ├── preprocessing.py                   # WGS84 GeoJSON to projected ProjectSpatialData
+│   │   └── row_analysis.py                    # Right-of-Way (ROW) corridor polygon spatial analysis
+│   ├── models/                                # Shared spatial data primitives
+│   │   ├── __init__.py
+│   │   └── spatial.py                         # Turbine, Substation, and ProjectSpatialData dataclasses
+│   ├── optimisation/                          # Multi-scenario candidate generation & scoring
+│   │   ├── __init__.py
+│   │   ├── engineering_metric_models.py       # CandidateEngineeringMetrics dataclasses (PY-026)
+│   │   ├── engineering_metrics.py             # Metric extraction from GIS, load-flow & poles
+│   │   ├── orchestrator.py                    # Top-level workflow runner (optimise_project)
+│   │   ├── scenario_models.py                 # Parameter schedules, strategies, & PNCScenario
+│   │   ├── scenarios.py                       # 5-strategy scenario generation & fingerprinting
+│   │   ├── scoring.py                         # Unified multi-objective benefit scorer (PY-027/PY-029)
+│   │   ├── scoring_models.py                  # MetricScore, ObjectiveGroup, & Policy models
+│   │   └── workflow_models.py                 # Workflow stages, status codes, and result containers
+│   ├── pnc/                                   # Collector network assembly package (SURGE-PY-014)
+│   │   ├── __init__.py
+│   │   ├── assembly.py                        # Graph-to-network assembly & topological validation
+│   │   ├── errors.py                          # PNC structural failure taxonomy
+│   │   ├── geojson.py                         # PNC domain to GeoJSON FeatureCollection converter
+│   │   └── models.py                          # ProjectPNCNetwork, PNCFeeder, PNCSegment
+│   ├── presentation/                          # API presentation adapter & GeoJSON formatting
+│   │   ├── __init__.py
+│   │   ├── exceptions.py                      # Presentation reconciliation exception models
+│   │   ├── geojson.py                         # Presentation layer GeoJSON enricher & bbox builder
+│   │   ├── models.py                          # Pydantic presentation models (ProjectOptimizationResult)
+│   │   └── result_builder.py                  # Result assembler & electrical telemetry enricher
+│   ├── schemas/                               # Pydantic DTOs for external API boundaries
+│   │   ├── __init__.py
+│   │   ├── legacy_mapping.py                  # V1 DTO adapter to workflow models
+│   │   ├── optimise.py                        # V1 Request & Response schemas
+│   │   └── v2/                                # V2 Explicit engineering schemas
+│   │       ├── __init__.py
+│   │       ├── domain_mapping.py              # V2 DTO to domain model converters
+│   │       └── optimise.py                    # V2 Request & Response schemas
+│   ├── services/                              # Service-layer facades
+│   │   ├── __init__.py
+│   │   └── optimisation_service.py            # Legacy single-candidate service adapter
+│   └── utils/
+│       ├── __init__.py
+│       └── coordinate_transform.py            # Low-level coordinate transformation helpers
+└── tests/                                     # Automated test suites (~489 tests)
+    ├── api/
+    │   ├── test_optimise_v1.py                # V1 API compatibility & constraint regression tests
+    │   └── test_optimise_v2.py                # V2 API multi-candidate & schema tests
+    ├── fixtures/                              # Versioned golden test fixtures (JSON/Python)
+    │   ├── README.md
+    │   ├── constraint_demo_project_v2.json
+    │   ├── demo_project.py
+    │   └── mvp_demo_project_v2.json
+    ├── test_a_star.py
+    ├── test_constraints.py
+    ├── test_cost_surface.py
+    ├── test_crs.py
+    ├── test_engineering_metrics.py
+    ├── test_feeder_validation.py
+    ├── test_geojson.py
+    ├── test_geometry.py
+    ├── test_health.py
+    ├── test_lifecycle_cost.py
+    ├── test_load_flow_analysis.py
+    ├── test_load_flow_builder.py
+    ├── test_load_flow_config.py
+    ├── test_load_flow_validation.py
+    ├── test_optimisation_orchestrator.py
+    ├── test_optimisation_scoring.py
+    ├── test_optimise.py
+    ├── test_physical_routing.py
+    ├── test_pnc_assembly.py
+    ├── test_pole_deduplication.py
+    ├── test_pole_placement.py
+    ├── test_preprocessing.py
+    ├── test_presentation.py
+    ├── test_route_graph.py
+    ├── test_route_refinement.py
+    ├── test_route_scoring.py
+    ├── test_row_analysis.py
+    ├── test_scenarios.py
+    ├── test_topology.py
+    ├── test_voltage_drop.py
+    └── test_wtg_grouping.py
 ```
+
+---
 
 ## Key Architectural Principles
 
-1. **Decoupled Service Layer**: The optimize endpoint delegates execution to `OptimisationService`. HTTP, preprocessing, graph, grouping, and topology code remain independently testable.
-2. **GIS Translation Boundary**: `app/gis/preprocessing.py` converts WGS84 GeoJSON into validated projected domain objects before algorithms run.
-3. **Separated Algorithm Stages**: `route_graph.py` creates candidates, `wtg_grouping.py` creates capacity-safe feeder membership, and `topology.py` selects a radial MST for each feeder.
-4. **Pydantic 2 Validation**: Typed models define external requests, responses, electrical parameters, and aggregate metrics.
-5. **Correlation ID (`request_id`)**: Each optimization request echoes the Java-supplied correlation ID in its response.
-6. **Reproducible Environment**: Dependencies are pinned in `requirements.txt` and `requirements.lock.txt`.
+1. **Decoupled Orchestration**: The high-level optimization pipeline is orchestrated by `app/optimisation/orchestrator.py` (`optimise_project()`), which coordinates spatial data preprocessing, multi-scenario candidate generation, Pandapower AC load flow, canonical metrics extraction, multi-objective ranking, lifecycle costing, and map presentation.
+2. **Unified UTM Metric Engineering Domain**: Geographic coordinates (WGS84 / EPSG:4326) are strictly kept at the API and database boundary. All distance, area, buffer, obstacle routing, and electrical impedance calculations are executed within a dynamically selected, projected UTM zone (with metric units) via `app/gis/crs.py`. Output geometries are converted back to WGS84 with `always_xy=True` (longitude, latitude) prior to JSON serialization.
+3. **Multi-Scenario Candidate Generation (SURGE-PY-017)**: Rather than producing a single static layout, the engine deterministically generates 1–5 candidate topologies using a fixed parameter schedule (`baseline`, `alternative_grouping`, `balanced_feeders`, `long_edge_penalty`, `alternative_grouping_balanced`). Topologies are deduplicated via canonical SHA-256 fingerprints before invoking expensive A* raster routing.
+4. **Rigorous Electrical Validation (SURGE-PY-015)**: Every generated candidate is evaluated with Pandapower's Newton-Raphson AC power flow solver (`runpp`). Solver non-convergence is trapped gracefully as a structured `LOAD_FLOW_NOT_CONVERGED` violation, rendering the candidate infeasible without crashing the service.
+5. **Canonical Engineering Metrics (SURGE-PY-026)**: A standardized, all-or-nothing assessment extracts physical length, traversal penalties, parcel crossings, road crossings, soft corridor overlap, environmental overlap, deduplicated pole counts, active power losses, cable loading, and voltage operating margins.
+6. **Multi-Objective Benefit Scoring (SURGE-PY-027 / PY-029)**: Eligible candidates are scored using cohort min-max normalization across Physical, Spatial, Infrastructure, and Electrical objective groups, optionally combined with Decimal-precision 25-year lifecycle NPV costing (CAPEX + OPEX). Recommendations include plain-language trade-off rationales.
+7. **Network-Level Pole Placement & Deduplication (SURGE-PY-023 / PY-024)**: Physical overhead transmission poles are placed along refined routes (tangent, angle, terminal), and coincident topology endpoints are merged into deterministic `junction` structures with full feeder/route traceability.
+8. **Dual API Compatibility (V1 & V2)**: `POST /api/v1/optimise` provides backwards compatibility with Java Spring Boot DTO contracts, while `POST /api/v2/optimise` exposes explicit engineering parameters, lifecycle costing, and detailed candidate comparisons.
 
-## Current Execution Flow
+---
 
-```text
-OptimisationRequest
-    -> process_project_data
-    -> build_project_graph
-    -> group_wtgs
-    -> build_feeder_mst
-    -> route_collector_topology
-    -> refine_routing_result
-    -> sum refined route length
-    -> OptimisationResponse
+## End-to-End Execution Flow
+
+```mermaid
+flowchart TD
+    A[Optimisation Request<br/>GeoJSON / DTO] --> B[app/gis/preprocessing.py<br/>WGS84 → Projected UTM Zone]
+    B --> C[app/gis/constraints.py<br/>Raster Cost Surface & Exclusions]
+    C --> D[app/optimisation/scenarios.py<br/>5 Parameter Schedules & Fingerprinting]
+    
+    subgraph Candidate_Generation ["Candidate Generation (SURGE-PY-017)"]
+        D --> E1[K-Means / MILP Grouping<br/>wtg_grouping.py]
+        E1 --> E2[Delaunay / k-NN Graph<br/>route_graph.py]
+        E2 --> E3[Per-Feeder Radial MST<br/>topology.py]
+        E3 --> E4{Duplicate<br/>Fingerprint?}
+        E4 -- Yes --> E5[Skip A* Attempt]
+        E4 -- No --> E6[A* Grid Routing<br/>a_star.py / physical_routing.py]
+        E6 --> E7[Bresenham Supercover Refinement<br/>route_refinement.py]
+        E7 --> E8[PNC Network Assembly<br/>pnc/assembly.py]
+    end
+    
+    E8 --> F[app/electrical/load_flow/<br/>Pandapower AC Power Flow runpp]
+    F --> G[app/optimisation/engineering_metrics.py<br/>Canonical Metrics Extraction PY-026]
+    G --> H[app/costing/lifecycle.py<br/>CAPEX + OPEX NPV Costing PY-028]
+    H --> I[app/optimisation/scoring.py<br/>Cohort Normalization & Ranking PY-027]
+    I --> J[app/algorithms/pole_placement.py<br/>Pole Placement & Endpoint Deduplication]
+    J --> K[app/presentation/result_builder.py<br/>Enriched WGS84 GeoJSON & Telemetry]
+    K --> L[API Response<br/>V1 / V2 JSON]
 ```
 
-SURGE-PY-006 is implemented in `app/algorithms/topology.py`. Each feeder subgraph contains its assigned WTGs and the substation. NetworkX minimizes the `weight` attribute and the service reports the sum of selected `distance_m` values.
+---
 
-Selected MST edges are routed via A* over a base cost surface, transformed back to WGS84, and returned as individual LineString Features. `total_length_m` represents the cost-surface-aware routed corridor length.
+## Core Algorithmic Components
 
-SURGE-PY-007 adds `app/gis/cost_surface.py` as a standalone uniform raster abstraction. It is now integrated with `OptimisationService` (via SURGE-PY-008) to route the physical LineStrings.
+### 1. Cost-Surface A* Routing (`app/algorithms/a_star.py` & `app/gis/cost_surface.py`)
+- Represents spatial terrain, exclusion buffers, and crossing penalties as a 2D raster grid.
+- A* search uses an 8-connectivity neighborhood (horizontal/vertical cost 1.0, diagonal cost $\sqrt{2}$).
+- Obstacles with infinite weight are impenetrable hard exclusions. Soft penalties (roads, existing HT lines, parcel boundaries) add additive traversal resistance.
 
-SURGE-PY-009 adds `app/algorithms/route_refinement.py`. It removes duplicate and collinear grid points, then applies deterministic farthest-visible shortcutting. A continuous supercover check validates every touched raster cell, including corner-touching cells, and the shortcut must not cost more than the subpath it replaces. Exact endpoints and feeder/node metadata remain unchanged.
+### 2. Route Refinement & Farthest-Visible Supercover (`app/algorithms/route_refinement.py`)
+- Eliminates staircase grid artifacts from raster A* paths.
+- Removes duplicate and collinear vertices.
+- Applies iterative farthest-visible shortcutting verified against a continuous supercover raster check (Bresenham line touching all intercepted cells including corner-touches). Shortcutting is only accepted if the direct segment cost is $\le$ the subpath cost.
 
-The API emits refined geometry and uses refined length for aggregate metrics. Route features retain both original and refined length/cost properties so the A* result remains auditable.
+### 3. Pole Placement & Endpoint Deduplication (`app/algorithms/pole_placement.py`)
+- Classifies poles into `terminal` (substations, WTGs), `angle` (deflections $\ge 5^\circ$), `intermediate` / `tangent` (spaced along straight sections based on `target_span_m` and `max_span_m`), and `junction` (merged shared topology nodes).
+- SURGE-PY-023 merges coincident terminal records across different routes into single junction structures with pairwise distance tolerance ($< 0.1\text{ m}$).
 
-SURGE-PY-010 adds `app/algorithms/pole_placement.py`, converting each projected `RefinedPhysicalRoute` into ordered `Pole` structures connected by `PoleSpan` objects. SURGE-PY-023 adds the distinct physical-structure post-pass. PY-024 now invokes both stages once for the recommended PNC and returns the canonical `CollectorPoleResult` as `OptimisationWorkflowResult.pole_network`; PY-025 owns formal presentation of that view.
+### 4. Pandapower AC Load Flow (`app/electrical/load_flow/`)
+- Constructs deterministic `pandapowerNet` models using sorted node/segment indices.
+- Models 33 kV medium-voltage collector lines with positive generator injection convention ($P > 0, Q > 0$).
+- Computes bus voltages (pu), line current loadings (%), active/reactive power losses (MW/MVar), and detects overloads or voltage limit excursions ($\pm 5\%$).
 
-The module first makes route endpoints and qualifying deflection vertices mandatory, then treats the geometry between consecutive mandatory positions as independent sections. Sections longer than `min_span_m` receive evenly spaced fill poles based on `round(section_length / target_span_m)`; the count increases until the arc-length interval satisfies the hard `max_span_m` limit. The minimum is a soft subdivision threshold, not a guaranteed lower bound. `PoleSpan.span_length_m` records the Euclidean chord between pole Points, while each pole's `distance_along_route_m` records LineString arc length. Batch placement maintains continuous, non-colliding sequences per feeder. SURGE-PY-023 adds an explicit network post-pass that merges coincident terminal records for the same topology node into deterministic `junction` structures while retaining route-local poles and spans. PY-024's `place_poles_on_network()` preserves the recommended PNC's routed geometry and segment IDs and exposes the deduplicated result without changing ranking. Terrain/clearance rules remain separate work. See [[Pole Placement]].
+### 5. Multi-Objective Scoring & Explainable Recommendation (`app/optimisation/scoring.py`)
+- Evaluates eligible candidates across 4 objective groups:
+  - **Physical**: Route length (m).
+  - **Spatial**: Refined traversal cost, parcel count, road crossings, soft constraint overlap (m).
+  - **Infrastructure**: Physical pole count.
+  - **Electrical**: Active power loss (MW), maximum cable loading (%), voltage operating margin (pu).
+- Ranks candidates with 12-decimal precision and generates explainable reasons (`BEST_METRIC`, `GROUP_STRENGTH`, `TRADE_OFF_ACCEPTED`).
 
-SURGE-PY-011 adds standalone `app/gis/row_analysis.py`. It buffers projected refined route segments into flat-ended metric corridors, validates and repairs projected constraint geometries, uses one STRtree for candidate filtering, and returns deterministic route/constraint intersection events. Results distinguish summed segment area from the dissolved unique ROW footprint and retain route-edge identity, overlap area, centreline exposure length, road crossings, restricted events, and hard violations. CRS provenance is supplied explicitly with `pyproj.CRS`; route and constraint CRS values must be equivalent projected systems measured in metres. The service does not yet receive constraint layers or expose ROW results. See [[ROW Corridor Analysis]].
-
-SURGE-PY-012 (formerly PY-015) adds standalone `app/algorithms/route_scoring.py`. It is a preliminary multi-criteria spatial and constructability scoring engine designed to evaluate complete network alternatives. It computes deterministic min-max normalization exclusively on feasible candidates, preserves raw metrics and exact normalization ranges for explainability, and handles hard constraint violations by marking candidates infeasible. Financial and electrical criteria are currently omitted. `OptimisationService` does not yet invoke it as the pipeline currently produces only a single network alternative. See [[Route Scoring Architecture]].
-
-SURGE-PY-013 adds standalone `app/electrical/models.py`, `app/electrical/voltage_drop.py`, and `app/electrical/feeder_validation.py`. It reconciles a complete projected project, radial topology, and refined-route set before calculating a deterministic balanced three-phase screening result. Post-order traversal aggregates operating WTG power on each edge; nominal-voltage current is checked against conductor ampacity; and linear segment voltage changes are accumulated to every turbine. Malformed or incomplete inputs raise `ValueError`, while valid networks that exceed ampacity, cumulative voltage-deviation, or substation-capacity limits return explicit `ElectricalViolation` records. This is a standalone linear proxy—not pandapower or final design validation—and `OptimisationService` does not invoke it. See [[Electrical Feeder Screening]].
-
-SURGE-PY-014 adds `app/pnc`, which can run the grouping-to-routing pipeline and assemble a validated `ProjectPNCNetwork`, or assemble from compatible precomputed topology and refined routes without rerunning them.
-
-SURGE-PY-015 adds standalone `app/electrical/load_flow`. It builds a deterministic pandapower network from a PNC and returns convergence, bus, segment, feeder, loss, loading, voltage, and violation results without modifying the proposed network. See [[AC Load Flow Validation]].
-
-SURGE-PY-016 adds `app/presentation`. It reconciles the canonical projected `ProjectPNCNetwork` with its pandapower `LoadFlowNetworkResult`, rejects missing, duplicate, mismatched, or non-finite electrical references, and returns strict summary models plus WGS-84 GeoJSON. Features receive stable IDs, nullable electrical telemetry, exact voltage/overload flags, and a collection bounding box. A non-converged solver result still produces a topology-only map with an explicit violation. PY-020 exposes the recommended result through V1 and V2; V1 also adapts segment features into the existing Java GeoJSON contract. See [[presentation-boundary|Python Presentation Boundary]].
-
-SURGE-PY-017 candidate PNC scenario generation is implemented under `app/optimisation`. Its boundary is deterministic generation of 1-5 distinct, structurally valid `ProjectPNCNetwork` candidates from prepared project data and a prepared cost surface. PY-018 scores the electrically evaluated cohort and returns an explainable deterministic recommendation. PY-019 validates shared inputs, isolates candidate-local electrical failures, packages the recommendation, and exposes the workflow through `optimise_project`. PY-020 adds compatible V1 and explicit V2 APIs plus a deterministic three-candidate golden fixture. See [[Candidate PNC Scenario Generation]] and [[Surge MVP Ticket Plan]].
+---
 
 ## Related Notes
 
-- [[Python Engine]]
-- [[WTG Grouping]]
-- [[Per-Feeder MST Topology]]
-- [[GIS Cost Surface]]
-- [[Feeder Planning]]
-- [[FastAPI Endpoints|FastAPI Microservice Specification]]
-- [[presentation-boundary|Python Presentation Boundary]]
 - [[Surge MVP Ticket Plan]]
 - [[Candidate PNC Scenario Generation]]
+- [[AC Load Flow Validation]]
+- [[Canonical Candidate Engineering Metrics]]
+- [[Multi-Objective Candidate Scoring]]
+- [[PNC Network Assembly]]
+- [[presentation-boundary|Python Presentation Boundary]]
+- [[Geospatial Integrity & CRS]]
+- [[Electrical Feeder Screening]]
+- [[Route Scoring Architecture]]
+- [[Sunday KMZ to 33kV Network Plan]]

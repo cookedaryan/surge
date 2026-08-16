@@ -1,12 +1,16 @@
 package com.power.surge.service;
 
 import com.power.surge.domain.CadastralParcel;
+import com.power.surge.domain.GeneratedPole;
 import com.power.surge.domain.GeneratedRoute;
 import com.power.surge.domain.JobStatus;
 import com.power.surge.domain.OptimizationJob;
 import com.power.surge.domain.Project;
 import com.power.surge.dto.report.EngineeringBomReportResponse;
+import com.power.surge.dto.report.FeederBomSummary;
 import com.power.surge.dto.report.ParcelImpactSummary;
+import com.power.surge.dto.report.PoleScheduleEntry;
+import com.power.surge.dto.report.RouteSegmentDetail;
 import com.power.surge.repository.CadastralParcelRepository;
 import com.power.surge.repository.GeneratedPoleRepository;
 import com.power.surge.repository.GeneratedRouteRepository;
@@ -208,9 +212,24 @@ class ReportServiceTest {
 
         String csv = reportService.generateBomCsv(projectId, jobId);
 
-        assertThat(csv).contains("SURGE Engineering Bill of Materials (BOM) Report");
+        assertThat(csv).contains("SURGE Engineering Bill of Materials");
         assertThat(csv).contains("Feeder-01");
         assertThat(csv).contains("2500.00");
+
+        // Every section a crew or a reviewer needs must be present, not just the feeder roll-up.
+        assertThat(csv)
+                .contains("--- RUN PARAMETERS ---")
+                .contains("--- NETWORK TOTALS ---")
+                .contains("--- POLE COUNT BY STRUCTURAL ROLE ---")
+                .contains("--- POLE COUNT BY RECOMMENDED TYPE ---")
+                .contains("--- FEEDER SUMMARY ---")
+                .contains("--- ROUTE SEGMENT SCHEDULE ---")
+                .contains("--- POLE SETTING-OUT SCHEDULE ---")
+                .contains("--- CADASTRAL PARCEL IMPACT & COMPENSATION ---");
+
+        // Segment endpoints come from the route geometry, at full coordinate precision.
+        assertThat(csv).contains("28.630000,77.230000,28.640000,77.250000");
+        assertThat(csv).contains("LINESTRING");
     }
 
     @Test
@@ -260,5 +279,134 @@ class ReportServiceTest {
         assertThat(resp.scenarios().get(0).jobId()).isEqualTo(jobId);
         assertThat(resp.scenarios().get(0).totalEstimatedCost()).isEqualTo(150000.00);
         assertThat(resp.scenarios().get(0).totalPoles()).isEqualTo(15);
+    }
+
+    /**
+     * A feeder is built from several segments — seven feeders span 38 segments on the reference
+     * project. The report used to emit one row per segment while calling them feeders, and count
+     * route rows as the feeder total, so that project reported 38 feeders.
+     */
+    @Test
+    void feederSummariesRollUpSegmentsRatherThanListingEachOne() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Fixture f = fixture(projectId, jobId);
+
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of(
+                segment(f.job(), "FDR-001", "S1", "1000.00", "10000.00", "1.0"),
+                segment(f.job(), "FDR-001", "S2", "2000.00", "20000.00", "2.0"),
+                segment(f.job(), "FDR-002", "S3", "3000.00", "30000.00", "3.0")
+        ));
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
+
+        EngineeringBomReportResponse report = reportService.generateBomReport(projectId, jobId);
+
+        assertThat(report.totalFeeders()).isEqualTo(2);
+        assertThat(report.totalSegments()).isEqualTo(3);
+        assertThat(report.feederSummaries()).hasSize(2);
+        assertThat(report.segmentDetails()).hasSize(3);
+
+        FeederBomSummary first = report.feederSummaries().get(0);
+        assertThat(first.feederName()).isEqualTo("FDR-001");
+        assertThat(first.segmentCount()).isEqualTo(2);
+        assertThat(first.lengthMeters()).isEqualByComparingTo("3000.00");
+        assertThat(first.totalCost()).isEqualByComparingTo("30000.00");
+        assertThat(first.electricalLossesKw()).isEqualByComparingTo("3.0");
+    }
+
+    /** Coordinates are what make the schedule usable for setting out on the ground. */
+    @Test
+    void reportCarriesPoleTypesAndCoordinates() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Fixture f = fixture(projectId, jobId);
+
+        GeneratedPole angle = new GeneratedPole(f.job(), "P-001", "FDR-001", "angle", "PSC-11M",
+                List.of("FDR-001"), List.of("S1"), geometryFactory.createPoint(new Coordinate(77.234567, 28.634567)));
+        GeneratedPole tangent = new GeneratedPole(f.job(), "P-002", "FDR-001", "tangent", "PSC-9M",
+                List.of("FDR-001"), List.of("S1"), geometryFactory.createPoint(new Coordinate(77.24, 28.64)));
+
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of(
+                segment(f.job(), "FDR-001", "S1", "1000.00", "10000.00", "1.0")));
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of(angle, tangent));
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
+
+        EngineeringBomReportResponse report = reportService.generateBomReport(projectId, jobId);
+
+        assertThat(report.poleSchedule()).hasSize(2);
+        PoleScheduleEntry entry = report.poleSchedule().get(0);
+        assertThat(entry.poleIdentifier()).isEqualTo("P-001");
+        assertThat(entry.role()).isEqualTo("angle");
+        assertThat(entry.recommendedPoleType()).isEqualTo("PSC-11M");
+        assertThat(entry.latitude()).isEqualTo(28.634567);
+        assertThat(entry.longitude()).isEqualTo(77.234567);
+        assertThat(entry.connectedSegments()).isEqualTo("S1");
+
+        assertThat(report.poleCountByRole()).containsEntry("angle", 1).containsEntry("tangent", 1);
+        assertThat(report.poleCountByType()).containsEntry("PSC-11M", 1).containsEntry("PSC-9M", 1);
+
+        RouteSegmentDetail seg = report.segmentDetails().get(0);
+        assertThat(seg.startLatitude()).isEqualTo(28.63);
+        assertThat(seg.startLongitude()).isEqualTo(77.23);
+        assertThat(seg.endLatitude()).isEqualTo(28.64);
+        assertThat(seg.vertexCount()).isEqualTo(2);
+        assertThat(seg.pathWkt()).startsWith("LINESTRING");
+    }
+
+    /** The inputs have to travel with the figures, or the figures cannot be reproduced. */
+    @Test
+    void reportCarriesTheRunParameters() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+
+        Project project = new Project("Test Project", "Description");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+        OptimizationJob job = new OptimizationJob(
+                project, "MULTI_OBJECTIVE_A_STAR", "Minimum Land Impact",
+                new BigDecimal("0.40"), new BigDecimal("0.25"), new BigDecimal("180.00"),
+                new BigDecimal("66.00"), new BigDecimal("12.500"), new BigDecimal("4.50"),
+                new BigDecimal("22.00"));
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "id", jobId);
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of());
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
+
+        EngineeringBomReportResponse report = reportService.generateBomReport(projectId, jobId);
+
+        assertThat(report.runParameters()).isNotNull();
+        assertThat(report.runParameters().scenario()).isEqualTo("Minimum Land Impact");
+        assertThat(report.runParameters().algorithmType()).isEqualTo("MULTI_OBJECTIVE_A_STAR");
+        assertThat(report.runParameters().voltageKv()).isEqualByComparingTo("66.00");
+        assertThat(report.runParameters().feederCapacityMw()).isEqualByComparingTo("12.500");
+        assertThat(report.runParameters().maxSpanMeters()).isEqualByComparingTo("180.00");
+        // The ROW width the run actually used, not the service's fallback constant.
+        assertThat(report.rowWidthMeters()).isEqualByComparingTo("22.00");
+    }
+
+    private record Fixture(Project project, OptimizationJob job) { }
+
+    private Fixture fixture(UUID projectId, UUID jobId) {
+        Project project = new Project("Test Project", "Description");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+        OptimizationJob job = new OptimizationJob(project, "MULTI_OBJECTIVE_A_STAR", null, null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "id", jobId);
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+        return new Fixture(project, job);
+    }
+
+    private GeneratedRoute segment(
+            OptimizationJob job, String feeder, String segmentId, String length, String cost, String losses) {
+        LineString path = geometryFactory.createLineString(new Coordinate[]{
+                new Coordinate(77.23, 28.63),
+                new Coordinate(77.25, 28.64)
+        });
+        return new GeneratedRoute(job, feeder, new BigDecimal(length), new BigDecimal(cost),
+                new BigDecimal(losses), 0, path, null, segmentId);
     }
 }

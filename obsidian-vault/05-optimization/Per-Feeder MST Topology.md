@@ -1,122 +1,126 @@
-# SURGE-PY-006: Per-Feeder MST Topology
+# SURGE-PY-006: Per-Feeder MST Topology Planning
 
-> [!success] Algorithm status: Implemented and exposed as preliminary GeoJSON
-> The per-feeder MST is built, routed over a base uniform cost surface, contributes to `metrics.total_length_m`, and is serialized as one routed LineString Feature per selected edge.
+> [!success] Algorithm status: Implemented & Integrated
+> `app/algorithms/topology.py` builds deterministic per-feeder radial minimum spanning trees (MSTs) rooted at the project substation. The resulting edges feed downstream A* cost-surface routing, PNC network assembly, Pandapower load flow, and variable-span pole placement.
 
-## Purpose
+---
 
-WTG grouping answers **which turbines belong to each feeder**. Topology answers **which assets should be connected within that feeder**. Geographic routing later answers **where each selected connection should run across the ground**.
+## 1. Purpose & Architectural Role
 
-SURGE-PY-006 creates one preliminary radial topology for every `FeederAssignment`. Each tree contains the feeder's WTGs and the project substation.
+Within the SURGE collector optimization pipeline:
+- **[[WTG Grouping]]** decides **which turbines belong to each feeder**.
+- **Per-Feeder MST Topology** decides **which assets connect to one another** in a radial graph.
+- **[[Routing]]** and **[[GIS Cost Surface]]** decide **where the physical conductor corridor runs across the terrain**.
 
-## Minimum Spanning Tree Concept
+SURGE-PY-006 constructs a deterministic radial topology for each feeder assignment. Every feeder tree includes its assigned WTGs and the project collector substation as the root connection point.
 
-A **spanning tree** connects every node in a graph without cycles. For `N` nodes, a valid tree has exactly `N - 1` edges.
+```mermaid
+flowchart TD
+    subgraph Grouping["Stage 1: WTG Grouping"]
+        G1["Feeder Assignment F1 (e.g. WTG 1..6, 18 MW)"]
+        G2["Feeder Assignment F2 (e.g. WTG 7..12, 18 MW)"]
+    end
 
-A **minimum spanning tree (MST)** is the spanning tree with the smallest sum of edge weights. The current candidate graph is complete and each edge weight is its straight-line Euclidean distance in the project's UTM CRS. The selected MST therefore minimizes preliminary straight-line topology length for that feeder.
+    subgraph Topology["Stage 2: Per-Feeder MST (SURGE-PY-006)"]
+        G_FULL["Complete Projected Project Graph<br/>(Euclidean Metric Distances)"]
+        SUB1["Induced Subgraph F1 + Substation"]
+        SUB2["Induced Subgraph F2 + Substation"]
+        MST1["NetworkX MST F1<br/>(N_1 - 1 acyclic edges)"]
+        MST2["NetworkX MST F2<br/>(N_2 - 1 acyclic edges)"]
+    end
 
-An MST does not choose a terrain-safe corridor, create junction nodes, check voltage drop, or avoid restricted polygons. Those are later stages.
+    subgraph Downstream["Stage 3 & Beyond: Physical & Electrical Pipeline"]
+        ASTAR["A* Cost-Surface Routing (PY-008)"]
+        REFINE["Route Refinement & Continuous Supercover (PY-009)"]
+        PNC["PNC Network Assembly & Pandapower AC Load Flow"]
+        POLES["Variable-Span Pole Placement (PY-010 / PY-023)"]
+    end
 
-## Inputs
+    G1 --> SUB1
+    G2 --> SUB2
+    G_FULL --> SUB1
+    G_FULL --> SUB2
+    SUB1 --> MST1
+    SUB2 --> MST2
+    MST1 --> ASTAR
+    MST2 --> ASTAR
+    ASTAR --> REFINE --> PNC --> POLES
+```
 
-`build_feeder_mst(graph, grouping)` consumes:
+---
 
-- the complete NetworkX graph from `build_project_graph`
-- the deterministic `FeederGroupingResult` from `group_wtgs`
+## 2. Mathematical Spanning Tree Concept
 
-Graph nodes use namespaced identifiers:
+A **spanning tree** $T = (V, E_T)$ of a connected graph $G = (V, E)$ is an acyclic subgraph connecting all vertices in $V$. For a feeder with $|V| = N$ nodes (one substation plus $N - 1$ turbines), a valid radial tree has exactly:
 
-- `substation:<substation_id>`
-- `wtg:<turbine_id>`
+$$
+|E_T| = N - 1 \text{ edges}
+$$
 
-Every graph edge currently carries identical `weight` and `distance_m` values measured in meters.
+A **Minimum Spanning Tree (MST)** selects the edge subset $E_T \subset E$ that minimizes the total edge weight:
 
-## Algorithm
+$$
+\min \sum_{e \in E_T} w(e)
+$$
+
+In the initial candidate graph, edge weight $w(e)$ is the straight-line Euclidean distance in the projected metric CRS (UTM). This provides a mathematically optimal, deterministic radial baseline.
+
+---
+
+## 3. Algorithm Step-by-Step
 
 For each feeder assignment, `app/algorithms/topology.py`:
 
-1. Requires exactly one graph node whose `type` is `substation`.
-2. Converts every raw turbine ID in the assignment to its `wtg:` graph ID.
-3. Rejects an assigned turbine that is absent from the graph.
-4. Rejects a WTG assigned to more than one feeder.
-5. Creates an induced subgraph containing only that feeder's WTGs and the substation.
-6. Calls `networkx.minimum_spanning_tree` using the `weight` edge attribute.
-7. Verifies the result with `networkx.is_tree`; a disconnected feeder subgraph is rejected.
-8. Sums `distance_m` across the selected edges.
-9. Sorts normalized edge pairs for deterministic output.
-10. Checks that assignment count matches `feeder_count` and that the assigned-WTG count matches the graph WTG count.
+1. **Substation Discovery**: Locates the designated `substation:<id>` node in the project graph.
+2. **Namespace Conversion**: Maps raw turbine IDs (e.g. `WTG01`) to namespaced graph identifiers (`wtg:WTG01`).
+3. **Membership Validation**: Verifies that every assigned turbine exists in the graph and that no turbine is assigned to multiple feeders.
+4. **Induced Subgraph Extraction**: Extracts a subgraph containing only the feeder's assigned WTG nodes plus the substation node, retaining all connecting metric edges.
+5. **MST Extraction**: Executes Kruskal's or Prim's algorithm via `networkx.minimum_spanning_tree(subgraph, weight="weight")`.
+6. **Acyclicity & Connectivity Check**: Validates that `networkx.is_tree(mst)` is true; any disconnected component raises an immediate domain error.
+7. **Deterministic Normalization**: Normalizes edge directions and sorts edge pairs `(from_node, to_node)` lexicographically to guarantee byte-identical outputs across runs.
+8. **Length Summation**: Sums preliminary edge distances into `total_length_m`.
 
-The substation is intentionally included in every feeder tree. WTGs belong to one feeder because the grouping stage produces disjoint assignments.
+```python
+@dataclass(frozen=True)
+class FeederTopology:
+    feeder_id: str
+    node_ids: tuple[str, ...]
+    total_capacity_mw: float
+    total_length_m: float
+    mst_edges: tuple[tuple[str, str], ...]
+    mst_graph: nx.Graph
 
-## Output Models
-
-`FeederTopology` contains:
-
-- `feeder_id`
-- ordered `node_ids`
-- `total_capacity_mw` copied from the grouping result
-- `total_length_m`, the sum of routed edge distances
-- deterministic `mst_edges`
-- the NetworkX `mst_graph`
-
-`CollectorTopologyResult` contains the tuple of feeder trees.
-
-Although `FeederTopology` is a frozen dataclass, `mst_graph` is a mutable NetworkX object. Callers should treat it as read-only.
-
-## Service Integration
-
-`OptimisationService.optimise` runs the stages in this order:
-
-```text
-GeoJSON preprocessing
-    -> complete project graph
-    -> capacity-constrained WTG grouping
-    -> one MST per feeder
-    -> sum feeder MST lengths
-    -> OptimisationResponse.metrics.total_length_m
+@dataclass(frozen=True)
+class CollectorTopologyResult:
+    feeders: tuple[FeederTopology, ...]
 ```
 
-`metrics.total_length_m` is the routed path length. For every selected edge, the service routes it over the base cost surface, transforms coordinates back to WGS84, and emits a LineString Feature with `feederName` and an `edge` label.
+---
 
-The GeoJSON now makes topology visible, but it uses the route response field before physical routing exists. Downstream consumers must treat these features as preliminary edges.
+## 4. Downstream Pipeline Integration
 
-## Correctness Invariants
+Once the logical MST edges are computed:
+1. **Physical Routing**: Each MST edge `(u, v)` is converted into a physical start and goal point for [[Routing|A* grid routing]] across the [[GIS Cost Surface]].
+2. **PNC Assembly**: The routed and refined physical paths are packaged into `ProjectPNCNetwork` containing `PNCFeeder` and `PNCSegment` models.
+3. **Electrical Verification**: The topology graph directly defines the branch connectivity for Pandapower AC power flow modeling, enabling Newton-Raphson voltage and line loading calculations.
+4. **Pole Placement**: Physical structures are placed along each segment, and coincident substation/WTG endpoints are merged using [[Pole Placement|SURGE-PY-023 deduplication]].
 
-For data produced by the current pipeline:
+---
 
-- each feeder tree contains its assigned WTGs and the substation
-- each tree is connected and acyclic
-- each tree has `node_count - 1` edges
-- feeder capacity is preserved from the validated grouping stage
-- edge and feeder ordering is deterministic
-- lengths use projected meter coordinates rather than longitude/latitude degrees
+## 5. Correctness Invariants
 
-## Contract Assumptions and Limitations
+- **Rooted at Substation**: The substation is present in every feeder tree, serving as the electrical evacuation point.
+- **Strict Radiality**: No cycles or looped configurations exist within any feeder.
+- **Disjoint Completeness**: Every WTG belongs to exactly one feeder tree; no turbine is orphaned or duplicated.
+- **Coordinate System**: All lengths and distances are computed in projected metric coordinates (UTM), never in spherical degrees.
 
-- Exactly one substation, matching `feeder_count`, and duplicate assignments are now explicitly validated.
-- WTG coverage is checked by comparing counts rather than comparing `assigned_wtgs` with `all_wtgs`. For a malformed graph containing a `wtg:`-named node with the wrong type, equal counts could still hide the real unassigned WTG. Normal graphs from `build_project_graph` cannot produce this mismatch.
-- NetworkX uses `weight` to select edges. Graphs supplied outside `build_project_graph` must provide valid finite weights and `distance_m` values.
-- Each feeder is optimized independently. The implementation does not optimize shared trunks or junctions between feeders.
-- The complete candidate graph and Euclidean MST ignore terrain, parcels, exclusions, crossings, and existing infrastructure.
-- The API exposes selected edges as individual Features rather than one connected feature per feeder.
-- Python writes the property `feeder_id`, while the current Java route importer recognizes `feederName`, `feeder_name`, `name`, or `id`. Java therefore falls back to generated names and loses the original feeder identifier.
-- Java persists every edge Feature as a separate `GeneratedRoute`, so feeder edge count can be mistaken for feeder route count.
+---
 
-## Test Coverage
+## 6. Related Notes
 
-`tests/test_topology.py` verifies node inclusion, substation inclusion, connectivity, acyclicity, `N - 1` edges, minimum-weight selection, length summation, multiple feeders, a single-WTG feeder, and rejection of an unknown turbine.
-
-Missing focused cases include no/multiple substations, disconnected feeder subgraphs, inconsistent grouping metadata, duplicate/cross-feeder assignments, exact set coverage, deterministic edge order, and assertions for the returned WGS84 GeoJSON contract.
-
-## Next Integration Step
-
-The next routing stage should convert each selected MST edge into a [[GIS Cost Surface]] routing request. Routed LineStrings can then replace straight segments. Before persistence, the Python and Java property contract must agree on feeder identity and whether a Feature represents one feeder, one topology edge, or one routed segment.
-
-## Related Notes
-
-- [[WTG Grouping]]
-- [[Feeder Planning]]
-- [[Routing]]
-- [[GIS Cost Surface]]
-- [[Geospatial Integrity & CRS]]
-- [[FastAPI Endpoints|FastAPI Microservice Specification]]
+- [[WTG Grouping]] — Capacitated clustering that generates feeder memberships.
+- [[Feeder Planning]] — End-to-end feeder engineering workflow.
+- [[Routing]] — Physical A* routing and farthest-visible refinement.
+- [[GIS Cost Surface]] — Raster surface for terrain-aware traversal.
+- [[Pole Placement]] — Discrete support placement along routed segments.
+- [[Geospatial Integrity & CRS]] — Metric projection and coordinate transformations.

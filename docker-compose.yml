@@ -6,7 +6,9 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-surgedb}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      # Required rather than defaulted. A stack that silently came up on "postgres" is one nobody
+      # ever notices is using it.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
     ports:
       - "${DB_PORT:-5432}:5432"
     volumes:
@@ -28,8 +30,14 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:-surgedb}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       PYTHON_ENGINE_URL: http://optimizer:8000
+      # Passed through without a default: the backend refuses to seed a first administrator
+      # without a password, but only on a database that has none yet, so an existing deployment
+      # does not need this set.
+      SURGE_BOOTSTRAP_ADMIN_USERNAME: ${SURGE_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      SURGE_BOOTSTRAP_ADMIN_EMAIL: ${SURGE_BOOTSTRAP_ADMIN_EMAIL:-admin@surge.energy}
+      SURGE_BOOTSTRAP_ADMIN_PASSWORD: ${SURGE_BOOTSTRAP_ADMIN_PASSWORD:-}
       # Must be set per deployment. The code default is a constant in a public repository, so
       # leaving it unset lets anyone forge an administrator token.
       APP_JWT_SECRET: ${APP_JWT_SECRET:?APP_JWT_SECRET must be set in .env}

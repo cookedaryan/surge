@@ -1,94 +1,131 @@
-# Spatial Routing Design
+# Spatial Physical Routing & Geometric Refinement
 
-## Current Status
+> [!success] Implementation Status: Fully Implemented (SURGE-PY-008 / PY-009 / PY-021)
+> `app/algorithms/physical_routing.py`, `app/algorithms/a_star.py`, and `app/algorithms/route_refinement.py` implement the complete 3-step routing pipeline: converting logical graph edges into optimal raster paths across the [[GIS Cost Surface]] with avoidance layers, followed by farthest-visible continuous supercover geometry refinement.
 
-[[Per-Feeder MST Topology]] selects the logical collector-network connections. SURGE-PY-008 routes every selected edge with A* over the projected [[GIS Cost Surface]], and SURGE-PY-009 refines each grid path into a cleaner LineString before it is transformed to WGS84.
+---
 
-The production surface is currently uniform with cost `1.0`. The pipeline is therefore cost-surface-aware, but it is not terrain-aware until restrictions, slope, land, access, and environmental layers are rasterized.
+## 1. The 3-Step Routing Pipeline
 
-## Topology, Routing, and Refinement
+Spatial routing in SURGE bridges the gap between abstract network graph connections and constructible physical terrain corridors:
 
-The three stages solve different problems:
+```mermaid
+flowchart TD
+    subgraph Step1["Step 1: Logical Topology (PY-006)"]
+        MST["Per-Feeder MST Edge Selection<br/>(Radial connection between WTG/Substation nodes)"]
+    end
 
-1. **Topology** decides which substation and WTG nodes connect.
-2. **A* routing** chooses a sequence of traversable raster cells for each topology edge.
-3. **Route refinement** removes unnecessary grid-shaped bends without crossing hard exclusions or increasing the integrated traversal cost of the replaced subpath.
+    subgraph Step2["Step 2: A* Raster Grid Traversal (PY-008)"]
+        SURF["Projected GIS Cost Surface<br/>(Additive Avoidance Rasterization)"]
+        ASTAR["Deterministic 8-Neighbor A* Solver<br/>- Diagonal corner-cutting prevention<br/>- Strict hard-exclusion bypass (inf cost)<br/>- Soft penalty traversal"]
+        MST --> ASTAR
+        SURF --> ASTAR
+    end
 
-Keeping these stages separate allows the same electrical topology to be evaluated under different spatial scenarios while retaining the original A* measurements for audit.
+    subgraph Step3["Step 3: Farthest-Visible Refinement (PY-009)"]
+        CLEAN["1. Duplicate & Collinear Point Removal"]
+        SHORT["2. Farthest-Visible Shortcutting<br/>- Continuous supercover raster raycasting<br/>- Cost-preservation verification"]
+        FINAL["3. Refined Physical Route LineString"]
+        ASTAR --> CLEAN --> SHORT --> FINAL
+    end
 
-## Cost Surface
+    FINAL --> POLES["Pole Placement Engine (PY-010)"]
+    FINAL --> ROW["ROW Corridor Analysis (PY-011)"]
+```
 
-A raster cost surface assigns each cell a traversal cost:
+---
 
-$$
-C = w_d C_d + w_s C_s + w_l C_l + w_a C_a + w_e C_e
-$$
+## 2. Step 1: Logical Topology
+Logical edge selection is performed by [[Per-Feeder MST Topology]]. It establishes *which* assets connect within each feeder group. The start and end coordinates of each selected edge are projected into the project's metric Coordinate Reference System (UTM).
 
-- `C_d`: base distance cost
-- `C_s`: slope or construction difficulty
-- `C_l`: land or ROW impact
-- `C_a`: accessibility or road proximity
-- `C_e`: environmental impact
-- `w_*`: scenario-specific weights
+---
 
-A finite value is a soft traversal cost. Positive infinity is a hard exclusion. SURGE-PY-007 currently initializes only the uniform `C_d = 1.0` base; the other layers remain planned.
+## 3. Step 2: Physical A* Routing on Cost Surface (SURGE-PY-008)
 
-## A* Routing
+For each logical edge $(u, v)$:
+1. **Coordinate Mapping**: Converts the projected metric coordinates $(x_u, y_u)$ and $(x_v, y_v)$ into 2D raster grid cell indices $(r_{\text{start}}, c_{\text{start}})$ and $(r_{\text{goal}}, c_{\text{goal}})$.
+2. **Endpoint Validation**: Verifies that both start and goal cells lie within the raster bounds and have finite cost ($< \infty$). An endpoint positioned inside a buffered hard exclusion zone is immediately rejected with HTTP 422.
+3. **8-Neighbor A* Search**:
+   - **Cost Function**: $g(n)$ accumulates traversal costs between adjacent cells.
+   - **Heuristic**: $h(n)$ is the Euclidean distance from cell $n$ to goal multiplied by the minimum base surface cost (guaranteeing admissibility).
+   - **Diagonal Movement & Corner-Cutting Prevention**: Movement to diagonal neighbors $(\pm 1, \pm 1)$ has distance $\sqrt{2} \times \text{resolution\_m}$. Diagonal traversal is prohibited if either adjacent orthogonal neighbor is blocked ($\infty$), preventing conductor paths from clipping the corner of a hard obstacle.
+4. **Coordinate Reconstruction**: The sequence of traversed raster cells is mapped back to projected world coordinates, retaining exact sub-cell start and end point locations.
 
-For each selected MST edge, the pipeline:
+---
 
-1. Converts the exact projected endpoints to raster cells.
-2. Runs deterministic eight-neighbor A*.
-3. Prevents diagonal corner cutting beside blocked cells.
-4. Converts intermediate cells back to projected cell centers.
-5. Preserves the exact start and end coordinates.
-6. Raises a domain error when an endpoint is blocked, outside the surface, or no path exists.
+## 4. Step 3: Farthest-Visible Route Refinement (SURGE-PY-009)
 
-Routing failures are returned as HTTP 422 because they describe an infeasible spatial request rather than an unexpected server failure.
+Raw A* output consists of discrete, 8-directional grid steps ($0^\circ, 45^\circ, 90^\circ, \dots$) that do not reflect real transmission line construction practices. Refinement simplifies the path into long, constructible straight tangent spans without violating spatial constraints.
 
-## SURGE-PY-009 Refinement
+### 4.1 Cleaning Passes
+1. **Duplicate Point Removal**: Eliminates consecutive identical coordinates within $\epsilon = 10^{-12}\text{ m}$.
+2. **Collinear Point Removal**: Removes intermediate vertices lying along straight lines where direction does not change.
 
-Refinement first validates every original segment, removes consecutive duplicates, and removes forward-moving collinear points. It then uses deterministic farthest-visible shortcutting.
+### 4.2 Farthest-Visible Shortcutting & Continuous Supercover
+Starting at vertex $i$, the algorithm seeks the farthest forward vertex $j > i + 1$ such that a direct line segment $\overline{P_i P_j}$ can safely replace all intermediate vertices $\{P_{i+1}, \dots, P_{j-1}\}$:
 
-A shortcut is accepted only when:
+```text
+A* Raw Path:      P_i ───> P_{i+1} ───> P_{i+2} ───> P_j
+Shortcut:         P_i ─────────────────────────────> P_j  (Direct line-of-sight)
+```
 
-- Both endpoints remain within the closed raster extent.
-- Its supercover touches no blocked cell.
-- Its integrated traversal cost is no greater than the cost of the subpath it replaces, within floating-point tolerance.
+A shortcut is accepted if and only if **both** conditions are met:
+1. **Zero Blocked Cells (Continuous Supercover)**:
+   - `segment_supercover_cells()` calculates all grid cells intersected by the continuous world-coordinate segment $\overline{P_i P_j}$ (using exact floating-point raster boundary crossings).
+   - If any touched cell has infinite cost ($C_{\text{cell}} = \infty$), the shortcut is rejected.
+2. **Cost-Preservation ($\Delta C \leq 0$)**:
+   - The continuous line-integral traversal cost of the shortcut must not exceed the replaced subpath traversal cost:
+     $$
+     \int_{\overline{P_i P_j}} C(\vec{r}) \, ds \leq \int_{\text{subpath}} C(\vec{r}) \, ds + \epsilon_{\text{cost}}
+     $$
+   - This ensures a shortcut does not cut across a high-penalty soft zone (e.g. crossing private parcel land) just to shave off minor geometric distance.
 
-The supercover checks all cells touched at internal grid boundaries and corners. At the outer raster boundary, only cells that actually exist inside the surface are considered; an endpoint that genuinely lies outside the extent is still rejected.
+---
 
-Refined traversal cost is calculated from the physical length inside each crossed cell multiplied by that cell's cost. When a segment follows an internal cell boundary, the higher adjacent cost is used conservatively.
+## 5. Domain Models & API Metrics
 
-Coincident endpoints are rejected because duplicate removal would otherwise leave fewer than two distinct coordinates and produce a degenerate route. The API reports this as HTTP 422.
+```python
+@dataclass(frozen=True)
+class RefinedPhysicalRoute:
+    feeder_id: str
+    start_node_id: str
+    end_node_id: str
+    geometry: LineString                # Refined metric LineString
+    original_length_m: float            # Raw A* discrete path length
+    refined_length_m: float             # Post-refinement smoothed length
+    original_traversal_cost: float      # Discrete A* path cost
+    refined_traversal_cost: float       # Continuous integrated cost of refined geometry
+    route_id: str | None = None
+```
 
-## API Measurements
+### Invariants & Guarantees:
+- **Refined Length Property**: Refinement strictly reduces or preserves route length:
+  $$
+  \text{refined\_length\_m} \leq \text{original\_length\_m} + 10^{-6}
+  $$
+- **Exact Endpoints**: Start and goal coordinates are bit-identical to the original WTG and substation coordinates.
+- **WGS84 Transformation**: Exported GeoJSON coordinates are transformed back to WGS-84 (`EPSG:4326`) with 7-decimal-place precision ($\approx 1\text{ cm}$).
 
-Each routed-edge Feature exposes:
+---
 
-- `length_m` and `traversal_cost`: compatibility aliases for the refined values
-- `original_length_m`: raw A* LineString length
-- `refined_length_m`: post-refinement LineString length
-- `original_traversal_cost`: discrete A* traversal cost
-- `refined_traversal_cost`: continuously integrated cost of the refined geometry
+## 6. Multi-Scenario Cost Biasing
 
-The original and refined traversal costs use related but different measurement models and should not be compared as if they were identical calculations. Cost-preserving shortcut decisions compare continuous integrated costs on both candidate and replaced geometry.
+The Java backend (`OptimizationJobService`) and Python optimizer support dynamic scenario biasing by varying avoidance cost weights during A* rasterization:
 
-## Remaining Decisions
+| Scenario Profile | Avoidance Biasing Strategy |
+| :--- | :--- |
+| **Balanced** | Standard soft penalties ($w_{\text{road}} = 20.0$, $w_{\text{parcel}} = 10.0$, $w_{\text{water}} = 25.0$). |
+| **Lowest Capital Cost** | Minimizes total route length; lower penalty weights to favor direct paths where acceptable. |
+| **Minimal Environmental Impact** | Multiplies soft penalties by $2.5\times$; increases hard exclusion buffer clearances by $+25\text{ m}$. |
+| **Maximum Reliability** | Strict HT-line clearance; penalizes angle turns and crossings. |
 
-- GIS layer rasterization and cost normalization
-- Grid resolution versus memory and geometric accuracy
-- Performance limits for very long obstacle-rich paths
-- Feeder-segment aggregation in Java reports
-- Route smoothing beyond visibility shortcutting
-- Service/API integration for the standalone pole-placement engine
-- Terrain-, crossing-, and clearance-aware pole rules
-- Service/API integration for [[ROW Corridor Analysis]], including projected constraint ingestion and WGS84 result serialization
+---
 
-## Related Notes
+## 7. Related Notes
 
-- [[GIS Cost Surface]]
-- [[Per-Feeder MST Topology]]
-- [[Feeder Planning]]
-- [[Cost Model]]
-- [[Geospatial Integrity & CRS]]
+- [[GIS Cost Surface]] — Raster array generation, padding, affine transform.
+- [[Constraint-aware Routing]] — Typed avoidance layers and routing modes.
+- [[Per-Feeder MST Topology]] — Logical candidate graph and MST selection.
+- [[Pole Placement]] — Discrete structure placement along refined centrelines.
+- [[ROW Corridor Analysis]] — Right-of-way corridor buffering and intersection checks.
+- [[Cost Model]] — Conductor, pole, land, and loss lifecycle costing.

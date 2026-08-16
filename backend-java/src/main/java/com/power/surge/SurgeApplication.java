@@ -24,7 +24,10 @@ public class SurgeApplication {
             AuthService authService,
             @Value("${surge.bootstrap-admin.username:admin}") String username,
             @Value("${surge.bootstrap-admin.email:admin@surge.energy}") String email,
-            @Value("${surge.bootstrap-admin.password:" + AuthService.DEFAULT_BOOTSTRAP_PASSWORD + "}") String password
+            // No default. An unset password is only an error if an account actually needs
+            // creating, so an existing deployment still starts unconfigured while a fresh database
+            // refuses to seed an administrator nobody chose the password for.
+            @Value("${surge.bootstrap-admin.password:}") String password
     ) {
         return args -> authService.seedBootstrapAdmin(username, email, password);
     }

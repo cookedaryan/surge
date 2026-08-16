@@ -9,6 +9,12 @@ import com.power.surge.domain.Project;
 import com.power.surge.dto.report.EngineeringBomReportResponse;
 import com.power.surge.dto.report.FeederBomSummary;
 import com.power.surge.dto.report.ParcelImpactSummary;
+import com.power.surge.dto.report.PoleScheduleEntry;
+import com.power.surge.dto.report.ReportRunParameters;
+import com.power.surge.dto.report.RouteSegmentDetail;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Point;
 import com.power.surge.repository.CadastralParcelRepository;
 import com.power.surge.repository.GeneratedPoleRepository;
 import com.power.surge.repository.GeneratedRouteRepository;
@@ -77,7 +83,7 @@ public class ReportService {
         List<GeneratedPole> poles = poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(job.getId());
         Map<String, Long> poleCountBySegment = poleCountBySegmentId(poles);
 
-        List<FeederBomSummary> feederSummaries = new ArrayList<>();
+        List<RouteSegmentDetail> segmentDetails = new ArrayList<>();
         BigDecimal totalLength = BigDecimal.ZERO;
         BigDecimal totalCost = BigDecimal.ZERO;
         BigDecimal totalLosses = BigDecimal.ZERO;
@@ -89,13 +95,7 @@ public class ReportService {
             Long realCount = r.getSegmentId() != null ? poleCountBySegment.get(r.getSegmentId()) : null;
             int rowPoleCount = realCount != null ? realCount.intValue() : (r.getPoleCount() != null ? r.getPoleCount() : 0);
 
-            feederSummaries.add(new FeederBomSummary(
-                    r.getFeederName(),
-                    r.getTotalLengthMeters(),
-                    rowPoleCount,
-                    r.getTotalCost(),
-                    r.getElectricalLossesKw()
-            ));
+            segmentDetails.add(toSegmentDetail(r, rowPoleCount));
 
             if (r.getTotalLengthMeters() != null) {
                 totalLength = totalLength.add(r.getTotalLengthMeters());
@@ -107,6 +107,8 @@ public class ReportService {
                 totalLosses = totalLosses.add(r.getElectricalLossesKw());
             }
         }
+
+        List<FeederBomSummary> feederSummaries = rollUpByFeeder(segmentDetails);
 
         // The network total counts each physical pole once, even where a junction pole is shared
         // by two segments and so appears in both of their row counts above.
@@ -134,18 +136,151 @@ public class ReportService {
             ));
         }
 
+        BigDecimal rowWidth = job.getRowWidthM() != null ? job.getRowWidthM() : BigDecimal.valueOf(DEFAULT_ROW_WIDTH_M);
+        BigDecimal totalAffectedArea = parcelSummaries.stream()
+                .map(p -> BigDecimal.valueOf(p.affectedAreaM2()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal totalCompensation = parcelSummaries.stream()
+                .map(ParcelImpactSummary::estimatedCompensationCost)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+
         return new EngineeringBomReportResponse(
                 projectId,
                 project.getName(),
                 job.getId(),
-                routes.size(),
+                toRunParameters(job),
+                // Distinct feeders. This used to be routes.size(), which reported the reference
+                // project as having 38 feeders when it has seven spanning 38 segments.
+                feederSummaries.size(),
+                segmentDetails.size(),
                 totalLength.setScale(2, RoundingMode.HALF_UP),
                 totalPoles,
+                countBy(poles, GeneratedPole::getPoleRole),
+                countBy(poles, GeneratedPole::getRecommendedPoleType),
                 totalCost.setScale(2, RoundingMode.HALF_UP),
                 totalLosses.setScale(2, RoundingMode.HALF_UP),
+                rowWidth,
+                totalAffectedArea,
+                totalCompensation,
                 feederSummaries,
+                segmentDetails,
+                poles.stream().map(ReportService::toScheduleEntry).toList(),
                 parcelSummaries,
                 Instant.now()
+        );
+    }
+
+    /**
+     * Rolls the per-segment schedule up to one row per feeder.
+     *
+     * <p>Pole counts are summed from the segment rows, where a junction pole shared by two segments
+     * is counted toward each. That is deliberate at segment level — a crew at either segment sees
+     * that pole — but it means the feeder totals can exceed the network total, which counts each
+     * physical pole once. The two figures answer different questions.
+     */
+    private static List<FeederBomSummary> rollUpByFeeder(List<RouteSegmentDetail> segments) {
+        Map<String, List<RouteSegmentDetail>> byFeeder = new LinkedHashMap<>();
+        for (RouteSegmentDetail s : segments) {
+            byFeeder.computeIfAbsent(s.feederName() != null ? s.feederName() : "Unassigned", k -> new ArrayList<>())
+                    .add(s);
+        }
+
+        List<FeederBomSummary> summaries = new ArrayList<>();
+        for (Map.Entry<String, List<RouteSegmentDetail>> e : byFeeder.entrySet()) {
+            List<RouteSegmentDetail> rows = e.getValue();
+            summaries.add(new FeederBomSummary(
+                    e.getKey(),
+                    rows.size(),
+                    sum(rows, RouteSegmentDetail::lengthMeters),
+                    rows.stream().mapToInt(r -> r.poleCount() != null ? r.poleCount() : 0).sum(),
+                    sum(rows, RouteSegmentDetail::totalCost),
+                    sum(rows, RouteSegmentDetail::electricalLossesKw)
+            ));
+        }
+        return summaries;
+    }
+
+    private static BigDecimal sum(
+            List<RouteSegmentDetail> rows,
+            java.util.function.Function<RouteSegmentDetail, BigDecimal> field
+    ) {
+        return rows.stream()
+                .map(field)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(3, RoundingMode.HALF_UP);
+    }
+
+    /** Counts poles by some attribute, skipping those where it was never recorded. */
+    private static Map<String, Integer> countBy(
+            List<GeneratedPole> poles,
+            java.util.function.Function<GeneratedPole, String> attribute
+    ) {
+        Map<String, Integer> counts = new java.util.TreeMap<>();
+        for (GeneratedPole p : poles) {
+            String key = attribute.apply(p);
+            if (key != null && !key.isBlank()) {
+                counts.merge(key, 1, Integer::sum);
+            }
+        }
+        return counts;
+    }
+
+    private static ReportRunParameters toRunParameters(OptimizationJob job) {
+        return new ReportRunParameters(
+                job.getScenario(),
+                job.getAlgorithmType(),
+                job.getStatus() != null ? job.getStatus().name() : null,
+                job.getVoltageKv(),
+                job.getFeederCapacityMw(),
+                job.getMaxSpanMeters(),
+                job.getMaxVoltageDropPct(),
+                job.getRowWidthM(),
+                job.getCapexWeight(),
+                job.getLossesWeight(),
+                job.getStartedAt(),
+                job.getCompletedAt()
+        );
+    }
+
+    private static RouteSegmentDetail toSegmentDetail(GeneratedRoute route, int poleCount) {
+        LineString path = route.getRoutePath();
+        Coordinate start = path != null && path.getNumPoints() > 0 ? path.getCoordinateN(0) : null;
+        Coordinate end = path != null && path.getNumPoints() > 0
+                ? path.getCoordinateN(path.getNumPoints() - 1)
+                : null;
+
+        return new RouteSegmentDetail(
+                route.getFeederName(),
+                route.getSegmentId(),
+                route.getTotalLengthMeters(),
+                poleCount,
+                route.getTotalCost(),
+                route.getElectricalLossesKw(),
+                start != null ? start.getY() : null,
+                start != null ? start.getX() : null,
+                end != null ? end.getY() : null,
+                end != null ? end.getX() : null,
+                path != null ? path.getNumPoints() : 0,
+                path != null ? path.toText() : null
+        );
+    }
+
+    private static PoleScheduleEntry toScheduleEntry(GeneratedPole pole) {
+        Point location = pole.getLocation();
+        List<String> segments = pole.getConnectedRouteIds();
+
+        return new PoleScheduleEntry(
+                pole.getPoleIdentifier(),
+                pole.getFeederName(),
+                pole.getPoleRole(),
+                pole.getRecommendedPoleType(),
+                location != null ? location.getY() : null,
+                location != null ? location.getX() : null,
+                segments != null ? String.join(" | ", segments) : null
         );
     }
 
@@ -183,31 +318,111 @@ public class ReportService {
                         + (report.jobId() != null ? " (job " + report.jobId() + ")" : ""));
 
         StringBuilder csv = new StringBuilder();
-        csv.append("SURGE Engineering Bill of Materials (BOM) Report\n");
+        ReportRunParameters run = report.runParameters();
+
+        csv.append("SURGE Engineering Bill of Materials\n");
         csv.append("Project Name,").append(escapeCsv(report.projectName())).append("\n");
         csv.append("Project ID,").append(report.projectId()).append("\n");
         csv.append("Job ID,").append(report.jobId()).append("\n");
         csv.append("Generated At,").append(report.generatedAt()).append("\n\n");
 
-        csv.append("--- FEEDER NETWORK SCHEDULE ---\n");
-        csv.append("Feeder Name,Length (m),Pole Count,Total Cost ($),Electrical Losses (kW)\n");
+        // Without the inputs the figures below cannot be reproduced or checked: the same site
+        // yields a different network at a different voltage, capacity or span limit.
+        csv.append("--- RUN PARAMETERS ---\n");
+        csv.append("Scenario,").append(escapeCsv(run.scenario())).append("\n");
+        csv.append("Algorithm,").append(escapeCsv(run.algorithmType())).append("\n");
+        csv.append("Status,").append(escapeCsv(run.status())).append("\n");
+        csv.append("Voltage (kV),").append(nullToBlank(run.voltageKv())).append("\n");
+        csv.append("Feeder capacity (MW),").append(nullToBlank(run.feederCapacityMw())).append("\n");
+        csv.append("Max span (m),").append(nullToBlank(run.maxSpanMeters())).append("\n");
+        csv.append("Max voltage drop (%),").append(nullToBlank(run.maxVoltageDropPct())).append("\n");
+        csv.append("ROW width (m),").append(nullToBlank(report.rowWidthMeters())).append("\n");
+        csv.append("Capex weight,").append(nullToBlank(run.capexWeight())).append("\n");
+        csv.append("Losses weight,").append(nullToBlank(run.lossesWeight())).append("\n");
+        csv.append("Started at,").append(nullToBlank(run.startedAt())).append("\n");
+        csv.append("Completed at,").append(nullToBlank(run.completedAt())).append("\n\n");
 
+        csv.append("--- NETWORK TOTALS ---\n");
+        csv.append("Feeders,").append(report.totalFeeders()).append("\n");
+        csv.append("Segments,").append(report.totalSegments()).append("\n");
+        csv.append("Network length (m),").append(report.totalNetworkLengthMeters()).append("\n");
+        csv.append("Network length (km),")
+                .append(report.totalNetworkLengthMeters().divide(BigDecimal.valueOf(1000), 3, RoundingMode.HALF_UP))
+                .append("\n");
+        csv.append("Poles (distinct),").append(report.totalPoles()).append("\n");
+        csv.append("Estimated capex ($),").append(report.totalEstimatedCost()).append("\n");
+        csv.append("Electrical losses (kW),").append(report.totalElectricalLossesKw()).append("\n");
+        csv.append("Affected area (m2),").append(report.totalAffectedAreaM2()).append("\n");
+        csv.append("Estimated compensation ($),").append(report.totalCompensationCost()).append("\n\n");
+
+        csv.append("--- POLE COUNT BY STRUCTURAL ROLE ---\n");
+        csv.append("Role,Count\n");
+        for (Map.Entry<String, Integer> e : report.poleCountByRole().entrySet()) {
+            csv.append(escapeCsv(e.getKey())).append(",").append(e.getValue()).append("\n");
+        }
+        csv.append("\n");
+
+        csv.append("--- POLE COUNT BY RECOMMENDED TYPE ---\n");
+        csv.append("Recommended Type,Count\n");
+        for (Map.Entry<String, Integer> e : report.poleCountByType().entrySet()) {
+            csv.append(escapeCsv(e.getKey())).append(",").append(e.getValue()).append("\n");
+        }
+        csv.append("\n");
+
+        csv.append("--- FEEDER SUMMARY ---\n");
+        csv.append("Feeder Name,Segments,Length (m),Pole Count,Total Cost ($),Electrical Losses (kW)\n");
         for (FeederBomSummary f : report.feederSummaries()) {
             csv.append(escapeCsv(f.feederName())).append(",")
-                    .append(f.lengthMeters()).append(",")
+                    .append(f.segmentCount()).append(",")
+                    .append(nullToZero(f.lengthMeters())).append(",")
                     .append(f.poleCount()).append(",")
-                    .append(f.totalCost() != null ? f.totalCost() : 0.0).append(",")
-                    .append(f.electricalLossesKw() != null ? f.electricalLossesKw() : 0.0).append("\n");
+                    .append(nullToZero(f.totalCost())).append(",")
+                    .append(nullToZero(f.electricalLossesKw())).append("\n");
         }
-
-        csv.append("\nTOTALS,")
+        // Feeder pole counts sum higher than the distinct network total: a junction pole shared by
+        // two segments is counted toward each, because a crew at either segment has to set it.
+        csv.append("TOTALS,")
+                .append(report.totalSegments()).append(",")
                 .append(report.totalNetworkLengthMeters()).append(",")
                 .append(report.totalPoles()).append(",")
                 .append(report.totalEstimatedCost()).append(",")
                 .append(report.totalElectricalLossesKw()).append("\n\n");
 
+        csv.append("--- ROUTE SEGMENT SCHEDULE ---\n");
+        csv.append("Feeder Name,Segment ID,Length (m),Pole Count,Total Cost ($),Electrical Losses (kW),"
+                + "Start Latitude,Start Longitude,End Latitude,End Longitude,Vertices,Path (WKT)\n");
+        for (RouteSegmentDetail s : report.segmentDetails()) {
+            csv.append(escapeCsv(s.feederName())).append(",")
+                    .append(escapeCsv(s.segmentId())).append(",")
+                    .append(nullToZero(s.lengthMeters())).append(",")
+                    .append(s.poleCount() != null ? s.poleCount() : 0).append(",")
+                    .append(nullToZero(s.totalCost())).append(",")
+                    .append(nullToZero(s.electricalLossesKw())).append(",")
+                    .append(coord(s.startLatitude())).append(",")
+                    .append(coord(s.startLongitude())).append(",")
+                    .append(coord(s.endLatitude())).append(",")
+                    .append(coord(s.endLongitude())).append(",")
+                    .append(s.vertexCount() != null ? s.vertexCount() : 0).append(",")
+                    .append(escapeCsv(s.pathWkt())).append("\n");
+        }
+        csv.append("\n");
+
+        csv.append("--- POLE SETTING-OUT SCHEDULE ---\n");
+        csv.append("Coordinate system,WGS 84 (EPSG:4326) decimal degrees\n");
+        csv.append("Pole ID,Feeder Name,Structural Role,Recommended Type,Latitude,Longitude,Connected Segments\n");
+        for (PoleScheduleEntry p : report.poleSchedule()) {
+            csv.append(escapeCsv(p.poleIdentifier())).append(",")
+                    .append(escapeCsv(p.feederName())).append(",")
+                    .append(escapeCsv(p.role())).append(",")
+                    .append(escapeCsv(p.recommendedPoleType())).append(",")
+                    .append(coord(p.latitude())).append(",")
+                    .append(coord(p.longitude())).append(",")
+                    .append(escapeCsv(p.connectedSegments())).append("\n");
+        }
+        csv.append("\n");
+
         csv.append("--- CADASTRAL PARCEL IMPACT & COMPENSATION ---\n");
-        csv.append("ROW corridor width (m),").append(DEFAULT_ROW_WIDTH_M).append("\n");
+        csv.append("ROW corridor width (m),").append(nullToBlank(report.rowWidthMeters())).append("\n");
         csv.append("Affected area basis,Route right-of-way corridor intersected with parcel (ellipsoidal)\n");
         csv.append("Parcel ID,Owner Name,Rate ($/m2),Affected Area (m2),Estimated Compensation ($)\n");
 
@@ -218,8 +433,24 @@ public class ReportService {
                     .append(String.format("%.2f", p.affectedAreaM2())).append(",")
                     .append(p.estimatedCompensationCost()).append("\n");
         }
+        csv.append("TOTALS,,,")
+                .append(report.totalAffectedAreaM2()).append(",")
+                .append(report.totalCompensationCost()).append("\n");
 
         return csv.toString();
+    }
+
+    /** Six decimals is ~0.11 m — finer than a pole can be positioned, and never scientific notation. */
+    private static String coord(Double value) {
+        return value != null ? String.format("%.6f", value) : "";
+    }
+
+    private static String nullToBlank(Object value) {
+        return value != null ? value.toString() : "";
+    }
+
+    private static String nullToZero(BigDecimal value) {
+        return value != null ? value.toPlainString() : "0";
     }
 
     private static final List<String> SCENARIO_NAMES =
