@@ -159,12 +159,14 @@ def compute_evaluation_context_id(
     project_input: ProjectInput,
     config: OptimisationConfig,
     electrical_context_id: str,
+    land_economic_context_id: str | None = None,
 ) -> str:
     """Hash every non-topological input used to evaluate and score a design."""
     state: dict[str, Any] = {
         "pipeline_version": "v1",
         "project_id": project_input.project_id,
         "electrical_context_id": electrical_context_id,
+        "land_economic_context_id": land_economic_context_id,
         "row_width_m": project_input.row_width_m,
         "constraint_layers": [
             {

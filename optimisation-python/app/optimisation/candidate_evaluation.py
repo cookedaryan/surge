@@ -3,7 +3,11 @@ import logging
 from app.costing.lifecycle import evaluate_candidate_cost
 from app.electrical.errors import CandidateElectricalEvaluationError
 from app.electrical.repair import RepairStatus, repair_electrical_design
-from app.optimisation.engineering_metrics import build_candidate_engineering_metrics
+from app.land.decision import assess_candidate_land
+from app.optimisation.engineering_metrics import (
+    build_candidate_engineering_metrics,
+    extract_spatial_metrics,
+)
 from app.optimisation.scenario_models import PNCScenario
 from app.optimisation.workflow_models import (
     CandidateFailure,
@@ -95,14 +99,49 @@ def evaluate_candidate(
             execution_failure=failure,
         )
 
+    # 1.5 Spatial Extraction
+    spatial_result = extract_spatial_metrics(
+        network=scenario.network,
+        constraint_layers=project_input.constraint_layers,
+        row_corridor_width_m=project_input.row_width_m,
+    )
+
+    # 1.6 Land Assessment
+    lifecycle_config = config.costing.lifecycle if config.costing else None
+    land_assessment = assess_candidate_land(
+        parcel_exposures=spatial_result.parcel_exposures,
+        land_context=project_input.land_context,
+        lifecycle_config=lifecycle_config,
+    )
+
+    if not land_assessment.is_feasible:
+        logger.warning(
+            "%s crosses unavailable land parcel(s)", scenario.scenario_id
+        )
+        failure = CandidateFailure(
+            stage=WorkflowStage.SCORING,
+            code=WorkflowFailureCode.LAND_PARCEL_UNAVAILABLE,
+            message="Candidate crosses one or more unavailable parcels.",
+            scenario_id=scenario.scenario_id,
+        )
+        return CandidateWorkflowResult(
+            scenario=scenario,
+            load_flow_result=repair_result.load_flow_result,
+            evaluation=None,
+            execution_failure=failure,
+            cable_sizing=repair_result.initial_cable_sizing,
+            repair_log=repair_result.repair_log,
+            land_assessment=land_assessment,
+        )
+
     # 2. Canonical Engineering Metrics
     assessment = build_candidate_engineering_metrics(
         scenario=scenario,
         load_flow_result=repair_result.load_flow_result,
         load_flow_config=repair_result.final_electrical_config,
-        constraint_layers=project_input.constraint_layers,
+        spatial_result=spatial_result,
+        owner_interaction_count=land_assessment.owner_interaction_count,
         pole_config=config.pole,
-        row_corridor_width_m=project_input.row_width_m,
     )
     if assessment.engineering_metrics_available:
         logger.info("%s engineering metrics extracted", scenario.scenario_id)
@@ -121,6 +160,7 @@ def evaluate_candidate(
             load_flow_result=repair_result.load_flow_result,
             electrical_config=repair_result.final_electrical_config,
             engineering_assessment=assessment,
+            land_assessment=land_assessment,
             catalogue=config.costing.catalogue,
             config=config.costing.lifecycle,
         )
@@ -142,4 +182,5 @@ def evaluate_candidate(
         cost_assessment=cost_assessment,
         cable_sizing=repair_result.initial_cable_sizing,
         repair_log=repair_result.repair_log,
+        land_assessment=land_assessment,
     )

@@ -136,6 +136,8 @@ def _get_raw(metrics: CandidateEngineeringMetrics, metric: ScoringMetric) -> flo
         return metrics.maximum_loading_percent
     if metric == ScoringMetric.VOLTAGE_MARGIN:
         return metrics.voltage_margin_pu
+    if metric == ScoringMetric.OWNER_INTERACTION_COUNT:
+        return float(metrics.owner_interaction_count)
     raise ValueError(f"Unknown metric {metric}")
 
 
@@ -186,6 +188,7 @@ def _get_metric_group(metric: ScoringMetric) -> ScoringGroup:
         ScoringMetric.AFFECTED_PARCEL_COUNT,
         ScoringMetric.ROAD_CROSSING_COUNT,
         ScoringMetric.SOFT_CONSTRAINT_OVERLAP_LENGTH,
+        ScoringMetric.OWNER_INTERACTION_COUNT,
     }:
         return ScoringGroup.SPATIAL
     if metric == ScoringMetric.PHYSICAL_POLE_COUNT:
@@ -216,6 +219,7 @@ def _get_metric_subweight(
         ScoringMetric.AFFECTED_PARCEL_COUNT: spatial.affected_parcels,
         ScoringMetric.ROAD_CROSSING_COUNT: spatial.road_crossings,
         ScoringMetric.SOFT_CONSTRAINT_OVERLAP_LENGTH: spatial.soft_overlap_length,
+        ScoringMetric.OWNER_INTERACTION_COUNT: spatial.owner_interactions,
         ScoringMetric.ACTIVE_LOSS: electrical.active_loss,
         ScoringMetric.CABLE_LOADING: electrical.cable_loading,
         ScoringMetric.VOLTAGE_MARGIN: electrical.voltage_margin,
@@ -297,13 +301,9 @@ def evaluate_cohort(
                     "Lifecycle cost scenario_id must match the evaluated scenario"
                 )
             complete_cost_assessments[scenario_id] = cost_assessment
-            candidate_costs[scenario_id] = float(
-                cost_assessment.cost.lifecycle_cost
-            )
+            candidate_costs[scenario_id] = float(cost_assessment.cost.lifecycle_cost)
             if assessment.eligible:
-                economic_contexts.add(
-                    compute_economic_context_id(cost_assessment)
-                )
+                economic_contexts.add(compute_economic_context_id(cost_assessment))
 
         if len(economic_contexts) == 1:
             economic_context_id = next(iter(economic_contexts))

@@ -12,7 +12,10 @@ from app.algorithms.pole_placement import place_poles_on_network
 from app.algorithms.route_graph import build_project_graph
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import WTGOperatingPoint
+from app.gis.constraints import ConstraintLayer, ConstraintMode, ConstraintType
 from app.gis.cost_surface import world_to_grid
+from app.land.fingerprint import compute_land_economic_context_id
+from app.land.models import LandAvailabilityStatus
 from app.optimisation.candidate_evaluation import evaluate_candidate
 from app.optimisation.candidate_search import run_candidate_beam_search
 from app.optimisation.scenario_models import (
@@ -208,6 +211,70 @@ def _compute_electrical_context_id(
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
+def derive_land_constraint_layers(
+    project_input: ProjectInput,
+) -> tuple[ConstraintLayer, ...]:
+    if project_input.land_context is None:
+        return project_input.constraint_layers
+
+    profiles_by_id = {
+        p.parcel_id: p
+        for p in project_input.land_context.parcel_profiles
+    }
+
+    if not profiles_by_id:
+        return project_input.constraint_layers
+
+    new_layers = list(project_input.constraint_layers)
+    for parcel in project_input.project_data.parcels:
+        profile = profiles_by_id.get(parcel.parcel_id)
+        if not profile:
+            continue
+
+        if profile.availability_status == LandAvailabilityStatus.UNAVAILABLE:
+            new_layers.append(
+                ConstraintLayer(
+                    layer_id=f"land-unavailable-{parcel.parcel_id}",
+                    layer_type=ConstraintType.PARCEL,
+                    mode=ConstraintMode.HARD_EXCLUSION,
+                    geometry=parcel.geometry,
+                    buffer_m=0.0,
+                    cost_weight=None,
+                    crs=project_input.cost_surface.crs,
+                )
+            )
+        else:
+            # Search Engine Enrichment: Prefer routes with fewer interactions
+            # or lower land costs
+            # Base penalty for an owner interaction
+            penalty = 20.0
+            
+            if profile.transaction_options:
+                min_heuristic_cost = float("inf")
+                for opt in profile.transaction_options:
+                    term = opt.term_years if opt.term_years is not None else 10
+                    cost = float(opt.upfront_cost) + float(opt.annual_cost) * term
+                    if cost < min_heuristic_cost:
+                        min_heuristic_cost = cost
+                
+                if min_heuristic_cost != float("inf"):
+                    penalty += min_heuristic_cost * 0.0001
+
+            new_layers.append(
+                ConstraintLayer(
+                    layer_id=f"land-preference-{parcel.parcel_id}",
+                    layer_type=ConstraintType.PARCEL,
+                    mode=ConstraintMode.SOFT_PENALTY,
+                    geometry=parcel.geometry,
+                    buffer_m=0.0,
+                    cost_weight=penalty,
+                    crs=project_input.cost_surface.crs,
+                )
+            )
+
+    return tuple(new_layers)
+
+
 def optimise_project(
     project_input: ProjectInput,
     config: OptimisationConfig,
@@ -225,8 +292,16 @@ def optimise_project(
         project_input.operating_points,
         config.electrical,
     )
+    land_economic_context_id = compute_land_economic_context_id(
+        project_input.land_context
+    )
+    
+    # Inject UNAVAILABLE parcels as hard routing constraints
+    effective_constraints = derive_land_constraint_layers(project_input)
+    project_input = replace(project_input, constraint_layers=effective_constraints)
+    
     evaluation_context_id = compute_evaluation_context_id(
-        project_input, config, electrical_context_id
+        project_input, config, electrical_context_id, land_economic_context_id
     )
     if evaluation_cache is None:
         evaluation_cache = CandidateEvaluationCache()
