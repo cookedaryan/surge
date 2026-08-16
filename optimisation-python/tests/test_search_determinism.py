@@ -8,7 +8,7 @@ from app.algorithms.wtg_grouping import FeederAssignment, FeederGroupingResult
 from app.optimisation.scenarios import design_fingerprint
 
 
-def test_hash_candidate_topology_is_order_independent():
+def test_hash_candidate_topology_is_order_independent() -> None:
     # Two identical networks constructed in different order
     mst = nx.Graph()
     mst.add_edges_from([("A", "B"), ("C", "D")])

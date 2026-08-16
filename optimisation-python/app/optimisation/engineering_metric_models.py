@@ -15,6 +15,16 @@ class ParcelEngineeringExposure:
 
 
 @dataclass(frozen=True)
+class CandidateSpatialResult:
+    affected_parcel_count: int
+    road_crossing_count: int
+    soft_overlap_length_m: float
+    environmental_overlap_m2: float
+    hard_violation_ids: tuple[str, ...]
+    parcel_exposures: tuple[ParcelEngineeringExposure, ...]
+
+
+@dataclass(frozen=True)
 class CandidateEngineeringMetrics:
     """Raw engineering quantities extracted for one PNC candidate."""
 

@@ -5,6 +5,13 @@ from __future__ import annotations
 from decimal import ROUND_HALF_EVEN, Decimal
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from app.land.models import CandidateLandAssessment
+    from app.optimisation.engineering_metric_models import (
+        CandidateEngineeringAssessment,
+    )
+    from app.optimisation.scenario_models import PNCScenario
+
 from app.costing.failures import (
     CostConfigurationError,
     CostEvaluationFailure,
@@ -21,13 +28,7 @@ from app.costing.models import (
 )
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult
-
-if TYPE_CHECKING:
-    from app.land.models import CandidateLandAssessment
-    from app.optimisation.engineering_metric_models import (
-        CandidateEngineeringAssessment,
-    )
-    from app.optimisation.scenario_models import PNCScenario
+from app.land.decision import present_value_factor
 
 
 def _quantize_money(value: Decimal) -> Decimal:
@@ -35,11 +36,87 @@ def _quantize_money(value: Decimal) -> Decimal:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_EVEN)
 
 
+def _add_fallback_land_costs(
+    engineering_assessment: CandidateEngineeringAssessment,
+    land_assessment: CandidateLandAssessment,
+    catalogue: EngineeringCostCatalogue,
+    line_items: list[CostLineItem],
+) -> Decimal:
+    """Price parcels without a selected commercial option using baseline policy."""
+    priced_parcel_ids = {
+        decision.parcel_id
+        for decision in land_assessment.parcel_decisions
+        if decision.selected_present_value is not None
+    }
+    fallback_exposures = tuple(
+        exposure
+        for exposure in engineering_assessment.parcel_exposures
+        if exposure.parcel_id not in priced_parcel_ids
+    )
+    if not fallback_exposures:
+        return Decimal(0)
+
+    policy = catalogue.land_policy
+    fixed_quantity = Decimal(len(fallback_exposures))
+    fixed_amount = fixed_quantity * policy.fixed_cost_per_affected_parcel
+    if fixed_amount:
+        line_items.append(
+            CostLineItem(
+                category="land_fallback_fixed",
+                item_id="unpriced_parcels",
+                quantity=fixed_quantity,
+                unit="each",
+                unit_rate=policy.fixed_cost_per_affected_parcel,
+                amount=fixed_amount,
+            )
+        )
+
+    if policy.variable_basis == LandPricingBasis.ROUTE_OVERLAP_LENGTH_M:
+        variable_quantity = sum(
+            (
+                Decimal(str(exposure.route_overlap_length_m))
+                for exposure in fallback_exposures
+            ),
+            start=Decimal(0),
+        )
+        variable_item_id = "route_overlap_length_m"
+        variable_unit = "m"
+    elif policy.variable_basis == LandPricingBasis.ROW_INTERSECTION_AREA_M2:
+        variable_quantity = sum(
+            (
+                Decimal(str(exposure.row_intersection_area_m2))
+                for exposure in fallback_exposures
+            ),
+            start=Decimal(0),
+        )
+        variable_item_id = "row_intersection_area_m2"
+        variable_unit = "m2"
+    else:
+        variable_quantity = Decimal(0)
+        variable_item_id = "none"
+        variable_unit = "each"
+
+    variable_amount = variable_quantity * policy.variable_rate
+    if variable_amount:
+        line_items.append(
+            CostLineItem(
+                category="land_fallback_variable",
+                item_id=variable_item_id,
+                quantity=variable_quantity,
+                unit=variable_unit,
+                unit_rate=policy.variable_rate,
+                amount=variable_amount,
+            )
+        )
+    return fixed_amount + variable_amount
+
+
 def evaluate_candidate_cost(
     scenario: PNCScenario,
     load_flow_result: LoadFlowNetworkResult,
     electrical_config: LoadFlowConfig,
     engineering_assessment: CandidateEngineeringAssessment,
+    land_assessment: CandidateLandAssessment | None,
     catalogue: EngineeringCostCatalogue,
     config: LifecycleCostConfig,
     land_assessment: CandidateLandAssessment | None = None,
@@ -177,19 +254,25 @@ def evaluate_candidate_cost(
         if not any(f.component == "pole_capex" for f in failures):
             pole_capex_amount = pole_total
 
-    # 3. Land access costs
+    # 3. Land access cost, with policy fallback for unpriced parcels.
     spatial_analysis_failed = any(
         failure.code == "SPATIAL_ANALYSIS_FAILED"
         for failure in engineering_assessment.extraction_failures
     )
-    if spatial_analysis_failed:
+    if land_assessment is None or spatial_analysis_failed:
         failures.append(
             CostEvaluationFailure(
                 code=CostEvaluationFailureCode.LAND_EXPOSURE_UNAVAILABLE,
-                component="land_purchase_capex",
-                message=(
-                    "Parcel exposure is unavailable because spatial analysis failed"
-                ),
+                component="land_capex",
+                message="Land assessment or parcel exposure is unavailable",
+            )
+        )
+    elif not land_assessment.is_feasible:
+        failures.append(
+            CostEvaluationFailure(
+                code=CostEvaluationFailureCode.LAND_EXPOSURE_UNAVAILABLE,
+                component="land_capex",
+                message="Candidate intersects unavailable land",
             )
         )
     elif land_assessment is not None:
@@ -197,71 +280,46 @@ def evaluate_candidate_cost(
         land_recurring_cost_pv_amount = land_assessment.land_recurring_cost_pv
         land_access_present_value_amount = land_assessment.land_access_present_value
     else:
-        land_total = Decimal(0)
-        policy = catalogue.land_policy
-        unique_parcels = len(engineering_assessment.parcel_exposures)
-        fixed_rate = policy.fixed_cost_per_affected_parcel
-        fixed_amount = Decimal(unique_parcels) * fixed_rate
-        if fixed_amount > 0:
+        if land_assessment.scenario_id != scenario.scenario_id:
+            raise ValueError("Land assessment scenario does not match candidate")
+
+        fallback_cost = _add_fallback_land_costs(
+            engineering_assessment,
+            land_assessment,
+            catalogue,
+            line_items,
+        )
+        land_purchase_capex_amount = (
+            land_assessment.land_purchase_capex + fallback_cost
+        )
+        land_recurring_cost_pv_amount = land_assessment.land_recurring_cost_pv
+        land_access_present_value_amount = (
+            land_purchase_capex_amount + land_recurring_cost_pv_amount
+        )
+
+        if land_assessment.land_purchase_capex > 0:
             line_items.append(
                 CostLineItem(
-                    category="land_fixed",
-                    item_id="unique_parcels",
-                    quantity=Decimal(unique_parcels),
-                    unit="each",
-                    unit_rate=fixed_rate,
-                    amount=fixed_amount,
+                    category="land_profiled",
+                    item_id="upfront_cost",
+                    quantity=Decimal(1),
+                    unit="lump_sum",
+                    unit_rate=land_assessment.land_purchase_capex,
+                    amount=land_assessment.land_purchase_capex,
                 )
             )
-        land_total += fixed_amount
 
-        var_rate = policy.variable_rate
-        if policy.variable_basis == LandPricingBasis.ROUTE_OVERLAP_LENGTH_M:
-            qty = sum(
-                (
-                    Decimal(str(exposure.route_overlap_length_m))
-                    for exposure in engineering_assessment.parcel_exposures
-                ),
-                start=Decimal(0),
-            )
-            var_amount = qty * var_rate
-            if var_amount > 0:
-                line_items.append(
-                    CostLineItem(
-                        category="land_variable",
-                        item_id="route_overlap_length_m",
-                        quantity=qty,
-                        unit="m",
-                        unit_rate=var_rate,
-                        amount=var_amount,
-                    )
+        if land_recurring_cost_pv_amount > 0:
+            line_items.append(
+                CostLineItem(
+                    category="land_profiled",
+                    item_id="recurring_cost_pv",
+                    quantity=Decimal(1),
+                    unit="lump_sum",
+                    unit_rate=land_recurring_cost_pv_amount,
+                    amount=land_recurring_cost_pv_amount,
                 )
-            land_total += var_amount
-        elif policy.variable_basis == LandPricingBasis.ROW_INTERSECTION_AREA_M2:
-            qty = sum(
-                (
-                    Decimal(str(exposure.row_intersection_area_m2))
-                    for exposure in engineering_assessment.parcel_exposures
-                ),
-                start=Decimal(0),
             )
-            var_amount = qty * var_rate
-            if var_amount > 0:
-                line_items.append(
-                    CostLineItem(
-                        category="land_variable",
-                        item_id="row_intersection_area_m2",
-                        quantity=qty,
-                        unit="m2",
-                        unit_rate=var_rate,
-                        amount=var_amount,
-                    )
-                )
-            land_total += var_amount
-
-        land_purchase_capex_amount = land_total
-        land_recurring_cost_pv_amount = Decimal(0)
-        land_access_present_value_amount = land_total
 
     if (
         conductor_capex_amount is not None
@@ -311,14 +369,10 @@ def evaluate_candidate_cost(
             annual_loss_energy_mwh = loss_mw * hours * factor
             annual_loss_cost = annual_loss_energy_mwh * config.energy_price_per_mwh
 
-            r = config.discount_rate
-            n = config.analysis_period_years
-            if r > 0:
-                # PV factor = (1 - (1 + r)^(-n)) / r
-                one = Decimal(1)
-                pv_factor = (one - (one + r) ** (-n)) / r
-            else:
-                pv_factor = Decimal(n)
+            pv_factor = present_value_factor(
+                config.discount_rate,
+                config.analysis_period_years,
+            )
 
             present_value_opex_amount = annual_loss_cost * pv_factor
 
@@ -338,17 +392,26 @@ def evaluate_candidate_cost(
     if (
         conductor_capex_amount is not None
         and pole_capex_amount is not None
-        and land_purchase_capex_amount is not None
-        and land_recurring_cost_pv_amount is not None
-        and land_access_present_value_amount is not None
         and total_capex_amount is not None
         and present_value_opex_amount is not None
+        and land_access_present_value_amount is not None
+        and land_purchase_capex_amount is not None
+        and land_recurring_cost_pv_amount is not None
     ):
+        lifecycle_cost = (
+            total_capex_amount
+            + present_value_opex_amount
+            + land_recurring_cost_pv_amount
+        )
         cost_obj = CandidateLifecycleCost(
             scenario_id=scenario.scenario_id,
             conductor_capex=_quantize_money(conductor_capex_amount),
             pole_capex=_quantize_money(pole_capex_amount),
             land_purchase_capex=_quantize_money(land_purchase_capex_amount),
+            land_recurring_cost_pv=_quantize_money(land_recurring_cost_pv_amount),
+            land_access_present_value=_quantize_money(
+                land_access_present_value_amount
+            ),
             total_capex=_quantize_money(total_capex_amount),
             land_recurring_cost_pv=_quantize_money(land_recurring_cost_pv_amount),
             land_access_present_value=_quantize_money(
@@ -358,11 +421,7 @@ def evaluate_candidate_cost(
             annual_loss_cost=_quantize_money(annual_loss_cost),
             present_value_factor=pv_factor,
             present_value_opex=_quantize_money(present_value_opex_amount),
-            lifecycle_cost=_quantize_money(
-                total_capex_amount
-                + land_recurring_cost_pv_amount
-                + present_value_opex_amount
-            ),
+            lifecycle_cost=_quantize_money(lifecycle_cost),
             line_items=tuple(line_items),
             currency=config.currency,
             catalogue_id=catalogue.catalogue_id,
@@ -384,6 +443,8 @@ def evaluate_candidate_cost(
         conductor_capex_amount=conductor_capex_amount,
         pole_capex_amount=pole_capex_amount,
         land_purchase_capex_amount=land_purchase_capex_amount,
+        land_recurring_cost_pv_amount=land_recurring_cost_pv_amount,
+        land_access_present_value_amount=land_access_present_value_amount,
         total_capex_amount=total_capex_amount,
         land_recurring_cost_pv_amount=land_recurring_cost_pv_amount,
         land_access_present_value_amount=land_access_present_value_amount,

@@ -40,7 +40,7 @@ def test_unit_current_calculation_formula() -> None:
     network = make_mock_network()
     # Both segments carry WTG-2's 5 MW downstream power.
     wtg_p = {"WTG-1": 0.0, "WTG-2": 5.0}
-    wtg_q = {"WTG-1": 0.0, "WTG-2": 0.0}
+    wtg_q: dict[str, float] = {"WTG-1": 0.0, "WTG-2": 0.0}
 
     cable_type = LoadFlowCableType(
         cable_type_id="CABLE-1",
@@ -74,7 +74,7 @@ def test_unit_current_calculation_formula() -> None:
 def test_sizing_uses_apparent_power_when_q_is_present() -> None:
     network = make_mock_network()
     wtg_p = {"WTG-1": 0.0, "WTG-2": 4.0}
-    wtg_q = {"WTG-1": 0.0, "WTG-2": 3.0}
+    wtg_q: dict[str, float] = {"WTG-1": 0.0, "WTG-2": 3.0}
 
     cable_type = LoadFlowCableType(
         cable_type_id="CABLE-1",
@@ -107,7 +107,7 @@ def test_sizing_uses_apparent_power_when_q_is_present() -> None:
 def test_catalogue_sorting_resolves_ties_by_parallel_count_then_id() -> None:
     network = make_mock_network()
     wtg_p = {"WTG-1": 0.0, "WTG-2": 10.0}  # approximately 175 A
-    wtg_q = {}
+    wtg_q: dict[str, float] = {}
 
     cable_1 = LoadFlowCableType(
         cable_type_id="CABLE-1-TWIN",

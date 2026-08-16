@@ -1,8 +1,11 @@
+import datetime
 from dataclasses import replace
 from typing import Any, NoReturn
 
 import numpy as np
 import pytest
+from rasterio.transform import array_bounds
+from shapely.geometry import box
 
 from app.algorithms.pole_placement import (
     CollectorPoleResult,
@@ -12,7 +15,22 @@ from app.algorithms.pole_placement import (
 from app.electrical.errors import CandidateElectricalEvaluationError
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import WTGOperatingPoint
-from app.optimisation.orchestrator import optimise_project
+from app.gis.constraints import (
+    ConstraintLayer,
+    ConstraintMode,
+    ConstraintType,
+    apply_constraint_layers,
+)
+from app.land.models import (
+    LandAvailabilityStatus,
+    LandCommercialContext,
+    ParcelCommercialProfile,
+)
+from app.optimisation.orchestrator import (
+    _apply_land_routing_constraints,
+    derive_land_constraint_layers,
+    optimise_project,
+)
 from app.optimisation.scenario_models import ScenarioGenerationConfig
 from app.optimisation.scoring_models import (
     CandidateScoringConfig,
@@ -98,6 +116,61 @@ def project_input() -> ProjectInput:
     )
 
 
+def test_land_profiles_replace_parcel_policy_and_update_cost_surface(
+    project_input: ProjectInput,
+) -> None:
+    surface = project_input.cost_surface
+    bounds = array_bounds(surface.height, surface.width, surface.transform)
+    parcel_layer = ConstraintLayer(
+        layer_id="P1",
+        layer_type=ConstraintType.PARCEL,
+        mode=ConstraintMode.SOFT_PENALTY,
+        geometry=box(*bounds),
+        buffer_m=0.0,
+        cost_weight=5.0,
+        crs=surface.crs,
+    )
+    context = LandCommercialContext(
+        currency="USD",
+        as_of_date=datetime.date(2026, 1, 1),
+        parcel_profiles=(
+            ParcelCommercialProfile(
+                parcel_id="P1",
+                owner_id="OWNER-1",
+                availability_status=LandAvailabilityStatus.AVAILABLE,
+                transaction_options=(),
+            ),
+        ),
+    )
+    constrained_surface = apply_constraint_layers(surface, (parcel_layer,))
+    land_input = replace(
+        project_input,
+        cost_surface=constrained_surface,
+        constraint_layers=(parcel_layer,),
+        land_context=context,
+    )
+
+    available_layers = derive_land_constraint_layers(land_input)
+    assert len(available_layers) == 1
+    assert available_layers[0].layer_id == "P1"
+    assert available_layers[0].cost_weight == 25.0
+
+    unavailable_context = replace(
+        context,
+        parcel_profiles=(
+            replace(
+                context.parcel_profiles[0],
+                availability_status=LandAvailabilityStatus.UNAVAILABLE,
+            ),
+        ),
+    )
+    unavailable_input = replace(land_input, land_context=unavailable_context)
+    effective_input = _apply_land_routing_constraints(unavailable_input, None)
+
+    assert effective_input.constraint_layers[0].mode == ConstraintMode.HARD_EXCLUSION
+    assert np.isinf(effective_input.cost_surface.costs).all()
+
+
 @pytest.fixture
 def pole_config() -> PolePlacementConfig:
     return PolePlacementConfig(
@@ -169,6 +242,7 @@ def test_enabled_candidate_search_evaluates_neighbors(
         if candidate.scenario.lineage is not None
     ]
     assert len(search_candidates) == 1
+    assert search_candidates[0].scenario.lineage is not None
     assert search_candidates[0].scenario.lineage.search_round == 1
 
 
@@ -480,7 +554,7 @@ def test_electrical_execution_failure_isolation(
         call_count += 1
         if call_count == 2:
             raise CandidateElectricalEvaluationError("Pandapower crashed on scenario 2")
-        return repair_electrical_design(*args, **kwargs)
+        return repair_electrical_design(*args, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
         "app.optimisation.candidate_evaluation.repair_electrical_design",

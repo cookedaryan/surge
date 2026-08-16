@@ -65,7 +65,10 @@ def base_config() -> LoadFlowConfig:
     )
 
 
-def test_repair_valid_immediately(monkeypatch, base_config):
+def test_repair_valid_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+    base_config: LoadFlowConfig,
+) -> None:
     mst = nx.Graph()
     mst.add_edges_from([("SS", "W1")])
     network = ProjectPNCNetwork(
@@ -145,7 +148,10 @@ def test_repair_valid_immediately(monkeypatch, base_config):
     assert result.final_electrical_config.segment_cable_type_ids["S1"] == "Cable-S"
 
 
-def test_overload_repair(monkeypatch, base_config):
+def test_overload_repair(
+    monkeypatch: pytest.MonkeyPatch,
+    base_config: LoadFlowConfig,
+) -> None:
     mst = nx.Graph()
     mst.add_edges_from([("SS", "W1"), ("W1", "W2")])
     network = ProjectPNCNetwork(
@@ -297,7 +303,10 @@ def test_overload_repair(monkeypatch, base_config):
     assert result.final_electrical_config.segment_cable_type_ids["S2"] == "Cable-L"
 
 
-def test_voltage_repair(monkeypatch, base_config):
+def test_voltage_repair(
+    monkeypatch: pytest.MonkeyPatch,
+    base_config: LoadFlowConfig,
+) -> None:
     mst = nx.Graph()
     mst.add_edges_from([("SS", "W1"), ("W1", "W2")])
     network = ProjectPNCNetwork(
@@ -463,7 +472,10 @@ def test_voltage_repair(monkeypatch, base_config):
     assert result.final_electrical_config.segment_cable_type_ids["S2"] == "Cable-S"
 
 
-def test_voltage_upgrade_skips_worse_impedance(monkeypatch, base_config):
+def test_voltage_upgrade_skips_worse_impedance(
+    monkeypatch: pytest.MonkeyPatch,
+    base_config: LoadFlowConfig,
+) -> None:
     mst = nx.Graph()
     mst.add_edges_from([("SS", "W1")])
     network = ProjectPNCNetwork(

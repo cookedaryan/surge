@@ -162,6 +162,8 @@ class CandidateLifecycleCost:
     conductor_capex: Decimal
     pole_capex: Decimal
     land_purchase_capex: Decimal
+    land_recurring_cost_pv: Decimal
+    land_access_present_value: Decimal
     total_capex: Decimal
     land_recurring_cost_pv: Decimal
     land_access_present_value: Decimal
@@ -195,6 +197,8 @@ class CandidateCostAssessment:
     conductor_capex_amount: Decimal | None = None
     pole_capex_amount: Decimal | None = None
     land_purchase_capex_amount: Decimal | None = None
+    land_recurring_cost_pv_amount: Decimal | None = None
+    land_access_present_value_amount: Decimal | None = None
     total_capex_amount: Decimal | None = None
     land_recurring_cost_pv_amount: Decimal | None = None
     land_access_present_value_amount: Decimal | None = None

@@ -5,14 +5,17 @@ from dataclasses import replace
 import networkx as nx
 import pyproj
 import pytest
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, Point
 
 from app.algorithms.pole_placement import PolePlacementConfig
 from app.algorithms.wtg_grouping import GroupingObjective
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult
-from app.gis.constraints import ConstraintLayer, ConstraintMode, ConstraintType
-from app.optimisation.engineering_metric_models import EngineeringMetricFailureCode
+from app.optimisation.engineering_metric_models import (
+    CandidateSpatialResult,
+    EngineeringMetricFailureCode,
+    ParcelEngineeringExposure,
+)
 from app.optimisation.engineering_metrics import (
     build_candidate_engineering_metrics,
     calculate_voltage_margin,
@@ -158,43 +161,19 @@ def _load_flow(*, converged: bool = True) -> LoadFlowNetworkResult:
     )
 
 
-def _constraint_layers() -> tuple[ConstraintLayer, ...]:
-    return (
-        ConstraintLayer(
-            layer_id="PARCEL-1",
-            layer_type=ConstraintType.PARCEL,
-            mode=ConstraintMode.SOFT_PENALTY,
-            geometry=Polygon([(90, -10), (110, -10), (110, 10), (90, 10)]),
-            buffer_m=0.0,
-            cost_weight=2.0,
-            crs=CRS,
-        ),
-        ConstraintLayer(
-            layer_id="ROAD-1",
-            layer_type=ConstraintType.ROAD,
-            mode=ConstraintMode.SOFT_PENALTY,
-            geometry=LineString([(50, -10), (50, 10)]),
-            buffer_m=0.0,
-            cost_weight=2.0,
-            crs=CRS,
-        ),
-        ConstraintLayer(
-            layer_id="ENV-1",
-            layer_type=ConstraintType.HT_LINE,
-            mode=ConstraintMode.SOFT_PENALTY,
-            geometry=Polygon([(140, -10), (160, -10), (160, 10), (140, 10)]),
-            buffer_m=0.0,
-            cost_weight=2.0,
-            crs=CRS,
-        ),
-        ConstraintLayer(
-            layer_id="HARD-1",
-            layer_type=ConstraintType.RESTRICTED_AREA,
-            mode=ConstraintMode.HARD_EXCLUSION,
-            geometry=Polygon([(170, -10), (180, -10), (180, 10), (170, 10)]),
-            buffer_m=0.0,
-            cost_weight=None,
-            crs=CRS,
+def _spatial_result() -> CandidateSpatialResult:
+    return CandidateSpatialResult(
+        affected_parcel_count=1,
+        road_crossing_count=1,
+        soft_overlap_length_m=40.0,
+        environmental_overlap_m2=360.0,
+        hard_violation_ids=("HARD-1",),
+        parcel_exposures=(
+            ParcelEngineeringExposure(
+                parcel_id="P1",
+                route_overlap_length_m=40.0,
+                row_intersection_area_m2=360.0,
+            ),
         ),
     )
 
@@ -207,8 +186,8 @@ def test_extracts_complete_metrics_with_unique_counts_and_hard_evidence(
         _scenario(),
         _load_flow(),
         load_flow_config,
-        _constraint_layers(),
-        pole_config,
+        _spatial_result(),
+        pole_config=pole_config,
     )
 
     assert assessment.engineering_metrics_available
@@ -239,6 +218,7 @@ def test_missing_pole_config_makes_complete_metrics_unavailable(
         _scenario(),
         _load_flow(),
         load_flow_config,
+        _spatial_result(),
     )
 
     assert not assessment.engineering_metrics_available
@@ -257,6 +237,7 @@ def test_non_convergence_is_isolated_from_successful_pole_extraction(
         _scenario(),
         _load_flow(converged=False),
         load_flow_config,
+        _spatial_result(),
         pole_config=pole_config,
     )
 
@@ -290,6 +271,7 @@ def test_incomplete_electrical_results_have_structured_failures(
         _scenario(),
         load_flow,
         load_flow_config,
+        _spatial_result(),
         pole_config=pole_config,
     )
 
@@ -314,6 +296,7 @@ def test_pole_failure_is_structured_and_does_not_escape(
         _scenario(),
         _load_flow(),
         load_flow_config,
+        _spatial_result(),
         pole_config=pole_config,
     )
 
@@ -331,22 +314,22 @@ def test_results_are_deterministic_and_candidate_isolated(
         _scenario("SCN-001", (150.0, 250.0)),
         _load_flow(),
         load_flow_config,
-        _constraint_layers(),
-        pole_config,
+        _spatial_result(),
+        pole_config=pole_config,
     )
     repeated = build_candidate_engineering_metrics(
         _scenario("SCN-001", (150.0, 250.0)),
         _load_flow(),
         load_flow_config,
-        tuple(reversed(_constraint_layers())),
-        pole_config,
+        _spatial_result(),
+        pole_config=pole_config,
     )
     second = build_candidate_engineering_metrics(
         _scenario("SCN-002", (100.0, 100.0)),
         replace(_load_flow(), total_active_loss_mw=0.1),
         load_flow_config,
-        _constraint_layers(),
-        pole_config,
+        _spatial_result(),
+        pole_config=pole_config,
     )
 
     assert first == repeated

@@ -30,6 +30,7 @@ from app.gis.row_analysis import (
 from app.optimisation.engineering_metric_models import (
     CandidateEngineeringAssessment,
     CandidateEngineeringMetrics,
+    CandidateSpatialResult,
     EngineeringMetricFailure,
     EngineeringMetricFailureCode,
     ParcelEngineeringExposure,
@@ -73,13 +74,10 @@ def build_candidate_engineering_metrics(
     scenario: PNCScenario,
     load_flow_result: LoadFlowNetworkResult,
     load_flow_config: LoadFlowConfig,
-    constraint_layers: tuple[ConstraintLayer, ...] = (),
-    pole_config: PolePlacementConfig | None = None,
+    spatial_result: CandidateSpatialResult | None,
     *,
     owner_interaction_count: int = 0,
-    row_corridor_width_m: float = 18.0,
-    spatial_result: SpatialExtractionResult | None = None,
-    pole_result: CollectorPoleResult | None = None,
+    pole_config: PolePlacementConfig | None = None,
 ) -> CandidateEngineeringAssessment:
     """Extract canonical engineering metrics for one candidate.
 
@@ -111,19 +109,35 @@ def build_candidate_engineering_metrics(
             )
         )
 
+    affected_parcel_count = 0
+    road_crossing_count = 0
+    soft_overlap_length_m = 0.0
+    environmental_overlap_m2 = 0.0
+    hard_violation_ids: tuple[str, ...] = ()
+    parcel_exposures: tuple[ParcelEngineeringExposure, ...] = ()
+
     if spatial_result is None:
-        try:
-            spatial_result = extract_spatial_metrics(
-                network=network,
-                constraint_layers=constraint_layers,
-                row_corridor_width_m=row_corridor_width_m,
+        failures.append(
+            EngineeringMetricFailure(
+                EngineeringMetricFailureCode.SPATIAL_ANALYSIS_FAILED,
+                "Spatial result is missing.",
             )
-        except Exception as exc:
-            failures.append(
-                EngineeringMetricFailure(
-                    EngineeringMetricFailureCode.SPATIAL_ANALYSIS_FAILED,
-                    f"Spatial analysis failed: {exc}",
-                )
+        )
+    else:
+        affected_parcel_count = spatial_result.affected_parcel_count
+        road_crossing_count = spatial_result.road_crossing_count
+        soft_overlap_length_m = spatial_result.soft_overlap_length_m
+        environmental_overlap_m2 = spatial_result.environmental_overlap_m2
+        hard_violation_ids = spatial_result.hard_violation_ids
+        parcel_exposures = spatial_result.parcel_exposures
+
+
+    pole_result = None
+    if pole_config is None:
+        failures.append(
+            EngineeringMetricFailure(
+                EngineeringMetricFailureCode.POLE_CONFIG_MISSING,
+                "Pole configuration is required to calculate physical pole count",
             )
             spatial_result = None
 
@@ -262,7 +276,7 @@ def extract_spatial_metrics(
     constraint_layers: tuple[ConstraintLayer, ...],
     *,
     row_corridor_width_m: float,
-) -> SpatialExtractionResult:
+) -> CandidateSpatialResult:
     pnc_network = network
     routes = _network_routes(pnc_network)
     if any(not layer.crs.equals(pnc_network.crs) for layer in constraint_layers):
@@ -336,7 +350,7 @@ def extract_spatial_metrics(
         )
         parcel_exposures_list.append(exposure)
 
-    return SpatialExtractionResult(
+    return CandidateSpatialResult(
         affected_parcel_count=len(affected_parcel_ids),
         road_crossing_count=analysis.road_crossing_count,
         soft_overlap_length_m=math.fsum(

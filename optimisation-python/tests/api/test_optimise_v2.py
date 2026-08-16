@@ -8,8 +8,10 @@ from fastapi.testclient import TestClient
 
 from app.electrical.errors import CandidateElectricalEvaluationError
 from app.main import app
+from app.schemas.v2.domain_mapping import to_workflow_invocation
 from app.schemas.v2.optimise import (
     EngineeringScoringWeightsRequest,
+    OptimiseProjectRequest,
     OptimiseProjectResponse,
 )
 
@@ -185,6 +187,40 @@ def test_v2_accepts_unified_policy_with_inactive_groups(
     )
 
 
+def test_v2_maps_land_commercial_context(mvp_v2_payload: JsonObject) -> None:
+    payload = copy.deepcopy(mvp_v2_payload)
+    payload["land_context"] = {
+        "currency": "USD",
+        "as_of_date": "2026-01-01",
+        "parcel_profiles": [
+            {
+                "parcel_id": "P1",
+                "owner_id": "OWNER-1",
+                "availability_status": "NEGOTIABLE",
+                "transaction_options": [
+                    {
+                        "mode": "LEASE",
+                        "price_status": "QUOTED",
+                        "upfront_cost": "1000",
+                        "annual_cost": "250",
+                        "term_years": 10,
+                        "price_date": "2026-01-01",
+                    }
+                ],
+            }
+        ],
+    }
+
+    request = OptimiseProjectRequest.model_validate(payload)
+    invocation = to_workflow_invocation(request)
+
+    context = invocation.project_input.land_context
+    assert context is not None
+    assert context.currency == "USD"
+    assert context.parcel_profiles[0].parcel_id == "P1"
+    assert context.parcel_profiles[0].transaction_options[0].annual_cost == 250
+
+
 def test_v2_returns_partial_cost_components_with_failure_details(
     mvp_v2_payload: JsonObject,
 ) -> None:
@@ -199,7 +235,10 @@ def test_v2_returns_partial_cost_components_with_failure_details(
         assert candidate.cost is not None
         assert candidate.cost.conductor_capex is None
         assert candidate.cost.pole_capex is not None
+        assert candidate.cost.land_capex == 0.0
         assert candidate.cost.land_purchase_capex == 0.0
+        assert candidate.cost.land_recurring_cost_pv == 0.0
+        assert candidate.cost.land_access_present_value == 0.0
         assert candidate.cost.total_capex is None
         assert candidate.cost.present_value_opex is not None
         assert candidate.cost.lifecycle_cost is None

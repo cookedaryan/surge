@@ -22,8 +22,13 @@ from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult
 from app.land.models import (
     CandidateLandAssessment,
+    LandAvailabilityStatus,
     LandCostBasis,
+    LandOptionAssessment,
+    LandPriceStatus,
+    LandTransactionMode,
     OwnerInteractionBasis,
+    ParcelLandDecision,
 )
 from app.optimisation.engineering_metric_models import (
     CandidateEngineeringAssessment,
@@ -190,6 +195,32 @@ def test_evaluate_candidate_cost_success(
     dummy_catalogue: EngineeringCostCatalogue,
     dummy_lifecycle_config: LifecycleCostConfig,
 ) -> None:
+    dummy_land_assessment = CandidateLandAssessment(
+        scenario_id="s1",
+        parcel_decisions=(
+            ParcelLandDecision(
+                parcel_id="parcel1",
+                owner_id=None,
+                availability_status=LandAvailabilityStatus.UNKNOWN,
+                feasible_options=(),
+                selected_mode=None,
+                selected_present_value=None,
+                cost_basis=LandPriceStatus.UNKNOWN,
+                price_date=None,
+            ),
+        ),
+        parcel_count=1,
+        owner_interaction_count=1,
+        owner_interaction_basis=OwnerInteractionBasis.PARCEL_PROXY,
+        unknown_owner_count=1,
+        unavailable_parcel_ids=(),
+        land_purchase_capex=Decimal("0.00"),
+        land_recurring_cost_pv=Decimal("0.00"),
+        land_access_present_value=Decimal("0.00"),
+        land_cost_basis=LandCostBasis.UNKNOWN,
+        is_feasible=True,
+    )
+
     assessment = evaluate_candidate_cost(
         scenario=dummy_scenario,
         load_flow_result=dummy_load_flow_result,
@@ -197,14 +228,15 @@ def test_evaluate_candidate_cost_success(
         engineering_assessment=dummy_engineering_assessment,
         catalogue=dummy_catalogue,
         config=dummy_lifecycle_config,
-        land_assessment=None,
+        land_assessment=dummy_land_assessment,
     )
 
     assert assessment.scenario_id == "s1"
-    assert not assessment.failures
     assert assessment.cost is not None
-    assert assessment.conductor_capex_amount == Decimal("100000.00")
-    assert assessment.pole_capex_amount == Decimal("10000.00")
+    assert assessment.cost.total_capex == Decimal("161000.00")
+    assert assessment.cost.land_purchase_capex == Decimal("51000.00")
+    assert assessment.cost.land_recurring_cost_pv == Decimal("0.00")
+    assert assessment.cost.land_access_present_value == Decimal("51000.00")
 
     # Land: 1 parcel * 1000 + 5000 m2 * 10 = 51000
     assert assessment.land_purchase_capex_amount == Decimal("51000.00")
@@ -279,6 +311,69 @@ def test_lifecycle_module_imports_without_orchestrator_preload() -> None:
     assert completed.returncode == 0, completed.stderr
 
 
+def test_profiled_land_cost_replaces_catalogue_fallback(
+    dummy_scenario: PNCScenario,
+    dummy_load_flow_result: LoadFlowNetworkResult,
+    dummy_electrical_config: LoadFlowConfig,
+    dummy_engineering_assessment: CandidateEngineeringAssessment,
+    dummy_catalogue: EngineeringCostCatalogue,
+    dummy_lifecycle_config: LifecycleCostConfig,
+) -> None:
+    selected_option = LandOptionAssessment(
+        mode=LandTransactionMode.LEASE,
+        price_status=LandPriceStatus.QUOTED,
+        upfront_cost=Decimal("100"),
+        annual_cost=Decimal("5"),
+        term_years=10,
+        price_date=datetime.date(2026, 1, 1),
+        present_value=Decimal("150"),
+        feasible=True,
+    )
+    land_assessment = CandidateLandAssessment(
+        scenario_id="s1",
+        parcel_decisions=(
+            ParcelLandDecision(
+                parcel_id="parcel1",
+                owner_id="OWNER-1",
+                availability_status=LandAvailabilityStatus.AVAILABLE,
+                feasible_options=(selected_option,),
+                selected_mode=LandTransactionMode.LEASE,
+                selected_present_value=Decimal("150"),
+                cost_basis=LandPriceStatus.QUOTED,
+                price_date=datetime.date(2026, 1, 1),
+            ),
+        ),
+        parcel_count=1,
+        owner_interaction_count=1,
+        owner_interaction_basis=OwnerInteractionBasis.CONFIRMED_OWNER_IDS,
+        unknown_owner_count=0,
+        unavailable_parcel_ids=(),
+        land_purchase_capex=Decimal("100"),
+        land_recurring_cost_pv=Decimal("50"),
+        land_access_present_value=Decimal("150"),
+        land_cost_basis=LandCostBasis.QUOTED,
+        is_feasible=True,
+    )
+
+    assessment = evaluate_candidate_cost(
+        scenario=dummy_scenario,
+        load_flow_result=dummy_load_flow_result,
+        electrical_config=dummy_electrical_config,
+        engineering_assessment=dummy_engineering_assessment,
+        land_assessment=land_assessment,
+        catalogue=dummy_catalogue,
+        config=dummy_lifecycle_config,
+    )
+
+    assert assessment.land_purchase_capex_amount == Decimal("100")
+    assert assessment.land_recurring_cost_pv_amount == Decimal("50")
+    assert assessment.land_access_present_value_amount == Decimal("150")
+    assert not any(
+        item.category.startswith("land_fallback")
+        for item in assessment.line_items
+    )
+
+
 def test_rejects_mixed_catalogue_and_energy_currencies(
     dummy_scenario: PNCScenario,
     dummy_load_flow_result: LoadFlowNetworkResult,
@@ -307,10 +402,10 @@ def test_spatial_failure_does_not_publish_zero_land_cost(
     dummy_catalogue: EngineeringCostCatalogue,
     dummy_lifecycle_config: LifecycleCostConfig,
 ) -> None:
-    dummy_engineering_assessment.metrics = None
-    dummy_engineering_assessment.engineering_metrics_available = False
-    dummy_engineering_assessment.parcel_exposures = ()
-    dummy_engineering_assessment.extraction_failures = (
+    dummy_engineering_assessment.metrics = None  # type: ignore[misc]
+    dummy_engineering_assessment.engineering_metrics_available = False  # type: ignore[misc]
+    dummy_engineering_assessment.parcel_exposures = ()  # type: ignore[misc]
+    dummy_engineering_assessment.extraction_failures = (  # type: ignore[misc]
         EngineeringMetricFailure(
             code=EngineeringMetricFailureCode.SPATIAL_ANALYSIS_FAILED,
             message="Spatial analysis failed",

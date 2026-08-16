@@ -20,6 +20,14 @@ from app.gis.preprocessing import (
     process_project_data,
     validate_project_routing_endpoints,
 )
+from app.land.models import (
+    LandAvailabilityStatus,
+    LandCommercialContext,
+    LandPriceStatus,
+    LandTransactionMode,
+    LandTransactionTerms,
+    ParcelCommercialProfile,
+)
 from app.optimisation.scenario_models import ScenarioGenerationConfig
 from app.optimisation.scoring_models import (
     CandidateScoringConfig,
@@ -58,6 +66,39 @@ MAX_RASTER_CELLS = 15_000_000
 class WorkflowInvocation:
     project_input: ProjectInput
     config: OptimisationConfig
+
+
+def _to_land_context(
+    request: OptimiseProjectRequest,
+) -> LandCommercialContext | None:
+    context = request.land_context
+    if context is None:
+        return None
+    return LandCommercialContext(
+        currency=context.currency,
+        as_of_date=context.as_of_date,
+        parcel_profiles=tuple(
+            ParcelCommercialProfile(
+                parcel_id=profile.parcel_id,
+                owner_id=profile.owner_id,
+                availability_status=LandAvailabilityStatus(
+                    profile.availability_status
+                ),
+                transaction_options=tuple(
+                    LandTransactionTerms(
+                        mode=LandTransactionMode(option.mode),
+                        price_status=LandPriceStatus(option.price_status),
+                        upfront_cost=option.upfront_cost,
+                        annual_cost=option.annual_cost,
+                        term_years=option.term_years,
+                        price_date=option.price_date,
+                    )
+                    for option in profile.transaction_options
+                ),
+            )
+            for profile in context.parcel_profiles
+        ),
+    )
 
 
 def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocation:
@@ -193,6 +234,7 @@ def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocatio
                     affected_parcels=ew.spatial_subweights.affected_parcels,
                     road_crossings=ew.spatial_subweights.road_crossings,
                     soft_overlap_length=ew.spatial_subweights.soft_overlap_length,
+                    owner_interactions=ew.spatial_subweights.owner_interactions,
                 ),
                 electrical_subweights=ElectricalScoringWeights(
                     active_loss=ew.electrical_subweights.active_loss,
@@ -263,6 +305,11 @@ def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocatio
     )
     feeder_capacity_mw = round(s_mva * request.operating_point_config.power_factor, 3)
 
+    try:
+        land_context = _to_land_context(request)
+    except ValueError as exc:
+        raise OptimisationInputError(f"Land context error: {exc}") from exc
+
     project_input = ProjectInput(
         project_id=request.project_id,
         project_data=project_data,
@@ -270,6 +317,7 @@ def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocatio
         feeder_capacity_mw=feeder_capacity_mw,
         operating_points=tuple(operating_points),
         constraint_layers=constraint_application.layers,
+        land_context=land_context,
         row_width_m=request.routing_config.row_width_m,
     )
 
@@ -328,6 +376,12 @@ def to_workflow_invocation(request: OptimiseProjectRequest) -> WorkflowInvocatio
                 loss_load_factor=Decimal(str(life_req.loss_load_factor)),
                 energy_price_per_mwh=Decimal(str(life_req.energy_price_per_mwh)),
             )
+            if land_context and (
+                land_context.currency.casefold() != lifecycle.currency.casefold()
+            ):
+                raise ValueError(
+                    "Land commercial context currency must match lifecycle currency"
+                )
             costing_cfg = CostingConfig(catalogue=catalogue, lifecycle=lifecycle)
         except Exception as exc:
             raise OptimisationInputError(f"Costing configuration error: {exc}") from exc
@@ -389,6 +443,7 @@ def to_api_response(
                 total_route_length_m=m.total_route_length_m,
                 total_traversal_cost=m.total_traversal_cost,
                 affected_parcel_count=m.affected_parcel_count,
+                owner_interaction_count=m.owner_interaction_count,
                 road_crossing_count=m.road_crossing_count,
                 soft_constraint_overlap_length_m=m.soft_constraint_overlap_length_m,
                 environmental_overlap_m2=m.environmental_overlap_m2,
@@ -423,9 +478,24 @@ def to_api_response(
                     if ca.pole_capex_amount is not None
                     else None
                 ),
+                land_capex=(
+                    float(ca.land_purchase_capex_amount)
+                    if ca.land_purchase_capex_amount is not None
+                    else None
+                ),
                 land_purchase_capex=(
                     float(ca.land_purchase_capex_amount)
                     if ca.land_purchase_capex_amount is not None
+                    else None
+                ),
+                land_recurring_cost_pv=(
+                    float(ca.land_recurring_cost_pv_amount)
+                    if ca.land_recurring_cost_pv_amount is not None
+                    else None
+                ),
+                land_access_present_value=(
+                    float(ca.land_access_present_value_amount)
+                    if ca.land_access_present_value_amount is not None
                     else None
                 ),
                 total_capex=(

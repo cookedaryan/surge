@@ -1,25 +1,11 @@
-"""Land decision intelligence module.
-
-Assesses the commercial impact of a candidate's routed corridor and its
-optimized pole network: which parcels are crossed, which owners require
-interaction, which parcels are unavailable, and the implied land costs.
-"""
+"""Deterministic commercial decisions for candidate parcel exposures."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from shapely.geometry import Point
-
-from app.algorithms.pole_placement import CollectorPoleResult
 from app.costing.models import LifecycleCostConfig
-from app.gis.constraints import (
-    ConstraintLayer,
-    ConstraintType,
-    effective_constraint_geometry,
-)
 from app.land.models import (
     CandidateLandAssessment,
     LandAvailabilityStatus,
@@ -27,221 +13,204 @@ from app.land.models import (
     LandCostBasis,
     LandOptionAssessment,
     LandPriceStatus,
-    LandTransactionMode,
     LandTransactionTerms,
     OwnerInteractionBasis,
+    ParcelCommercialProfile,
     ParcelLandDecision,
 )
 
 if TYPE_CHECKING:
-    from app.optimisation.engineering_metrics import SpatialExtractionResult
+    from app.optimisation.engineering_metric_models import ParcelEngineeringExposure
+
+_ZERO = Decimal(0)
 
 
-def _parcel_layers_for_point(
-    point: Point,
-    constraint_layers: tuple[ConstraintLayer, ...],
-) -> tuple[str, ...]:
-    """Return every distinct PARCEL layer containing ``point``."""
-    parcel_ids: set[str] = set()
-    for layer in constraint_layers:
-        if layer.layer_type != ConstraintType.PARCEL:
-            continue
-        try:
-            geometry = effective_constraint_geometry(layer)
-        except ValueError:
-            continue
-        if geometry.covers(point):
-            parcel_ids.add(layer.layer_id)
-    return tuple(sorted(parcel_ids))
-
-
-def _annuity_factor(years: int, rate: Decimal) -> Decimal:
-    """Present-value annuity factor for ``years`` periods at ``rate``."""
+def present_value_factor(rate: Decimal, years: int) -> Decimal:
+    """Return the ordinary-annuity present-value factor."""
     if rate == 0:
         return Decimal(years)
-    return (Decimal(1) - (Decimal(1) + rate) ** -years) / rate
+    one = Decimal(1)
+    return (one - (one + rate) ** -years) / rate
 
 
-def _option_present_value(
+def assess_transaction_option(
     terms: LandTransactionTerms,
     lifecycle_config: LifecycleCostConfig | None,
-) -> Decimal:
-    """Present value of one land transaction option."""
-    if lifecycle_config is not None:
-        rate = lifecycle_config.discount_rate
-        default_years = lifecycle_config.analysis_period_years
+) -> LandOptionAssessment:
+    """Value one transaction option using the available project horizon."""
+    if lifecycle_config is None:
+        years = terms.term_years
     else:
-        rate = Decimal(0)
-        default_years = 0
-    years = terms.term_years if terms.term_years is not None else default_years
-    annual_pv = Decimal(0)
-    if years > 0:
-        annual_pv = terms.annual_cost * _annuity_factor(years, rate)
-    return terms.upfront_cost + annual_pv
+        years = min(
+            terms.term_years or lifecycle_config.analysis_period_years,
+            lifecycle_config.analysis_period_years,
+        )
 
+    recurring_pv = _ZERO
+    recurring_cost_is_known = terms.annual_cost == 0 or years is not None
+    if terms.annual_cost and years is not None:
+        rate = lifecycle_config.discount_rate if lifecycle_config else _ZERO
+        recurring_pv = terms.annual_cost * present_value_factor(rate, years)
 
-def derive_owner_interactions(
-    parcel_ids: Iterable[str],
-    land_context: LandCommercialContext | None,
-) -> frozenset[str]:
-    """Owner ids (if any) for the given parcels from the commercial context."""
-    if land_context is None:
-        return frozenset()
-    profiles = {p.parcel_id: p for p in land_context.parcel_profiles}
-    owners: set[str] = set()
-    for parcel_id in parcel_ids:
-        profile = profiles.get(parcel_id)
-        if profile is not None and profile.owner_id is not None:
-            owners.add(profile.owner_id)
-    return frozenset(owners)
+    feasible = (
+        terms.price_status != LandPriceStatus.UNKNOWN
+        and recurring_cost_is_known
+    )
+    return LandOptionAssessment(
+        mode=terms.mode,
+        price_status=terms.price_status,
+        upfront_cost=terms.upfront_cost,
+        annual_cost=terms.annual_cost,
+        term_years=terms.term_years,
+        price_date=terms.price_date,
+        present_value=terms.upfront_cost + recurring_pv,
+        feasible=feasible,
+    )
 
 
 def assess_candidate_land(
+    *,
     scenario_id: str,
-    poles: CollectorPoleResult | None = None,
-    route_context: SpatialExtractionResult | None = None,
-    land_context: LandCommercialContext | None = None,
-    lifecycle_config: LifecycleCostConfig | None = None,
-    constraint_layers: tuple[ConstraintLayer, ...] = (),
+    parcel_exposures: tuple[ParcelEngineeringExposure, ...],
+    land_context: LandCommercialContext | None,
+    lifecycle_config: LifecycleCostConfig | None,
 ) -> CandidateLandAssessment:
-    """Assess land commercial feasibility and costs for a candidate.
+    """Select the lowest-PV feasible option for every affected parcel."""
+    if land_context and lifecycle_config and (
+        land_context.currency.casefold() != lifecycle_config.currency.casefold()
+    ):
+        raise ValueError(
+            "Land commercial context currency must match lifecycle currency"
+        )
 
-    Route owner interactions come from the parcels crossed by the routed
-    corridor (``route_context.parcel_exposures``); pole owner interactions
-    come from the parcels occupied by physical poles. Both are combined into
-    the total owner interaction set so a pole moved out of a parcel already
-    crossed by the route is not reported as a newly-negotiated owner.
-    """
     profiles = (
-        {p.parcel_id: p for p in land_context.parcel_profiles}
-        if land_context is not None
+        {profile.parcel_id: profile for profile in land_context.parcel_profiles}
+        if land_context
         else {}
     )
-
-    route_parcel_ids = {
-        exposure.parcel_id
-        for exposure in (
-            route_context.parcel_exposures if route_context is not None else ()
-        )
+    unique_exposures = {
+        exposure.parcel_id: exposure for exposure in parcel_exposures
     }
+    decisions = tuple(
+        _assess_parcel(parcel_id, profiles.get(parcel_id), lifecycle_config)
+        for parcel_id in sorted(unique_exposures)
+    )
+    selected_options = tuple(
+        option
+        for decision in decisions
+        if (option := _selected_option(decision)) is not None
+    )
 
-    pole_parcel_ids: set[str] = set()
-    if poles is not None:
-        for physical in poles.physical_poles:
-            pole_parcel_ids.update(
-                _parcel_layers_for_point(physical.geometry, constraint_layers)
-            )
-
-    affected_parcel_ids = sorted(route_parcel_ids | pole_parcel_ids)
-
-    parcel_decisions: list[ParcelLandDecision] = []
-    owner_ids: set[str] = set()
-    unknown_owner_count = 0
-    unavailable_ids: list[str] = []
-    purchase_capex = Decimal(0)
-    recurring_pv = Decimal(0)
-    selected_statuses: list[LandPriceStatus] = []
-
-    for parcel_id in affected_parcel_ids:
-        profile = profiles.get(parcel_id)
-        if profile is None:
-            unknown_owner_count += 1
-            parcel_decisions.append(
-                ParcelLandDecision(
-                    parcel_id=parcel_id,
-                    owner_id=None,
-                    availability_status=LandAvailabilityStatus.UNKNOWN,
-                    feasible_options=(),
-                    selected_mode=None,
-                    selected_present_value=None,
-                    cost_basis=LandPriceStatus.UNKNOWN,
-                    price_date=None,
-                )
-            )
-            continue
-
-        if profile.owner_id is None:
-            unknown_owner_count += 1
-        else:
-            owner_ids.add(profile.owner_id)
-
-        if profile.availability_status == LandAvailabilityStatus.UNAVAILABLE:
-            unavailable_ids.append(parcel_id)
-
-        options = tuple(
-            LandOptionAssessment(
-                mode=terms.mode,
-                price_status=terms.price_status,
-                upfront_cost=terms.upfront_cost,
-                annual_cost=terms.annual_cost,
-                term_years=terms.term_years,
-                price_date=terms.price_date,
-                present_value=_option_present_value(terms, lifecycle_config),
-                feasible=True,
-            )
-            for terms in profile.transaction_options
-        )
-        selected = (
-            min(options, key=lambda option: option.present_value) if options else None
-        )
-        if selected is not None:
-            selected_statuses.append(selected.price_status)
-            if selected.mode == LandTransactionMode.PURCHASE:
-                purchase_capex += selected.present_value
-            else:
-                recurring_pv += selected.present_value
-
-        parcel_decisions.append(
-            ParcelLandDecision(
-                parcel_id=parcel_id,
-                owner_id=profile.owner_id,
-                availability_status=profile.availability_status,
-                feasible_options=options,
-                selected_mode=selected.mode if selected is not None else None,
-                selected_present_value=(
-                    selected.present_value if selected is not None else None
-                ),
-                cost_basis=(
-                    selected.price_status
-                    if selected is not None
-                    else LandPriceStatus.UNKNOWN
-                ),
-                price_date=selected.price_date if selected is not None else None,
-            )
-        )
-
-    land_access_present_value = purchase_capex + recurring_pv
-
-    if selected_statuses and all(
-        status == LandPriceStatus.QUOTED for status in selected_statuses
-    ):
-        land_cost_basis = LandCostBasis.QUOTED
-    elif selected_statuses and all(
-        status == LandPriceStatus.ESTIMATED for status in selected_statuses
-    ):
-        land_cost_basis = LandCostBasis.ESTIMATED
-    elif selected_statuses:
-        land_cost_basis = LandCostBasis.MIXED
-    else:
-        land_cost_basis = LandCostBasis.UNKNOWN
-
-    owner_interaction_basis = (
+    purchase_capex = sum(
+        (option.upfront_cost for option in selected_options),
+        start=_ZERO,
+    )
+    recurring_cost_pv = sum(
+        (option.present_value - option.upfront_cost for option in selected_options),
+        start=_ZERO,
+    )
+    unavailable_ids = tuple(
+        decision.parcel_id
+        for decision in decisions
+        if decision.availability_status == LandAvailabilityStatus.UNAVAILABLE
+    )
+    unknown_owner_count = sum(decision.owner_id is None for decision in decisions)
+    known_owner_ids = {
+        decision.owner_id for decision in decisions if decision.owner_id is not None
+    }
+    all_owners_confirmed = bool(decisions) and unknown_owner_count == 0
+    owner_basis = (
         OwnerInteractionBasis.CONFIRMED_OWNER_IDS
-        if affected_parcel_ids and unknown_owner_count == 0
+        if all_owners_confirmed
         else OwnerInteractionBasis.PARCEL_PROXY
+    )
+    owner_count = (
+        len(known_owner_ids)
+        if all_owners_confirmed
+        else len(known_owner_ids) + unknown_owner_count
     )
 
     return CandidateLandAssessment(
         scenario_id=scenario_id,
-        parcel_decisions=tuple(parcel_decisions),
-        parcel_count=len(affected_parcel_ids),
-        owner_interaction_count=len(owner_ids) + unknown_owner_count,
-        owner_interaction_basis=owner_interaction_basis,
+        parcel_decisions=decisions,
+        parcel_count=len(decisions),
+        owner_interaction_count=owner_count,
+        owner_interaction_basis=owner_basis,
         unknown_owner_count=unknown_owner_count,
-        unavailable_parcel_ids=tuple(sorted(unavailable_ids)),
+        unavailable_parcel_ids=unavailable_ids,
         land_purchase_capex=purchase_capex,
-        land_recurring_cost_pv=recurring_pv,
-        land_access_present_value=land_access_present_value,
-        land_cost_basis=land_cost_basis,
+        land_recurring_cost_pv=recurring_cost_pv,
+        land_access_present_value=purchase_capex + recurring_cost_pv,
+        land_cost_basis=_aggregate_cost_basis(selected_options),
         is_feasible=not unavailable_ids,
+    )
+
+
+def _assess_parcel(
+    parcel_id: str,
+    profile: ParcelCommercialProfile | None,
+    lifecycle_config: LifecycleCostConfig | None,
+) -> ParcelLandDecision:
+    if profile is None:
+        return ParcelLandDecision(
+            parcel_id=parcel_id,
+            owner_id=None,
+            availability_status=LandAvailabilityStatus.UNKNOWN,
+            feasible_options=(),
+            selected_mode=None,
+            selected_present_value=None,
+            cost_basis=LandPriceStatus.UNKNOWN,
+            price_date=None,
+        )
+
+    options = tuple(
+        assess_transaction_option(terms, lifecycle_config)
+        for terms in profile.transaction_options
+    )
+    selectable = (
+        ()
+        if profile.availability_status == LandAvailabilityStatus.UNAVAILABLE
+        else tuple(option for option in options if option.feasible)
+    )
+    selected = min(
+        selectable,
+        key=lambda option: (option.present_value, option.mode.value),
+        default=None,
+    )
+    return ParcelLandDecision(
+        parcel_id=parcel_id,
+        owner_id=profile.owner_id,
+        availability_status=profile.availability_status,
+        feasible_options=options,
+        selected_mode=selected.mode if selected else None,
+        selected_present_value=selected.present_value if selected else None,
+        cost_basis=selected.price_status if selected else LandPriceStatus.UNKNOWN,
+        price_date=selected.price_date if selected else None,
+    )
+
+
+def _aggregate_cost_basis(
+    selected_options: tuple[LandOptionAssessment, ...],
+) -> LandCostBasis:
+    statuses = {option.price_status for option in selected_options}
+    if statuses == {LandPriceStatus.QUOTED}:
+        return LandCostBasis.QUOTED
+    if statuses == {LandPriceStatus.ESTIMATED}:
+        return LandCostBasis.ESTIMATED
+    if statuses:
+        return LandCostBasis.MIXED
+    return LandCostBasis.UNKNOWN
+
+
+def _selected_option(
+    decision: ParcelLandDecision,
+) -> LandOptionAssessment | None:
+    return next(
+        (
+            option
+            for option in decision.feasible_options
+            if option.mode == decision.selected_mode
+            and option.present_value == decision.selected_present_value
+        ),
+        None,
     )
