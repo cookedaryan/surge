@@ -5,7 +5,6 @@ export function BomStrip() {
   const currentProjectId = useUiStore((s) => s.currentProjectId);
   const resultJobId = useUiStore((s) => s.resultJobId);
   const liveOverride = useUiStore((s) => s.liveBomOverride);
-  const elevationDrawerOpen = useUiStore((s) => s.elevationDrawerOpen);
   const activeSidebarTab = useUiStore((s) => s.activeSidebarTab);
   const { bom } = useProjectData(currentProjectId, resultJobId);
 
@@ -26,15 +25,7 @@ export function BomStrip() {
   ];
 
   return (
-    <div
-      // Lifted clear of the elevation drawer with a transform rather than by swapping the `bottom`
-      // utility. Animating a layout offset through a class swap left the element painting at its
-      // old offset — the strip sat on top of the elevation chart until something else forced a
-      // reflow. A transform is also compositor-only, so opening the drawer costs no layout work.
-      className={`absolute left-3.5 bottom-3.5 z-[1010] flex rounded-lg overflow-hidden font-ui transition-transform duration-150 ${
-        elevationDrawerOpen ? '-translate-y-[206px]' : 'translate-y-0'
-      }`}
-    >
+    <div className="absolute left-3.5 bottom-3.5 z-[1010] flex rounded-lg overflow-hidden font-ui">
       {segments.map((seg, i) => (
         <div
           key={seg.label}

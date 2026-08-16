@@ -41,9 +41,6 @@ interface UiState {
   routeEditMode: boolean;
   setRouteEditMode: (v: boolean) => void;
 
-  elevationDrawerOpen: boolean;
-  setElevationDrawerOpen: (v: boolean) => void;
-
   scenarioComparisonOpen: boolean;
   setScenarioComparisonOpen: (v: boolean) => void;
 
@@ -101,9 +98,6 @@ export const useUiStore = create<UiState>((set) => ({
 
   routeEditMode: false,
   setRouteEditMode: (v) => set({ routeEditMode: v }),
-
-  elevationDrawerOpen: false,
-  setElevationDrawerOpen: (v) => set({ elevationDrawerOpen: v }),
 
   scenarioComparisonOpen: false,
   setScenarioComparisonOpen: (v) => set({ scenarioComparisonOpen: v }),

@@ -1,7 +1,7 @@
 import L from 'leaflet';
 import type { FeatureCollection } from 'geojson';
 import { SVG_ICONS } from './icons';
-import { FEEDER_COLORS, assignFeederColors, feederNameOf } from './feederColors';
+import { FEEDER_COLORS, assignFeederColors, assignFeederDashPatterns, feederNameOf } from './feederColors';
 import type { LayerName } from '../store';
 
 export class SurgeMapEngine {
@@ -179,15 +179,22 @@ export class SurgeMapEngine {
     this.layers.routes.clearLayers();
     if (!geoJson || !geoJson.features) return;
     const feederColour = assignFeederColors(geoJson.features);
+    const feederDash = assignFeederDashPatterns(geoJson.features);
 
     L.geoJSON(geoJson, {
-      style: (feature) => ({
-        color: customColor || feederColour.get(feederNameOf(feature)) || FEEDER_COLORS[0],
-        weight: 5,
-        opacity: 0.85,
-        dashArray: '10, 6',
-        lineCap: 'round'
-      }),
+      style: (feature) => {
+        const name = feederNameOf(feature);
+        return {
+          color: customColor || feederColour.get(name) || FEEDER_COLORS[0],
+          weight: 5,
+          opacity: 0.85,
+          // Pattern carries feeder identity alongside colour, so the network stays readable to
+          // colour-blind operators and in a greyscale print of the PDF export. A single
+          // highlighted route keeps the original dash so it still reads as one selection.
+          dashArray: customColor ? '10, 6' : feederDash.get(name) ?? undefined,
+          lineCap: 'round'
+        };
+      },
       onEachFeature: (feature, layer) => {
         const props = (feature.properties || {}) as Record<string, any>;
         const lengthMeters = props.totalLengthMeters || props.length_m || 0;

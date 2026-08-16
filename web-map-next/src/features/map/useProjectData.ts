@@ -23,6 +23,11 @@ export interface ProjectMapData {
   };
   bom: BomReport | undefined;
   isLoading: boolean;
+  /**
+   * Set when a layer could not be loaded. The map cannot distinguish a failed fetch from an empty
+   * result on its own — both draw nothing — so the failure has to be stated rather than shown.
+   */
+  loadError: string | null;
 }
 
 const EMPTY_FC: FeatureCollection = { type: 'FeatureCollection', features: [] };
@@ -74,6 +79,22 @@ export function useProjectData(projectId: string | null, jobId: string | null): 
     routes: routesQuery.data ?? EMPTY_FC,
     poles: polesQuery.data ?? EMPTY_FC,
     bom: bomQuery.data,
-    isLoading: assetsQuery.isLoading || parcelsQuery.isLoading || restrictedQuery.isLoading || routesQuery.isLoading
+    isLoading: assetsQuery.isLoading || parcelsQuery.isLoading || restrictedQuery.isLoading || routesQuery.isLoading,
+    loadError: describeLoadFailures([
+      ['routes', routesQuery.isError],
+      ['poles', polesQuery.isError],
+      ['assets', assetsQuery.isError],
+      ['parcels', parcelsQuery.isError],
+      ['restricted areas', restrictedQuery.isError]
+    ])
   };
+}
+
+function describeLoadFailures(layers: Array<[string, boolean]>): string | null {
+  const failed = layers.filter(([, isError]) => isError).map(([name]) => name);
+  if (failed.length === 0) {
+    return null;
+  }
+  const list = failed.length === 1 ? failed[0] : `${failed.slice(0, -1).join(', ')} and ${failed[failed.length - 1]}`;
+  return `Could not load ${list}. The map is not showing everything — reload before relying on it.`;
 }

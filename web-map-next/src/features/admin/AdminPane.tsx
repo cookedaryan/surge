@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import type { AdminUser, UserRole } from '../../lib/api';
 import { useAdminUsers } from '../../lib/query';
 import { useAuthStore, useUiStore } from '../../lib/store';
-import { Card, CardTitle, Button, Select } from '../../components/ui';
+import { Card, CardTitle, Button, Select, ConfirmDialog } from '../../components/ui';
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: 'ROLE_ADMIN', label: 'Administrator' },
@@ -137,6 +137,10 @@ function UserRow({ user, isSelf, onChanged }: { user: AdminUser; isSelf: boolean
   const [resetting, setResetting] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  // Held until confirmed. Both of these take effect within a second now that the authentication
+  // filter checks every token against its account, so a stray click is felt immediately.
+  const [pendingRole, setPendingRole] = useState<UserRole | null>(null);
+  const [pendingSuspend, setPendingSuspend] = useState(false);
 
   async function run(action: () => Promise<unknown>, successMessage: string) {
     setBusy(true);
@@ -182,9 +186,7 @@ function UserRow({ user, isSelf, onChanged }: { user: AdminUser; isSelf: boolean
       <div className="flex items-center gap-1.5 flex-wrap">
         <Select
           value={user.role}
-          onValueChange={(v) =>
-            run(() => api.updateUser(user.id, { role: v as UserRole }), `Role updated for "${user.username}".`)
-          }
+          onValueChange={(v) => setPendingRole(v as UserRole)}
           options={ROLE_OPTIONS}
           className="flex-1 min-w-[120px]"
         />
@@ -192,12 +194,7 @@ function UserRow({ user, isSelf, onChanged }: { user: AdminUser; isSelf: boolean
           size="sm"
           disabled={busy || isSelf}
           title={isSelf ? 'You cannot suspend your own account' : undefined}
-          onClick={() =>
-            run(
-              () => api.updateUser(user.id, { enabled: !user.enabled }),
-              `"${user.username}" ${user.enabled ? 'suspended' : 'reinstated'}.`
-            )
-          }
+          onClick={() => setPendingSuspend(true)}
         >
           {user.enabled ? 'Suspend' : 'Reinstate'}
         </Button>
@@ -219,6 +216,41 @@ function UserRow({ user, isSelf, onChanged }: { user: AdminUser; isSelf: boolean
           <Button type="submit" variant="primary" size="sm" disabled={busy}>Set</Button>
         </form>
       )}
+
+      <ConfirmDialog
+        open={pendingRole !== null}
+        title="Change this account's role?"
+        body={
+          `"${user.username}" becomes ${pendingRole ? ROLE_LABEL[pendingRole] : ''} instead of ${ROLE_LABEL[user.role]}. ` +
+          `This applies straight away — if they are signed in, their access changes without them doing anything.`
+        }
+        confirmLabel="Change role"
+        onCancel={() => setPendingRole(null)}
+        onConfirm={() => {
+          const role = pendingRole;
+          setPendingRole(null);
+          if (role) run(() => api.updateUser(user.id, { role }), `Role updated for "${user.username}".`);
+        }}
+      />
+
+      <ConfirmDialog
+        open={pendingSuspend}
+        title={user.enabled ? 'Suspend this account?' : 'Reinstate this account?'}
+        body={
+          user.enabled
+            ? `"${user.username}" will be signed out within seconds and will not be able to sign back in until reinstated.`
+            : `"${user.username}" will be able to sign in again. They will need to sign in fresh; their old session is not restored.`
+        }
+        confirmLabel={user.enabled ? 'Suspend' : 'Reinstate'}
+        onCancel={() => setPendingSuspend(false)}
+        onConfirm={() => {
+          setPendingSuspend(false);
+          run(
+            () => api.updateUser(user.id, { enabled: !user.enabled }),
+            `"${user.username}" ${user.enabled ? 'suspended' : 'reinstated'}.`
+          );
+        }}
+      />
     </div>
   );
 }

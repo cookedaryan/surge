@@ -4,12 +4,16 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import 'leaflet/dist/leaflet.css';
 import './styles/globals.css';
 import { queryClient } from './lib/query';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import App from './App';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
+    {/* Outside the query provider so a failure in either still renders something explanatory. */}
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>
 );

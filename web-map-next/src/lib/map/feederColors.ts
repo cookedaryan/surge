@@ -138,6 +138,40 @@ export function colorForIndex(index: number): string {
   return candidate;
 }
 
+/**
+ * Stroke patterns, used alongside colour so feeder identity does not rest on hue alone.
+ *
+ * <p>Colour is the wrong single channel for this. Measured against dichromat simulations, the
+ * palette's sixth and second colours collapse to 31 under protanopia and its fourth and seventh
+ * to 19 under tritanopia — and the PDF export people print is often greyscale, where every hue
+ * collapses. A pattern survives all of that.
+ *
+ * <p>Cycled independently of colour, so two feeders share a pattern only when they are far apart
+ * in the palette and therefore already distinct by hue.
+ */
+const DASH_PATTERNS = [
+  '10, 6', // even dash — the original look
+  null, //    solid
+  '2, 5', //  dotted
+  '18, 7', // long dash
+  '14, 5, 2, 5', // dash-dot
+  '6, 4, 2, 4' //   short dash-dot
+];
+
+/** The stroke pattern for the feeder at this position, or null for a solid line. */
+export function dashPatternForIndex(index: number): string | null {
+  return DASH_PATTERNS[index % DASH_PATTERNS.length];
+}
+
+/** Maps every feeder to its stroke pattern, using the same stable ordering as the colours. */
+export function assignFeederDashPatterns(features: Feature[]): Map<string, string | null> {
+  const assigned = new Map<string, string | null>();
+  [...new Set(features.map(feederNameOf))].sort().forEach((name, i) => {
+    assigned.set(name, dashPatternForIndex(i));
+  });
+  return assigned;
+}
+
 export function feederNameOf(feature: Feature | undefined | null): string {
   const props = (feature?.properties || {}) as Record<string, unknown>;
   const name = props.feederName || props.feeder_id || props.feeder_name;

@@ -4,7 +4,6 @@ import { useUiStore } from '../../lib/store';
 import { useProjectData } from './useProjectData';
 import { MapCanvas, type MapCanvasHandle } from './MapCanvas';
 import { BomStrip } from '../bom/BomStrip';
-import { ElevationDrawer } from './ElevationDrawer';
 
 interface MapAreaContentProps {
   mapRef: RefObject<MapCanvasHandle>;
@@ -51,8 +50,17 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
         }
         routeColorOverride={routeColorOverride}
       />
+      {data.loadError && (
+        // Deliberately loud and not dismissible. A blank map looks identical to a network with no
+        // routes, so an operator has no way to tell that they are looking at incomplete data.
+        <div
+          role="alert"
+          className="absolute left-1/2 top-3.5 z-[1020] -translate-x-1/2 rounded-lg border border-danger bg-panel px-4 py-2.5 font-ui text-[12.5px] text-danger shadow-lg"
+        >
+          {data.loadError}
+        </div>
+      )}
       <BomStrip />
-      <ElevationDrawer routes={data.routes} />
     </>
   );
 }

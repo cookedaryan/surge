@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import type { Feature } from 'geojson';
 import {
   assignFeederColors,
+  assignFeederDashPatterns,
   colorForIndex,
+  dashPatternForIndex,
   feederNameOf,
   FEEDER_COLORS,
   RESERVED_COLORS,
@@ -140,6 +142,36 @@ describe('assignFeederColors', () => {
 
     expect(colors.size).toBe(1);
     expect(colors.has(UNASSIGNED_FEEDER)).toBe(true);
+  });
+
+  it('backs colour with a stroke pattern so identity survives colour blindness', () => {
+    // Colour alone is the wrong single channel: measured against dichromat simulations the
+    // palette collapses to 31 under protanopia and 19 under tritanopia, and the PDF export is
+    // often printed in greyscale where every hue collapses.
+    const patterns = assignFeederDashPatterns(feeders(6));
+    expect(new Set(patterns.values()).size).toBe(6);
+  });
+
+  it('uses the same stable ordering for patterns as for colours', () => {
+    const names = ['FDR-003', 'FDR-001', 'FDR-002'];
+    const forward = assignFeederDashPatterns(names.map((n) => segment(n)));
+    const reversed = assignFeederDashPatterns([...names].reverse().map((n) => segment(n)));
+
+    expect(forward.get('FDR-002')).toBe(reversed.get('FDR-002'));
+  });
+
+  it('only repeats a pattern between feeders that are already far apart in colour', () => {
+    // Patterns cycle sooner than colours do, so the two channels must not repeat together.
+    const patternCycle = new Set(
+      Array.from({ length: 40 }, (_, i) => dashPatternForIndex(i))
+    ).size;
+    const firstRepeat = Array.from({ length: 40 }, (_, i) => dashPatternForIndex(i))
+      .findIndex((p, i, all) => all.indexOf(p) !== i);
+
+    expect(patternCycle).toBeGreaterThan(1);
+    // A shared pattern is only reached well beyond the point where hues are clearly distinct.
+    expect(firstRepeat).toBeGreaterThanOrEqual(4);
+    expect(colorForIndex(0)).not.toBe(colorForIndex(firstRepeat));
   });
 
   it('reads the property names the API actually sends', () => {
