@@ -30,6 +30,7 @@ from app.optimisation.scoring_models import (
     CostAwareRecommendationConfig,
     OptimizationRecommendation,
 )
+from app.optimisation.search_models import CandidateSearchConfig, CandidateSearchResult
 from app.presentation.models import ProjectOptimizationResult
 
 
@@ -77,6 +78,7 @@ class OptimisationConfig:
     pole: PolePlacementConfig | None = None
     costing: CostingConfig | None = None
     cost_aware: CostAwareRecommendationConfig | None = None
+    search: CandidateSearchConfig = CandidateSearchConfig()
 
 
 class WorkflowStage(StrEnum):
@@ -129,15 +131,17 @@ class CandidateWorkflowResult:
             if self.execution_failure.code not in (
                 WorkflowFailureCode.ELECTRICAL_EXECUTION_ERROR,
                 WorkflowFailureCode.ELECTRICAL_VALIDATION_FAILED,
+                WorkflowFailureCode.UNEXPECTED_EXCEPTION,
             ):
-                raise ValueError(
-                    "Execution failure must use ELECTRICAL_EXECUTION_ERROR or ELECTRICAL_VALIDATION_FAILED."
-                )
+                raise ValueError("Execution failure has an invalid failure code.")
             if (
-                self.execution_failure.code == WorkflowFailureCode.ELECTRICAL_EXECUTION_ERROR 
+                self.execution_failure.code
+                == WorkflowFailureCode.ELECTRICAL_EXECUTION_ERROR
                 and self.load_flow_result is not None
             ):
-                raise ValueError("ELECTRICAL_EXECUTION_ERROR cannot have a load-flow result.")
+                raise ValueError(
+                    "ELECTRICAL_EXECUTION_ERROR cannot have a load-flow result."
+                )
             if self.evaluation is not None:
                 raise ValueError("Execution failure cannot have an evaluation.")
             if self.engineering_assessment is not None:
@@ -244,6 +248,7 @@ class OptimisationWorkflowResult:
     recommended_result: ProjectOptimizationResult | None
     failures: tuple[CandidateFailure, ...]
     pole_network: CollectorPoleResult | None = None
+    search_result: CandidateSearchResult | None = None
 
     def __post_init__(self) -> None:
         candidate_failures = tuple(
@@ -299,7 +304,10 @@ class OptimisationWorkflowResult:
         elif self.status == OptimisationStatus.NO_FEASIBLE_CANDIDATE:
             if not self.candidates:
                 raise ValueError("NO_FEASIBLE_CANDIDATE requires evaluated candidates.")
-            if self.recommendation is not None and self.recommendation.recommended_scenario_id is not None:
+            if (
+                self.recommendation is not None
+                and self.recommendation.recommended_scenario_id is not None
+            ):
                 raise ValueError(
                     "NO_FEASIBLE_CANDIDATE must have recommended_scenario_id=None."
                 )

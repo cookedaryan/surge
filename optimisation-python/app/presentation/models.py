@@ -108,4 +108,6 @@ class ProjectOptimizationResult(PresentationModel):
     violations: list[ViolationPresentation]
     feature_collection: dict[str, Any]
     source_crs: str
-    recommended_candidate_repair_log: list[RepairActionResult] = Field(default_factory=list)
+    recommended_candidate_repair_log: list[RepairActionResult] = Field(
+        default_factory=list
+    )
