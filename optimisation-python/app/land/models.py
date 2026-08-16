@@ -71,6 +71,9 @@ class ParcelCommercialProfile:
             raise ValueError("parcel_id must not be empty")
         if self.owner_id is not None and not self.owner_id.strip():
             raise ValueError("owner_id must not be blank if provided")
+        modes = [option.mode for option in self.transaction_options]
+        if len(modes) != len(set(modes)):
+            raise ValueError("transaction option modes must be unique per parcel")
 
 
 @dataclass(frozen=True)

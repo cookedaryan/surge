@@ -1,4 +1,6 @@
+import datetime
 import math
+from decimal import Decimal
 from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -109,6 +111,7 @@ class SpatialScoringWeightsRequest(ApiModel):
     affected_parcels: float = Field(default=0.3, ge=0.0, le=1.0, strict=True)
     road_crossings: float = Field(default=0.2, ge=0.0, le=1.0, strict=True)
     soft_overlap_length: float = Field(default=0.1, ge=0.0, le=1.0, strict=True)
+    owner_interactions: float = Field(default=0.0, ge=0.0, le=1.0, strict=True)
 
 
 class ElectricalScoringWeightsRequest(ApiModel):
@@ -150,6 +153,7 @@ class EngineeringScoringWeightsRequest(ApiModel):
                 self.spatial_subweights.affected_parcels,
                 self.spatial_subweights.road_crossings,
                 self.spatial_subweights.soft_overlap_length,
+                self.spatial_subweights.owner_interactions,
             ),
             "spatial",
         )
@@ -237,6 +241,37 @@ class CostingConfigRequest(ApiModel):
     lifecycle: LifecycleCostConfigRequest
 
 
+class LandTransactionTermsRequest(ApiModel):
+    mode: Literal["PURCHASE", "LEASE", "EASEMENT"]
+    price_status: Literal["QUOTED", "ESTIMATED", "UNKNOWN"]
+    upfront_cost: Decimal = Field(ge=0)
+    annual_cost: Decimal = Field(ge=0)
+    term_years: int | None = Field(default=None, ge=1)
+    price_date: datetime.date | None = None
+
+
+class ParcelCommercialProfileRequest(ApiModel):
+    parcel_id: str = Field(min_length=1)
+    owner_id: str | None = Field(default=None, min_length=1)
+    availability_status: Literal[
+        "AVAILABLE",
+        "NEGOTIABLE",
+        "UNAVAILABLE",
+        "UNKNOWN",
+    ]
+    transaction_options: list[LandTransactionTermsRequest] = Field(
+        default_factory=list
+    )
+
+
+class LandCommercialContextRequest(ApiModel):
+    currency: str = Field(min_length=3, max_length=3)
+    as_of_date: datetime.date
+    parcel_profiles: list[ParcelCommercialProfileRequest] = Field(
+        default_factory=list
+    )
+
+
 class OptimiseProjectRequest(ApiModel):
     request_id: str = Field(min_length=1)
     project_id: str = Field(min_length=1)
@@ -260,6 +295,7 @@ class OptimiseProjectRequest(ApiModel):
     engineering_scoring_weights: EngineeringScoringWeightsRequest | None = None
     costing_config: CostingConfigRequest | None = None
     cost_aware_config: CostAwareRecommendationConfigRequest | None = None
+    land_context: LandCommercialContextRequest | None = None
 
     @model_validator(mode="after")
     def validate_policy_and_pole_config(self) -> Self:
@@ -293,6 +329,7 @@ class EngineeringMetricsSummary(ApiModel):
     total_route_length_m: float
     total_traversal_cost: float
     affected_parcel_count: int
+    owner_interaction_count: int = 0
     road_crossing_count: int
     soft_constraint_overlap_length_m: float
     environmental_overlap_m2: float
@@ -339,6 +376,9 @@ class CandidateCostSummary(ApiModel):
     conductor_capex: float | None = None
     pole_capex: float | None = None
     land_capex: float | None = None
+    land_purchase_capex: float | None = None
+    land_recurring_cost_pv: float | None = None
+    land_access_present_value: float | None = None
     total_capex: float | None = None
     annual_loss_energy_mwh: float | None = None
     annual_loss_cost: float | None = None

@@ -10,12 +10,22 @@ from shapely.geometry import Point
 from app.algorithms.physical_routing import validate_cost_surface
 from app.algorithms.pole_placement import place_poles_on_network
 from app.algorithms.route_graph import build_project_graph
+from app.costing.models import LifecycleCostConfig
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import WTGOperatingPoint
-from app.gis.constraints import ConstraintLayer, ConstraintMode, ConstraintType
+from app.gis.constraints import (
+    ConstraintLayer,
+    ConstraintMode,
+    ConstraintType,
+    apply_constraint_layers,
+)
 from app.gis.cost_surface import world_to_grid
+from app.land.decision import assess_transaction_option
 from app.land.fingerprint import compute_land_economic_context_id
-from app.land.models import LandAvailabilityStatus
+from app.land.models import (
+    LandAvailabilityStatus,
+    ParcelCommercialProfile,
+)
 from app.optimisation.candidate_evaluation import evaluate_candidate
 from app.optimisation.candidate_search import run_candidate_beam_search
 from app.optimisation.scenario_models import (
@@ -41,6 +51,9 @@ from app.presentation.exceptions import PresentationDataMismatchError
 from app.presentation.result_builder import build_project_result
 
 logger = logging.getLogger(__name__)
+
+_OWNER_INTERACTION_PENALTY = 20.0
+_LAND_PRESENT_VALUE_SCALE = 0.0001
 
 
 def _validate_input(project_input: ProjectInput, config: OptimisationConfig) -> None:
@@ -213,68 +226,104 @@ def _compute_electrical_context_id(
 
 def derive_land_constraint_layers(
     project_input: ProjectInput,
+    lifecycle_config: LifecycleCostConfig | None = None,
 ) -> tuple[ConstraintLayer, ...]:
-    if not hasattr(project_input, "land_context") or project_input.land_context is None:
+    if project_input.land_context is None:
         return project_input.constraint_layers
 
     profiles_by_id = {
-        p.parcel_id: p
-        for p in project_input.land_context.parcel_profiles
+        profile.parcel_id: profile
+        for profile in project_input.land_context.parcel_profiles
     }
-
-    if not profiles_by_id:
-        return project_input.constraint_layers
-
-    new_layers = list(project_input.constraint_layers)
+    effective_layers = []
     for layer in project_input.constraint_layers:
-        if layer.layer_type != ConstraintType.PARCEL:
-            continue
         profile = profiles_by_id.get(layer.layer_id)
-        if not profile:
+        if layer.layer_type != ConstraintType.PARCEL or profile is None:
+            effective_layers.append(layer)
             continue
 
         if profile.availability_status == LandAvailabilityStatus.UNAVAILABLE:
-            new_layers.append(
-                ConstraintLayer(
-                    layer_id=layer.layer_id,
-                    layer_type=ConstraintType.PARCEL,
+            effective_layers.append(
+                replace(
+                    layer,
                     mode=ConstraintMode.HARD_EXCLUSION,
-                    geometry=layer.geometry,
-                    buffer_m=layer.buffer_m,
                     cost_weight=None,
-                    crs=layer.crs,
                 )
             )
+            continue
+
+        if layer.mode == ConstraintMode.HARD_EXCLUSION:
+            effective_layers.append(layer)
+            continue
+
+        penalty = _land_routing_penalty(profile, lifecycle_config)
+        effective_layers.append(
+            replace(
+                layer,
+                cost_weight=(layer.cost_weight or 0.0) + penalty,
+            )
+        )
+
+    return tuple(effective_layers)
+
+
+def _land_routing_penalty(
+    profile: ParcelCommercialProfile,
+    lifecycle_config: LifecycleCostConfig | None,
+) -> float:
+    option_values = (
+        assessment.present_value
+        for terms in profile.transaction_options
+        if (assessment := assess_transaction_option(terms, lifecycle_config)).feasible
+    )
+    minimum_present_value = min(option_values, default=None)
+    if minimum_present_value is None:
+        return _OWNER_INTERACTION_PENALTY
+    return (
+        _OWNER_INTERACTION_PENALTY
+        + float(minimum_present_value) * _LAND_PRESENT_VALUE_SCALE
+    )
+
+
+def _apply_land_routing_constraints(
+    project_input: ProjectInput,
+    lifecycle_config: LifecycleCostConfig | None,
+) -> ProjectInput:
+    effective_layers = derive_land_constraint_layers(
+        project_input,
+        lifecycle_config,
+    )
+    adjustments = []
+    for original, effective in zip(
+        project_input.constraint_layers,
+        effective_layers,
+        strict=True,
+    ):
+        if original is effective or original.mode == ConstraintMode.HARD_EXCLUSION:
+            continue
+        if effective.mode == ConstraintMode.HARD_EXCLUSION:
+            adjustment = effective
         else:
-            # Search Engine Enrichment: Prefer routes with fewer interactions
-            # or lower land costs
-            # Base penalty for an owner interaction
-            penalty = 20.0
-            
-            if profile.transaction_options:
-                min_heuristic_cost = float("inf")
-                for opt in profile.transaction_options:
-                    term = opt.term_years if opt.term_years is not None else 10
-                    cost = float(opt.upfront_cost) + float(opt.annual_cost) * term
-                    if cost < min_heuristic_cost:
-                        min_heuristic_cost = cost
-                
-                if min_heuristic_cost != float("inf"):
-                    penalty += min_heuristic_cost * 0.0001
-
-            new_layers.append(
-                ConstraintLayer(
-                    layer_id=layer.layer_id,
-                    layer_type=ConstraintType.PARCEL,
-                    mode=ConstraintMode.SOFT_PENALTY,
-                    geometry=layer.geometry,
-                    buffer_m=layer.buffer_m,
-                    cost_weight=penalty,
-                    crs=layer.crs,
-                )
+            if original.cost_weight is None or effective.cost_weight is None:
+                raise AssertionError("Soft land constraint is missing cost_weight")
+            adjustment = replace(
+                effective,
+                cost_weight=effective.cost_weight - original.cost_weight,
             )
+        adjustments.append(
+            replace(adjustment, layer_id=f"land-routing:{original.layer_id}")
+        )
 
-    return tuple(new_layers)
+    surface = (
+        apply_constraint_layers(project_input.cost_surface, tuple(adjustments))
+        if adjustments
+        else project_input.cost_surface
+    )
+    return replace(
+        project_input,
+        constraint_layers=effective_layers,
+        cost_surface=surface,
+    )
 
 
 def optimise_project(
@@ -294,17 +343,16 @@ def optimise_project(
         project_input.operating_points,
         config.electrical,
     )
-    if not hasattr(project_input, "land_context") or project_input.land_context is None:
-        land_economic_context_id = "default"
-    else:
-        land_economic_context_id = compute_land_economic_context_id(
-            project_input.land_context
-        )
-    
-    # Inject UNAVAILABLE parcels as hard routing constraints
-    effective_constraints = derive_land_constraint_layers(project_input)
-    project_input = replace(project_input, constraint_layers=effective_constraints)
-    
+    land_economic_context_id = compute_land_economic_context_id(
+        project_input.land_context
+    )
+
+    lifecycle_config = config.costing.lifecycle if config.costing else None
+    project_input = _apply_land_routing_constraints(
+        project_input,
+        lifecycle_config,
+    )
+
     evaluation_context_id = compute_evaluation_context_id(
         project_input, config, electrical_context_id, land_economic_context_id
     )

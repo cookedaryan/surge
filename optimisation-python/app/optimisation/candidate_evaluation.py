@@ -109,6 +109,7 @@ def evaluate_candidate(
     # 1.6 Land Assessment
     lifecycle_config = config.costing.lifecycle if config.costing else None
     land_assessment = assess_candidate_land(
+        scenario_id=scenario.scenario_id,
         parcel_exposures=spatial_result.parcel_exposures,
         land_context=project_input.land_context,
         lifecycle_config=lifecycle_config,
