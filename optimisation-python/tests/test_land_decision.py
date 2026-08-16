@@ -4,6 +4,8 @@ import datetime
 from dataclasses import replace
 from decimal import Decimal
 
+import pytest
+
 from app.costing.models import LifecycleCostConfig
 from app.land.decision import assess_candidate_land, present_value_factor
 from app.land.fingerprint import (
@@ -111,6 +113,8 @@ def test_assessment_selects_lowest_present_value_and_counts_unique_owners() -> N
     assert assessment.land_access_present_value == Decimal("2000") + lease_pv
     assert assessment.land_cost_basis == LandCostBasis.MIXED
     assert assessment.is_feasible
+    with pytest.raises(ValueError, match="parcel_count"):
+        replace(assessment, parcel_count=0)
 
 
 def test_unavailable_and_unprofiled_parcels_are_reported_conservatively() -> None:

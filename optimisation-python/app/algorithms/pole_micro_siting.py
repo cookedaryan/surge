@@ -34,11 +34,9 @@ class PoleMicroSitingContext:
     """Immutable context required for evaluating pole candidates."""
 
     route_geometries: Mapping[str, LineString]
-    route_owner_ids: frozenset[str]
     constraint_layers: tuple[ConstraintLayer, ...]
     land_context: LandCommercialContext | None
     pole_config: PolePlacementConfig
-    route_parcel_ids: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -238,8 +236,8 @@ def _score_candidate(
         candidate_geom, context.constraint_layers
     )
     candidate_owners = _owners_for_parcels(candidate_parcels, context.land_context)
-    owner_delta = len(candidate_owners - context.route_owner_ids)
-    parcel_delta = len(set(candidate_parcels).difference(context.route_parcel_ids))
+    owner_delta = len(candidate_owners)
+    parcel_delta = len(candidate_parcels)
 
     # 3. Movement distance
     movement_dist = abs(candidate_chainage - original_chainage)
@@ -256,32 +254,30 @@ def _score_candidate(
 def _network_objective(
     routes: tuple[PoleRouteResult, ...],
     context: PoleMicroSitingContext,
-) -> tuple[int, float]:
-    """Network-level objective: (owner interaction count, span penalty)."""
-    owners = set(context.route_owner_ids)
+) -> tuple[int, int, float]:
+    """Return owner count, parcel count, and span penalty for pole positions."""
+    owners: set[str] = set()
+    parcels: set[str] = set()
     total_span_penalty = 0.0
     for route in routes:
         for pole in route.poles:
             parcel_ids = _parcel_layers_for_point(
                 pole.geometry, context.constraint_layers
             )
+            parcels.update(parcel_ids)
             owners.update(_owners_for_parcels(parcel_ids, context.land_context))
         for i in range(len(route.poles) - 1):
             span = route.poles[i].geometry.distance(route.poles[i + 1].geometry)
             total_span_penalty += abs(span - context.pole_config.target_span_m)
-    return len(owners), total_span_penalty
+    return len(owners), len(parcels), total_span_penalty
 
 
 def _strictly_better(
-    candidate: tuple[int, float],
-    baseline: tuple[int, float],
+    candidate: tuple[int, int, float],
+    baseline: tuple[int, int, float],
 ) -> bool:
-    """Return True when ``candidate`` strictly beats ``baseline``."""
-    if candidate[0] < baseline[0]:
-        return True
-    if candidate[0] == baseline[0] and candidate[1] < baseline[1]:
-        return True
-    return False
+    """Return whether the candidate is lexicographically better."""
+    return candidate < baseline
 
 
 def optimize_poles(
@@ -306,8 +302,6 @@ def optimize_poles(
                 unchanged_count=len(initial_result.physical_poles),
             ),
         )
-
-    moves: list[PoleMicroSitingMove] = []
 
     # We mutate route poles locally during coordinate descent
     route_poles_map: dict[str, list[Pole]] = {
@@ -392,19 +386,6 @@ def optimize_poles(
                     r_poles[idx] = best_candidate_pole
                     moved_in_pass = True
 
-                    moves.append(
-                        PoleMicroSitingMove(
-                            pole_id=pole.pole_id,
-                            original_chainage_m=original_chainage,
-                            selected_chainage_m=best_candidate_pole.distance_along_route_m,
-                            movement_distance_m=abs(
-                                best_candidate_pole.distance_along_route_m
-                                - original_chainage
-                            ),
-                            reason="Improved score",
-                        )
-                    )
-
         if not moved_in_pass:
             break
 
@@ -461,9 +442,23 @@ def optimize_poles(
             ),
         )
 
-    moved_count = len(set(m.pole_id for m in moves))
+    moves = tuple(
+        PoleMicroSitingMove(
+            pole_id=pole.pole_id,
+            original_chainage_m=original_positions[pole.pole_id],
+            selected_chainage_m=pole.distance_along_route_m,
+            movement_distance_m=abs(
+                pole.distance_along_route_m - original_positions[pole.pole_id]
+            ),
+            reason="Improved score",
+        )
+        for route in new_result.routes
+        for pole in route.poles
+        if pole.distance_along_route_m != original_positions[pole.pole_id]
+    )
+    moved_count = len(moves)
     result = PoleMicroSitingResult(
-        moves=tuple(moves),
+        moves=moves,
         moved_count=moved_count,
         unchanged_count=len(new_result.physical_poles) - moved_count,
     )

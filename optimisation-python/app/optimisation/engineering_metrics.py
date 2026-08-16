@@ -78,6 +78,7 @@ def build_candidate_engineering_metrics(
     *,
     owner_interaction_count: int = 0,
     pole_config: PolePlacementConfig | None = None,
+    pole_result: CollectorPoleResult | None = None,
 ) -> CandidateEngineeringAssessment:
     """Extract canonical engineering metrics for one candidate.
 
@@ -130,32 +131,6 @@ def build_candidate_engineering_metrics(
         environmental_overlap_m2 = spatial_result.environmental_overlap_m2
         hard_violation_ids = spatial_result.hard_violation_ids
         parcel_exposures = spatial_result.parcel_exposures
-
-
-    pole_result = None
-    if pole_config is None:
-        failures.append(
-            EngineeringMetricFailure(
-                EngineeringMetricFailureCode.POLE_CONFIG_MISSING,
-                "Pole configuration is required to calculate physical pole count",
-            )
-            spatial_result = None
-
-    if spatial_result is None:
-        affected_parcel_count = 0
-        road_crossing_count = 0
-        soft_overlap_length_m = 0.0
-        environmental_overlap_m2 = 0.0
-        hard_violation_ids: tuple[str, ...] = ()
-        parcel_exposures: tuple[ParcelEngineeringExposure, ...] = ()
-    else:
-        affected_parcel_count = spatial_result.affected_parcel_count
-        road_crossing_count = spatial_result.road_crossing_count
-        soft_overlap_length_m = spatial_result.soft_overlap_length_m
-        environmental_overlap_m2 = spatial_result.environmental_overlap_m2
-        hard_violation_ids = spatial_result.hard_violation_ids
-        parcel_exposures = spatial_result.parcel_exposures
-
     if pole_result is None:
         if pole_config is not None:
             try:

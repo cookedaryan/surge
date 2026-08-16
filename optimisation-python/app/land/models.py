@@ -143,6 +143,11 @@ class CandidateLandAssessment:
             raise ValueError("scenario_id must not be empty")
         if self.parcel_count < 0:
             raise ValueError("parcel_count must be non-negative")
+        if self.parcel_count != len(self.parcel_decisions):
+            raise ValueError("parcel_count must match parcel_decisions")
+        parcel_ids = tuple(decision.parcel_id for decision in self.parcel_decisions)
+        if parcel_ids != tuple(sorted(set(parcel_ids))):
+            raise ValueError("parcel_decisions must have sorted, unique parcel IDs")
         if self.owner_interaction_count < 0:
             raise ValueError("owner_interaction_count must be non-negative")
         if self.unknown_owner_count < 0:
@@ -170,5 +175,14 @@ class CandidateLandAssessment:
             sorted(set(self.unavailable_parcel_ids))
         ):
             raise ValueError("unavailable_parcel_ids must be sorted and unique")
+        expected_unavailable_ids = tuple(
+            decision.parcel_id
+            for decision in self.parcel_decisions
+            if decision.availability_status == LandAvailabilityStatus.UNAVAILABLE
+        )
+        if self.unavailable_parcel_ids != expected_unavailable_ids:
+            raise ValueError(
+                "unavailable_parcel_ids must match unavailable parcel decisions"
+            )
         if self.is_feasible == bool(self.unavailable_parcel_ids):
             raise ValueError("is_feasible must reflect unavailable parcels")
