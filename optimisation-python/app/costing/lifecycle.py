@@ -119,6 +119,7 @@ def evaluate_candidate_cost(
     land_assessment: CandidateLandAssessment | None,
     catalogue: EngineeringCostCatalogue,
     config: LifecycleCostConfig,
+    land_assessment: CandidateLandAssessment | None = None,
 ) -> CandidateCostAssessment:
     if catalogue.currency.upper() != config.currency.upper():
         raise CostConfigurationError(
@@ -274,6 +275,10 @@ def evaluate_candidate_cost(
                 message="Candidate intersects unavailable land",
             )
         )
+    elif land_assessment is not None:
+        land_purchase_capex_amount = land_assessment.land_purchase_capex
+        land_recurring_cost_pv_amount = land_assessment.land_recurring_cost_pv
+        land_access_present_value_amount = land_assessment.land_access_present_value
     else:
         if land_assessment.scenario_id != scenario.scenario_id:
             raise ValueError("Land assessment scenario does not match candidate")
@@ -408,6 +413,10 @@ def evaluate_candidate_cost(
                 land_access_present_value_amount
             ),
             total_capex=_quantize_money(total_capex_amount),
+            land_recurring_cost_pv=_quantize_money(land_recurring_cost_pv_amount),
+            land_access_present_value=_quantize_money(
+                land_access_present_value_amount
+            ),
             annual_loss_energy_mwh=annual_loss_energy_mwh,
             annual_loss_cost=_quantize_money(annual_loss_cost),
             present_value_factor=pv_factor,
@@ -437,6 +446,8 @@ def evaluate_candidate_cost(
         land_recurring_cost_pv_amount=land_recurring_cost_pv_amount,
         land_access_present_value_amount=land_access_present_value_amount,
         total_capex_amount=total_capex_amount,
+        land_recurring_cost_pv_amount=land_recurring_cost_pv_amount,
+        land_access_present_value_amount=land_access_present_value_amount,
         present_value_opex_amount=present_value_opex_amount,
         annual_loss_energy_mwh=(
             annual_loss_energy_mwh if present_value_opex_amount is not None else None

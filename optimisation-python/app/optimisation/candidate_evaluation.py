@@ -1,9 +1,16 @@
 import logging
 
+from app.algorithms.pole_micro_siting import PoleMicroSitingContext, optimize_poles
 from app.costing.lifecycle import evaluate_candidate_cost
 from app.electrical.errors import CandidateElectricalEvaluationError
 from app.electrical.repair import RepairStatus, repair_electrical_design
-from app.land.decision import assess_candidate_land
+from app.land.decision import assess_candidate_land, derive_owner_interactions
+from app.optimisation import engineering_metrics as _engineering_metrics
+from app.optimisation.engineering_metric_models import (
+    CandidateEngineeringAssessment,
+    EngineeringMetricFailure,
+    EngineeringMetricFailureCode,
+)
 from app.optimisation.engineering_metrics import (
     build_candidate_engineering_metrics,
     extract_spatial_metrics,
@@ -100,50 +107,110 @@ def evaluate_candidate(
         )
 
     # 1.5 Spatial Extraction
-    spatial_result = extract_spatial_metrics(
-        network=scenario.network,
-        constraint_layers=project_input.constraint_layers,
-        row_corridor_width_m=project_input.row_width_m,
-    )
+    spatial_result = None
+    try:
+        spatial_result = extract_spatial_metrics(
+            network=scenario.network,
+            constraint_layers=project_input.constraint_layers,
+            row_corridor_width_m=project_input.row_width_m,
+        )
+    except Exception as exc:
+        logger.warning(
+            "%s spatial analysis failed: %s", scenario.scenario_id, str(exc)
+        )
 
-    # 1.6 Land Assessment
+    # 1.6 Initial Pole Placement and Micro-Siting
+    pole_result = None
+    if config.pole:
+        try:
+            pole_result = _engineering_metrics.place_poles_on_network(
+                scenario.network, config.pole
+            )
+
+            if config.pole.micro_siting and config.pole.micro_siting.enabled:
+                route_parcel_ids = frozenset(
+                    exposure.parcel_id
+                    for exposure in (
+                        spatial_result.parcel_exposures
+                        if spatial_result is not None
+                        else ()
+                    )
+                )
+                micro_context = PoleMicroSitingContext(
+                    route_geometries={
+                        route.route_id: route.geometry
+                        for route in pole_result.routes
+                    },
+                    route_owner_ids=derive_owner_interactions(
+                        route_parcel_ids, project_input.land_context
+                    ),
+                    route_parcel_ids=route_parcel_ids,
+                    constraint_layers=project_input.constraint_layers,
+                    land_context=project_input.land_context,
+                    pole_config=config.pole,
+                )
+                pole_result, _ = optimize_poles(
+                    pole_result, micro_context, config.pole.micro_siting
+                )
+        except Exception as exc:
+            logger.warning(
+                "%s pole placement/micro-siting failed: %s",
+                scenario.scenario_id,
+                str(exc),
+            )
+            pole_result = None
+
+    # 1.7 Land Assessment
     lifecycle_config = config.costing.lifecycle if config.costing else None
     land_assessment = assess_candidate_land(
         scenario_id=scenario.scenario_id,
         parcel_exposures=spatial_result.parcel_exposures,
         land_context=project_input.land_context,
         lifecycle_config=lifecycle_config,
+        constraint_layers=project_input.constraint_layers,
     )
-
-    if not land_assessment.is_feasible:
-        logger.warning(
-            "%s crosses unavailable land parcel(s)", scenario.scenario_id
-        )
-        failure = CandidateFailure(
-            stage=WorkflowStage.SCORING,
-            code=WorkflowFailureCode.LAND_PARCEL_UNAVAILABLE,
-            message="Candidate crosses one or more unavailable parcels.",
-            scenario_id=scenario.scenario_id,
-        )
-        return CandidateWorkflowResult(
-            scenario=scenario,
-            load_flow_result=repair_result.load_flow_result,
-            evaluation=None,
-            execution_failure=failure,
-            cable_sizing=repair_result.initial_cable_sizing,
-            repair_log=repair_result.repair_log,
-            land_assessment=land_assessment,
-        )
 
     # 2. Canonical Engineering Metrics
     assessment = build_candidate_engineering_metrics(
         scenario=scenario,
         load_flow_result=repair_result.load_flow_result,
         load_flow_config=repair_result.final_electrical_config,
-        spatial_result=spatial_result,
-        owner_interaction_count=land_assessment.owner_interaction_count,
+        constraint_layers=project_input.constraint_layers,
         pole_config=config.pole,
+        owner_interaction_count=land_assessment.owner_interaction_count,
+        row_corridor_width_m=project_input.row_width_m,
+        spatial_result=spatial_result,
+        pole_result=pole_result,
     )
+
+    if not land_assessment.is_feasible:
+        logger.warning(
+            "%s crosses unavailable land parcel(s)", scenario.scenario_id
+        )
+        assessment = CandidateEngineeringAssessment(
+            scenario_id=scenario.scenario_id,
+            metrics=None,
+            engineering_metrics_available=False,
+            hard_violation_ids=assessment.hard_violation_ids,
+            extraction_failures=(
+                EngineeringMetricFailure(
+                    code=EngineeringMetricFailureCode.LAND_PARCEL_UNAVAILABLE,
+                    message="Candidate crosses one or more unavailable parcels.",
+                ),
+            ),
+            pole_result=pole_result,
+            parcel_exposures=assessment.parcel_exposures,
+        )
+        return CandidateWorkflowResult(
+            scenario=scenario,
+            load_flow_result=repair_result.load_flow_result,
+            evaluation=None,
+            execution_failure=None,
+            engineering_assessment=assessment,
+            cable_sizing=repair_result.initial_cable_sizing,
+            repair_log=repair_result.repair_log,
+        )
+
     if assessment.engineering_metrics_available:
         logger.info("%s engineering metrics extracted", scenario.scenario_id)
     else:
@@ -161,9 +228,9 @@ def evaluate_candidate(
             load_flow_result=repair_result.load_flow_result,
             electrical_config=repair_result.final_electrical_config,
             engineering_assessment=assessment,
-            land_assessment=land_assessment,
             catalogue=config.costing.catalogue,
             config=config.costing.lifecycle,
+            land_assessment=land_assessment,
         )
         if cost_assessment.cost is not None:
             logger.info("%s lifecycle cost evaluated", scenario.scenario_id)
@@ -183,5 +250,4 @@ def evaluate_candidate(
         cost_assessment=cost_assessment,
         cable_sizing=repair_result.initial_cable_sizing,
         repair_log=repair_result.repair_log,
-        land_assessment=land_assessment,
     )

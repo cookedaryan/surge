@@ -1,7 +1,9 @@
 .venv
 .vscode/
 .superpowers/
-
+.claude/
+.codex/
+.github/
 # ==========================================
 # 1. JETBRAINS / INTELLIJ IDEA (.idea & modules)
 # ==========================================

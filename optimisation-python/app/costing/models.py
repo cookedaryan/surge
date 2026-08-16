@@ -165,6 +165,8 @@ class CandidateLifecycleCost:
     land_recurring_cost_pv: Decimal
     land_access_present_value: Decimal
     total_capex: Decimal
+    land_recurring_cost_pv: Decimal
+    land_access_present_value: Decimal
     annual_loss_energy_mwh: Decimal
     annual_loss_cost: Decimal
     present_value_factor: Decimal
@@ -198,6 +200,8 @@ class CandidateCostAssessment:
     land_recurring_cost_pv_amount: Decimal | None = None
     land_access_present_value_amount: Decimal | None = None
     total_capex_amount: Decimal | None = None
+    land_recurring_cost_pv_amount: Decimal | None = None
+    land_access_present_value_amount: Decimal | None = None
     present_value_opex_amount: Decimal | None = None
     annual_loss_energy_mwh: Decimal | None = None
     annual_loss_cost_amount: Decimal | None = None

@@ -380,6 +380,8 @@ class CandidateCostSummary(ApiModel):
     land_recurring_cost_pv: float | None = None
     land_access_present_value: float | None = None
     total_capex: float | None = None
+    land_recurring_cost_pv: float | None = None
+    land_access_present_value: float | None = None
     annual_loss_energy_mwh: float | None = None
     annual_loss_cost: float | None = None
     present_value_factor: float | None = None

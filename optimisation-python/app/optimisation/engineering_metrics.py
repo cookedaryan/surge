@@ -1,10 +1,16 @@
 """Candidate-level extraction of canonical raw engineering quantities."""
 
 import math
+from collections import defaultdict
+from dataclasses import dataclass
 
 from shapely.ops import unary_union
 
-from app.algorithms.pole_placement import PolePlacementConfig, place_poles_on_network
+from app.algorithms.pole_placement import (
+    CollectorPoleResult,
+    PolePlacementConfig,
+    place_poles_on_network,
+)
 from app.algorithms.route_refinement import RefinedPhysicalRoute
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult
@@ -32,6 +38,24 @@ from app.optimisation.engineering_metric_models import (
 from app.optimisation.scenario_models import PNCScenario
 from app.pnc.models import ProjectPNCNetwork
 
+__all__ = [
+    "SpatialExtractionResult",
+    "build_candidate_engineering_metrics",
+    "calculate_voltage_margin",
+    "extract_spatial_metrics",
+    "place_poles_on_network",
+]
+
+
+@dataclass
+class SpatialExtractionResult:
+    affected_parcel_count: int
+    road_crossing_count: int
+    soft_overlap_length_m: float
+    environmental_overlap_m2: float
+    hard_violation_ids: tuple[str, ...]
+    parcel_exposures: tuple[ParcelEngineeringExposure, ...]
+
 
 def calculate_voltage_margin(
     minimum_voltage_pu: float,
@@ -55,7 +79,14 @@ def build_candidate_engineering_metrics(
     owner_interaction_count: int = 0,
     pole_config: PolePlacementConfig | None = None,
 ) -> CandidateEngineeringAssessment:
-    """Extract engineering metrics without changing recommendation eligibility."""
+    """Extract canonical engineering metrics for one candidate.
+
+    Pre-computed ``spatial_result``/``pole_result`` may be supplied by the
+    caller; otherwise they are computed internally from ``constraint_layers``
+    and ``pole_config``.  Any failure is recorded as a structured extraction
+    failure rather than raising, so downstream scoring can disqualify the
+    candidate deterministically.
+    """
     failures: list[EngineeringMetricFailure] = []
     network = scenario.network
 
@@ -108,15 +139,40 @@ def build_candidate_engineering_metrics(
                 EngineeringMetricFailureCode.POLE_CONFIG_MISSING,
                 "Pole configuration is required to calculate physical pole count",
             )
-        )
+            spatial_result = None
+
+    if spatial_result is None:
+        affected_parcel_count = 0
+        road_crossing_count = 0
+        soft_overlap_length_m = 0.0
+        environmental_overlap_m2 = 0.0
+        hard_violation_ids: tuple[str, ...] = ()
+        parcel_exposures: tuple[ParcelEngineeringExposure, ...] = ()
     else:
-        try:
-            pole_result = place_poles_on_network(network, pole_config)
-        except Exception as exc:
+        affected_parcel_count = spatial_result.affected_parcel_count
+        road_crossing_count = spatial_result.road_crossing_count
+        soft_overlap_length_m = spatial_result.soft_overlap_length_m
+        environmental_overlap_m2 = spatial_result.environmental_overlap_m2
+        hard_violation_ids = spatial_result.hard_violation_ids
+        parcel_exposures = spatial_result.parcel_exposures
+
+    if pole_result is None:
+        if pole_config is not None:
+            try:
+                pole_result = place_poles_on_network(network, pole_config)
+            except Exception as exc:
+                failures.append(
+                    EngineeringMetricFailure(
+                        EngineeringMetricFailureCode.POLE_PLACEMENT_FAILED,
+                        f"Pole placement failed: {exc}",
+                    )
+                )
+                pole_result = None
+        else:
             failures.append(
                 EngineeringMetricFailure(
-                    EngineeringMetricFailureCode.POLE_PLACEMENT_FAILED,
-                    f"Pole placement failed: {exc}",
+                    EngineeringMetricFailureCode.POLE_CONFIG_MISSING,
+                    "Pole configuration is required to calculate physical pole count",
                 )
             )
 
@@ -275,7 +331,6 @@ def extract_spatial_metrics(
         )
     }
     parcel_exposures_list: list[ParcelEngineeringExposure] = []
-    from collections import defaultdict
 
     parcel_intersections = defaultdict(list)
     for intersection in soft_intersections:
