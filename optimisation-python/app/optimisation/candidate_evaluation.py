@@ -4,7 +4,7 @@ from app.algorithms.pole_micro_siting import PoleMicroSitingContext, optimize_po
 from app.costing.lifecycle import evaluate_candidate_cost
 from app.electrical.errors import CandidateElectricalEvaluationError
 from app.electrical.repair import RepairStatus, repair_electrical_design
-from app.land.decision import assess_candidate_land, derive_owner_interactions
+from app.land.decision import assess_candidate_land
 from app.optimisation import engineering_metrics as _engineering_metrics
 from app.optimisation.engineering_metric_models import (
     CandidateEngineeringAssessment,
@@ -128,23 +128,11 @@ def evaluate_candidate(
             )
 
             if config.pole.micro_siting and config.pole.micro_siting.enabled:
-                route_parcel_ids = frozenset(
-                    exposure.parcel_id
-                    for exposure in (
-                        spatial_result.parcel_exposures
-                        if spatial_result is not None
-                        else ()
-                    )
-                )
                 micro_context = PoleMicroSitingContext(
                     route_geometries={
                         route.route_id: route.geometry
                         for route in pole_result.routes
                     },
-                    route_owner_ids=derive_owner_interactions(
-                        route_parcel_ids, project_input.land_context
-                    ),
-                    route_parcel_ids=route_parcel_ids,
                     constraint_layers=project_input.constraint_layers,
                     land_context=project_input.land_context,
                     pole_config=config.pole,
@@ -164,10 +152,11 @@ def evaluate_candidate(
     lifecycle_config = config.costing.lifecycle if config.costing else None
     land_assessment = assess_candidate_land(
         scenario_id=scenario.scenario_id,
-        parcel_exposures=spatial_result.parcel_exposures,
+        parcel_exposures=(
+            spatial_result.parcel_exposures if spatial_result is not None else ()
+        ),
         land_context=project_input.land_context,
         lifecycle_config=lifecycle_config,
-        constraint_layers=project_input.constraint_layers,
     )
 
     # 2. Canonical Engineering Metrics
@@ -175,10 +164,8 @@ def evaluate_candidate(
         scenario=scenario,
         load_flow_result=repair_result.load_flow_result,
         load_flow_config=repair_result.final_electrical_config,
-        constraint_layers=project_input.constraint_layers,
         pole_config=config.pole,
         owner_interaction_count=land_assessment.owner_interaction_count,
-        row_corridor_width_m=project_input.row_width_m,
         spatial_result=spatial_result,
         pole_result=pole_result,
     )
@@ -206,6 +193,7 @@ def evaluate_candidate(
             load_flow_result=repair_result.load_flow_result,
             evaluation=None,
             execution_failure=None,
+            land_assessment=land_assessment,
             engineering_assessment=assessment,
             cable_sizing=repair_result.initial_cable_sizing,
             repair_log=repair_result.repair_log,
@@ -246,6 +234,7 @@ def evaluate_candidate(
         load_flow_result=repair_result.load_flow_result,
         evaluation=None,
         execution_failure=None,
+        land_assessment=land_assessment,
         engineering_assessment=assessment,
         cost_assessment=cost_assessment,
         cable_sizing=repair_result.initial_cable_sizing,

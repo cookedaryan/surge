@@ -92,6 +92,11 @@ class PoleMicroSitingConfig:
     min_improvement: float = 1.0
 
     def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise ValueError(f"enabled must be a boolean, got {self.enabled!r}")
+        _require_finite("search_radius_m", self.search_radius_m)
+        _require_finite("candidate_spacing_m", self.candidate_spacing_m)
+        _require_finite("min_improvement", self.min_improvement)
         if self.search_radius_m < 0:
             raise ValueError(
                 f"search_radius_m must be non-negative, got {self.search_radius_m}"
@@ -100,8 +105,18 @@ class PoleMicroSitingConfig:
             raise ValueError(
                 f"candidate_spacing_m must be positive, got {self.candidate_spacing_m}"
             )
-        if self.max_passes <= 0:
-            raise ValueError(f"max_passes must be positive, got {self.max_passes}")
+        if (
+            isinstance(self.max_passes, bool)
+            or not isinstance(self.max_passes, int)
+            or self.max_passes <= 0
+        ):
+            raise ValueError(
+                f"max_passes must be a positive integer, got {self.max_passes!r}"
+            )
+        if self.min_improvement < 0:
+            raise ValueError(
+                f"min_improvement must be non-negative, got {self.min_improvement}"
+            )
 
 
 @dataclass(frozen=True)

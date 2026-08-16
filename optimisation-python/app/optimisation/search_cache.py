@@ -189,6 +189,19 @@ def compute_evaluation_context_id(
                 "target_span_m": config.pole.target_span_m,
                 "angle_pole_threshold_deg": config.pole.angle_pole_threshold_deg,
                 "coordinate_tolerance_m": config.pole.coordinate_tolerance_m,
+                "micro_siting": (
+                    {
+                        "enabled": config.pole.micro_siting.enabled,
+                        "search_radius_m": config.pole.micro_siting.search_radius_m,
+                        "candidate_spacing_m": (
+                            config.pole.micro_siting.candidate_spacing_m
+                        ),
+                        "max_passes": config.pole.micro_siting.max_passes,
+                        "min_improvement": config.pole.micro_siting.min_improvement,
+                    }
+                    if config.pole.micro_siting
+                    else None
+                ),
             }
             if config.pole
             else None

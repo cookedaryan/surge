@@ -1,5 +1,8 @@
+import datetime
+
 import pytest
-from shapely.geometry import LineString, Point
+from pyproj import CRS
+from shapely.geometry import LineString, Point, Polygon
 
 from app.algorithms.pole_micro_siting import (
     PoleMicroSitingConfig,
@@ -14,6 +17,12 @@ from app.algorithms.pole_placement import (
     Pole,
     PolePlacementConfig,
     PoleRouteResult,
+)
+from app.gis.constraints import ConstraintLayer, ConstraintMode, ConstraintType
+from app.land.models import (
+    LandAvailabilityStatus,
+    LandCommercialContext,
+    ParcelCommercialProfile,
 )
 
 
@@ -51,10 +60,27 @@ def test_generate_candidates_truncates_at_ends(base_config):
     assert candidates == (0.0, 5.0, 10.0)
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("search_radius_m", float("nan")),
+        ("candidate_spacing_m", float("inf")),
+        ("min_improvement", float("nan")),
+        ("min_improvement", -1.0),
+        ("max_passes", 0),
+        ("max_passes", 1.5),
+        ("max_passes", True),
+        ("enabled", 1),
+    ),
+)
+def test_micro_siting_config_rejects_invalid_values(field, value):
+    with pytest.raises(ValueError, match=field):
+        PoleMicroSitingConfig(**{field: value})
+
+
 def test_is_feasible_spans(pole_config):
     context = PoleMicroSitingContext(
         route_geometries={},
-        route_owner_ids=frozenset(),
         constraint_layers=(),
         land_context=None,
         pole_config=pole_config,
@@ -76,7 +102,6 @@ def test_is_feasible_spans(pole_config):
 def test_is_feasible_rejects_ordering_violations(pole_config):
     context = PoleMicroSitingContext(
         route_geometries={},
-        route_owner_ids=frozenset(),
         constraint_layers=(),
         land_context=None,
         pole_config=pole_config,
@@ -93,7 +118,6 @@ def test_is_feasible_rejects_ordering_violations(pole_config):
 def test_score_candidate(pole_config):
     context = PoleMicroSitingContext(
         route_geometries={},
-        route_owner_ids=frozenset(),
         constraint_layers=(),
         land_context=None,
         pole_config=pole_config,
@@ -122,7 +146,6 @@ def test_score_candidate(pole_config):
 def test_optimize_poles(base_config, pole_config):
     context = PoleMicroSitingContext(
         route_geometries={"R1": LineString([(0, 0), (100, 0)])},
-        route_owner_ids=frozenset(),
         constraint_layers=(),
         land_context=None,
         pole_config=pole_config,
@@ -155,6 +178,7 @@ def test_optimize_poles(base_config, pole_config):
     new_result, report = optimize_poles(initial_result, context, base_config)
 
     assert report.moved_count == 1
+    assert report.moved_count == len(report.moves)
     assert len(report.moves) == 1
     assert report.moves[-1].pole_id == "P1"
     assert report.moves[-1].selected_chainage_m == 55.0
@@ -169,7 +193,6 @@ def test_optimize_poles(base_config, pole_config):
 def test_optimize_poles_reverts_without_global_improvement(base_config, pole_config):
     context = PoleMicroSitingContext(
         route_geometries={"R1": LineString([(0, 0), (100, 0)])},
-        route_owner_ids=frozenset(),
         constraint_layers=(),
         land_context=None,
         pole_config=pole_config,
@@ -202,3 +225,60 @@ def test_optimize_poles_reverts_without_global_improvement(base_config, pole_con
     assert report.moved_count == 0
     assert report.moves == ()
     assert new_result is initial_result
+
+
+def test_optimize_poles_can_remove_owner_and_parcel_interaction(
+    base_config, pole_config
+):
+    parcel = ConstraintLayer(
+        layer_id="parcel-1",
+        layer_type=ConstraintType.PARCEL,
+        mode=ConstraintMode.SOFT_PENALTY,
+        geometry=Polygon([(44, -5), (56, -5), (56, 5), (44, 5)]),
+        buffer_m=0.0,
+        cost_weight=1.0,
+        crs=CRS.from_epsg(32643),
+    )
+    land_context = LandCommercialContext(
+        currency="USD",
+        as_of_date=datetime.date(2026, 1, 1),
+        parcel_profiles=(
+            ParcelCommercialProfile(
+                parcel_id="parcel-1",
+                owner_id="owner-1",
+                availability_status=LandAvailabilityStatus.AVAILABLE,
+                transaction_options=(),
+            ),
+        ),
+    )
+    context = PoleMicroSitingContext(
+        route_geometries={"R1": LineString([(0, 0), (100, 0)])},
+        constraint_layers=(parcel,),
+        land_context=land_context,
+        pole_config=pole_config,
+    )
+    initial_result = CollectorPoleResult(
+        routes=(
+            PoleRouteResult(
+                route_id="R1",
+                feeder_id="F1",
+                start_node_id="N1",
+                end_node_id="N2",
+                geometry=LineString([(0, 0), (100, 0)]),
+                poles=(
+                    Pole("P0", "F1", 0, Point(0, 0), "terminal", 0.0),
+                    Pole("P1", "F1", 1, Point(50, 0), "intermediate", 50.0),
+                    Pole("P2", "F1", 2, Point(100, 0), "terminal", 100.0),
+                ),
+                spans=(),
+            ),
+        ),
+        total_poles=3,
+        total_spans=2,
+        physical_poles=(),
+    )
+
+    new_result, report = optimize_poles(initial_result, context, base_config)
+
+    assert report.moved_count == 1
+    assert new_result.routes[0].poles[1].distance_along_route_m == 40.0

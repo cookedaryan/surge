@@ -259,9 +259,30 @@ def test_commercial_land_costs_replace_catalogue_policy(
     dummy_catalogue: EngineeringCostCatalogue,
     dummy_lifecycle_config: LifecycleCostConfig,
 ) -> None:
+    selected_option = LandOptionAssessment(
+        mode=LandTransactionMode.PURCHASE,
+        price_status=LandPriceStatus.QUOTED,
+        upfront_cost=Decimal("100.00"),
+        annual_cost=Decimal("25.00"),
+        term_years=1,
+        price_date=datetime.date(2026, 1, 1),
+        present_value=Decimal("125.00"),
+        feasible=True,
+    )
     land_assessment = CandidateLandAssessment(
         scenario_id="s1",
-        parcel_decisions=(),
+        parcel_decisions=(
+            ParcelLandDecision(
+                parcel_id="parcel1",
+                owner_id="OWNER-1",
+                availability_status=LandAvailabilityStatus.AVAILABLE,
+                feasible_options=(selected_option,),
+                selected_mode=LandTransactionMode.PURCHASE,
+                selected_present_value=Decimal("125.00"),
+                cost_basis=LandPriceStatus.QUOTED,
+                price_date=datetime.date(2026, 1, 1),
+            ),
+        ),
         parcel_count=1,
         owner_interaction_count=1,
         owner_interaction_basis=OwnerInteractionBasis.CONFIRMED_OWNER_IDS,
