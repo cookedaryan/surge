@@ -14,7 +14,8 @@ public record FeederBomSummary(
         Integer segmentCount,
         BigDecimal lengthMeters,
         Integer poleCount,
-        BigDecimal totalCost,
+        /** Sum of the feeder's per-segment conductor costs, or null when none was priced. */
+        BigDecimal conductorCost,
         BigDecimal electricalLossesKw
 ) {
 }

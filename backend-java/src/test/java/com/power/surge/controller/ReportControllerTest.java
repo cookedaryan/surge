@@ -92,6 +92,8 @@ class ReportControllerTest {
                 java.util.Map.of("tangent", 15),
                 java.util.Map.of("PSC-9M", 15),
                 new BigDecimal("150000.00"),
+                "INR",
+                0,
                 new BigDecimal("12.50"),
                 new BigDecimal("18"),
                 new BigDecimal("0.00"),

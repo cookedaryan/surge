@@ -206,7 +206,8 @@ public class PdfReportService {
         t.setWidthPercentage(100);
         t.setSpacingAfter(12);
 
-        header(t, "Feeders", "Segments", "Network length", "Poles", "Estimated capex",
+        header(t, "Feeders", "Segments", "Network length", "Poles",
+                "Estimated capex" + currencySuffix(bom.costCurrency()),
                 "Electrical losses", "Compensation");
 
         BigDecimal km = bom.totalNetworkLengthMeters() != null
@@ -251,7 +252,8 @@ public class PdfReportService {
         t.setWidths(new float[]{2.0f, 1.2f, 1.6f, 1.2f, 1.8f, 1.8f});
         t.setSpacingAfter(6);
         t.setHeaderRows(1);
-        header(t, "Feeder", "Segments", "Length (km)", "Poles", "Est. cost", "Losses (kW)");
+        header(t, "Feeder", "Segments", "Length (km)", "Poles",
+                "Conductor cost" + currencySuffix(bom.costCurrency()), "Losses (kW)");
 
         if (bom.feederSummaries().isEmpty()) {
             spanningNote(t, 6, "No feeder routes generated for this run.", body);
@@ -262,7 +264,7 @@ public class PdfReportService {
             cell(t, text(f.segmentCount()), body);
             cell(t, km(f.lengthMeters()), body);
             cell(t, text(f.poleCount()), body);
-            cell(t, money(f.totalCost()), body);
+            cell(t, money(f.conductorCost()), body);
             cell(t, text(f.electricalLossesKw()), body);
         }
         return t;
@@ -275,7 +277,8 @@ public class PdfReportService {
                 1.4f, 1.9f, 1.2f, 0.8f, 1.4f, 1.2f, 1.6f, 1.1f, 1.4f, 1.4f, 1.4f, 1.4f});
         t.setSpacingAfter(12);
         t.setHeaderRows(1);
-        header(t, "Feeder", "Segment ID", "Length (m)", "Poles", "Est. cost", "Losses (kW)",
+        header(t, "Feeder", "Segment ID", "Length (m)", "Poles",
+                "Conductor cost" + currencySuffix(bom.costCurrency()), "Losses (kW)",
                 "Conductor", "Util. (%)", "Start lat", "Start lon", "End lat", "End lon");
 
         if (bom.segmentDetails().isEmpty()) {
@@ -287,7 +290,7 @@ public class PdfReportService {
             cell(t, s.segmentId(), tiny);
             cell(t, text(s.lengthMeters()), tiny);
             cell(t, text(s.poleCount()), tiny);
-            cell(t, money(s.totalCost()), tiny);
+            cell(t, money(s.conductorCost()), tiny);
             cell(t, text(s.electricalLossesKw()), tiny);
             cell(t, s.cableTypeId() != null ? s.cableTypeId() : "—", tiny);
             cell(t, text(s.cableUtilisationPct()), tiny);
@@ -434,13 +437,25 @@ public class PdfReportService {
         return value != null ? value + " " + unit : "—";
     }
 
+    /**
+     * Money without an invented currency symbol.
+     *
+     * <p>This used to prefix "$" unconditionally. The seeded catalogue prices in INR, so the symbol
+     * was simply wrong, and a wrong unit on a right number is its own kind of error. The currency is
+     * stated once, in the heading of the column or row that carries the figure.
+     */
     private static String money(BigDecimal value) {
-        return value != null ? "$" + value.setScale(2, RoundingMode.HALF_UP).toPlainString() : "—";
+        return value != null ? value.setScale(2, RoundingMode.HALF_UP).toPlainString() : "Not costed";
     }
 
     /** Scenario comparison carries its figures as doubles rather than BigDecimal. */
     private static String money(Double value) {
-        return value != null ? money(BigDecimal.valueOf(value)) : "—";
+        return value != null ? money(BigDecimal.valueOf(value)) : "Not costed";
+    }
+
+    /** A heading suffix naming the currency, blank when the run was not costed. */
+    private static String currencySuffix(String currency) {
+        return currency != null && !currency.isBlank() ? " (" + currency + ")" : "";
     }
 
     private static String km(BigDecimal metres) {

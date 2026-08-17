@@ -50,7 +50,7 @@ class PdfReportServiceTest {
                 2, 5, new BigDecimal("8450.00"), 56,
                 java.util.Map.of("tangent", 40, "angle", 16),
                 java.util.Map.of("PSC-9M", 56),
-                new BigDecimal("676000.00"), new BigDecimal("42.50"),
+                new BigDecimal("676000.00"), "INR", 0, new BigDecimal("42.50"),
                 new BigDecimal("18"), new BigDecimal("0.00"), new BigDecimal("0.00"),
                 List.of(), List.of(), List.of(), List.of(), Instant.now()
         );

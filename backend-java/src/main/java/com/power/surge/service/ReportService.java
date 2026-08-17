@@ -88,7 +88,6 @@ public class ReportService {
 
         List<RouteSegmentDetail> segmentDetails = new ArrayList<>();
         BigDecimal totalLength = BigDecimal.ZERO;
-        BigDecimal totalCost = BigDecimal.ZERO;
         BigDecimal totalLosses = BigDecimal.ZERO;
 
         for (GeneratedRoute r : routes) {
@@ -102,9 +101,6 @@ public class ReportService {
 
             if (r.getTotalLengthMeters() != null) {
                 totalLength = totalLength.add(r.getTotalLengthMeters());
-            }
-            if (r.getTotalCost() != null) {
-                totalCost = totalCost.add(r.getTotalCost());
             }
             if (r.getElectricalLossesKw() != null) {
                 totalLosses = totalLosses.add(r.getElectricalLossesKw());
@@ -163,7 +159,12 @@ public class ReportService {
                 totalPoles,
                 countBy(poles, GeneratedPole::getPoleRole),
                 countBy(poles, GeneratedPole::getRecommendedPoleType),
-                totalCost.setScale(2, RoundingMode.HALF_UP),
+                // The engine's own network CAPEX -- conductor, poles and land together -- rather
+                // than a sum of per-route figures, which would omit poles and land and present the
+                // remainder as a total.
+                job.getTotalCapex(),
+                job.getCostCurrency(),
+                job.getCostFailureCount(),
                 totalLosses.setScale(2, RoundingMode.HALF_UP),
                 rowWidth,
                 totalAffectedArea,
@@ -199,11 +200,28 @@ public class ReportService {
                     rows.size(),
                     sum(rows, RouteSegmentDetail::lengthMeters),
                     rows.stream().mapToInt(r -> r.poleCount() != null ? r.poleCount() : 0).sum(),
-                    sum(rows, RouteSegmentDetail::totalCost),
+                    sumMoney(rows, RouteSegmentDetail::conductorCost),
                     sum(rows, RouteSegmentDetail::electricalLossesKw)
             ));
         }
         return summaries;
+    }
+
+    /**
+     * Sums money, returning null when no row carried any.
+     *
+     * <p>{@link #sum} folds from zero, which is right for lengths and losses and wrong for money: a
+     * feeder nobody priced would report 0, and a cost of zero reads as free rather than as unknown.
+     */
+    private static BigDecimal sumMoney(
+            List<RouteSegmentDetail> rows,
+            java.util.function.Function<RouteSegmentDetail, BigDecimal> field
+    ) {
+        List<BigDecimal> values = rows.stream().map(field).filter(Objects::nonNull).toList();
+        if (values.isEmpty()) {
+            return null;
+        }
+        return values.stream().reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
     }
 
     private static BigDecimal sum(
@@ -261,7 +279,7 @@ public class ReportService {
                 route.getSegmentId(),
                 route.getTotalLengthMeters(),
                 poleCount,
-                route.getTotalCost(),
+                route.getConductorCost(),
                 route.getElectricalLossesKw(),
                 route.getCableTypeId(),
                 route.getCableUtilisationPct(),
@@ -355,10 +373,18 @@ public class ReportService {
                 .append(report.totalNetworkLengthMeters().divide(BigDecimal.valueOf(1000), 3, RoundingMode.HALF_UP))
                 .append("\n");
         csv.append("Poles (distinct),").append(report.totalPoles()).append("\n");
-        csv.append("Estimated capex ($),").append(report.totalEstimatedCost()).append("\n");
+        csv.append("Estimated capex").append(currencyLabel(report.costCurrency())).append(",")
+                .append(money(report.totalEstimatedCost())).append("\n");
+        if (report.costFailureCount() != null && report.costFailureCount() > 0) {
+            // The engine omits a component it could not price rather than pricing it at zero, so the
+            // capex above is a partial sum. Saying so is the difference between a figure and a
+            // misleading one.
+            csv.append("Cost components not priced,").append(report.costFailureCount())
+                    .append(" (capex above is incomplete)\n");
+        }
         csv.append("Electrical losses (kW),").append(report.totalElectricalLossesKw()).append("\n");
         csv.append("Affected area (m2),").append(report.totalAffectedAreaM2()).append("\n");
-        csv.append("Estimated compensation ($),").append(report.totalCompensationCost()).append("\n\n");
+        csv.append("Estimated compensation,").append(nullToZero(report.totalCompensationCost())).append("\n\n");
 
         csv.append("--- POLE COUNT BY STRUCTURAL ROLE ---\n");
         csv.append("Role,Count\n");
@@ -375,13 +401,17 @@ public class ReportService {
         csv.append("\n");
 
         csv.append("--- FEEDER SUMMARY ---\n");
-        csv.append("Feeder Name,Segments,Length (m),Pole Count,Total Cost ($),Electrical Losses (kW)\n");
+        // "Conductor Cost", not "Total Cost": conductor is the only component the engine attributes
+        // to a route, and calling a partial figure a total is how a reader is misled.
+        csv.append("Feeder Name,Segments,Length (m),Pole Count,Conductor Cost")
+                .append(currencyLabel(report.costCurrency()))
+                .append(",Electrical Losses (kW)\n");
         for (FeederBomSummary f : report.feederSummaries()) {
             csv.append(escapeCsv(f.feederName())).append(",")
                     .append(f.segmentCount()).append(",")
                     .append(nullToZero(f.lengthMeters())).append(",")
                     .append(f.poleCount()).append(",")
-                    .append(nullToZero(f.totalCost())).append(",")
+                    .append(money(f.conductorCost())).append(",")
                     .append(nullToZero(f.electricalLossesKw())).append("\n");
         }
         // Feeder pole counts sum higher than the distinct network total: a junction pole shared by
@@ -390,7 +420,8 @@ public class ReportService {
                 .append(report.totalSegments()).append(",")
                 .append(report.totalNetworkLengthMeters()).append(",")
                 .append(report.totalPoles()).append(",")
-                .append(report.totalEstimatedCost()).append(",")
+                // money(...), not the BigDecimal: appending null renders the literal "null".
+                .append(money(report.totalEstimatedCost())).append(",")
                 .append(report.totalElectricalLossesKw()).append("\n\n");
 
         // Conductor length by type is what a procurement team orders against, so it is totalled
@@ -414,7 +445,7 @@ public class ReportService {
         csv.append("\n");
 
         csv.append("--- ROUTE SEGMENT SCHEDULE ---\n");
-        csv.append("Feeder Name,Segment ID,Length (m),Pole Count,Total Cost ($),Electrical Losses (kW),"
+        csv.append("Feeder Name,Segment ID,Length (m),Pole Count,Conductor Cost,Electrical Losses (kW),"
                 + "Cable Type,Cable Utilisation (%),"
                 + "Start Latitude,Start Longitude,End Latitude,End Longitude,Vertices,Path (WKT)\n");
         for (RouteSegmentDetail s : report.segmentDetails()) {
@@ -422,7 +453,7 @@ public class ReportService {
                     .append(escapeCsv(s.segmentId())).append(",")
                     .append(nullToZero(s.lengthMeters())).append(",")
                     .append(s.poleCount() != null ? s.poleCount() : 0).append(",")
-                    .append(nullToZero(s.totalCost())).append(",")
+                    .append(money(s.conductorCost())).append(",")
                     .append(nullToZero(s.electricalLossesKw())).append(",")
                     .append(escapeCsv(s.cableTypeId())).append(",")
                     .append(s.cableUtilisationPct() != null
@@ -518,6 +549,21 @@ public class ReportService {
 
     private static String nullToZero(BigDecimal value) {
         return value != null ? value.toPlainString() : "0";
+    }
+
+    /**
+     * Money for a report cell: the figure, or "Not costed".
+     *
+     * <p>Never zero. An unpriced network and a free one are different findings and only one of them
+     * is possible, so a 0 in a capex column misleads a reader without anyone having lied.
+     */
+    private static String money(BigDecimal value) {
+        return value != null ? value.toPlainString() : "Not costed";
+    }
+
+    /** The currency of a run's figures, for a column heading. Blank when nothing was costed. */
+    private static String currencyLabel(String currency) {
+        return currency != null && !currency.isBlank() ? " (" + currency + ")" : "";
     }
 
     private static final List<String> SCENARIO_NAMES =

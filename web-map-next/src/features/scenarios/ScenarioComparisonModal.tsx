@@ -1,6 +1,7 @@
 import { Dialog, Button } from '../../components/ui';
 import { useUiStore } from '../../lib/store';
 import { useScenarioComparison } from '../../lib/query';
+import { formatMoney } from '../../lib/format/money';
 
 const BADGE_COLORS: Record<string, string> = {
   'Minimum Cost': '#34D399',
@@ -38,7 +39,9 @@ export function ScenarioComparisonModal() {
               </div>
               <div className="flex justify-between text-[11.5px] text-textMuted py-0.5">
                 <span>CAPEX</span>
-                <span className="font-mono text-text tabular">${(sc.totalEstimatedCost || 0).toLocaleString()}</span>
+                {/* `|| 0` turned an uncosted scenario into one costing nothing, which is the
+                    difference between "we have not priced this" and "this is free". */}
+                <span className="font-mono text-text tabular">{formatMoney(sc.totalEstimatedCost)}</span>
               </div>
               <div className="flex justify-between text-[11.5px] text-textMuted py-0.5">
                 <span>Losses</span>

@@ -183,10 +183,12 @@ public class RouteService {
                 totalLength = BigDecimal.valueOf(calculateLineStringLengthMeters(lineString));
             }
 
+            // No fabricated fallback. This used to be length x 80 -- a constant with no basis, no
+            // currency and no provenance, which then flowed into the BOM total, the scenario
+            // comparison and the route popups as though it were an estimate. A route the engine did
+            // not price has an unknown cost, and null is how that is said. The real per-segment
+            // conductor cost is applied separately, from the engine's own line items.
             BigDecimal totalCost = extractBigDecimal(properties, "totalCost", "total_cost", "cost");
-            if (totalCost == null) {
-                totalCost = BigDecimal.valueOf(Math.round(totalLength.doubleValue() * 80.0));
-            }
 
             BigDecimal lossesKw = extractBigDecimal(properties, "electricalLossesKw", "electrical_losses_kw", "losses_kw");
             if (lossesKw == null) {
@@ -347,6 +349,12 @@ public class RouteService {
             properties.put("feederName", route.getFeederName());
             properties.put("totalLengthMeters", route.getTotalLengthMeters());
             properties.put("totalCost", route.getTotalCost());
+            // The engine's own figure for this segment's conductor, which is the only cost it
+            // attributes to a single route. Null where nothing was priced.
+            properties.put("conductorCost", route.getConductorCost());
+            // Read from the route's own job so this works wherever the collection is built.
+            properties.put("costCurrency",
+                    route.getJob() != null ? route.getJob().getCostCurrency() : null);
             properties.put("electricalLossesKw", route.getElectricalLossesKw());
             properties.put("poleCount", realPoleCount != null ? realPoleCount.intValue() : route.getPoleCount());
             // The conductor chosen for this segment, and how hard it is working. Persisted since

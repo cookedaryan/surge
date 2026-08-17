@@ -15,7 +15,14 @@ public record RouteSegmentDetail(
         String segmentId,
         BigDecimal lengthMeters,
         Integer poleCount,
-        BigDecimal totalCost,
+        /**
+         * What the engine priced this segment's conductor at, or null when it priced nothing.
+         *
+         * <p>Conductor is the only cost component the engine attributes to a single segment: pole
+         * costs come per class and land costs per parcel. This field previously held a
+         * {@code length × 80} fabrication presented as the segment's total cost.
+         */
+        BigDecimal conductorCost,
         BigDecimal electricalLossesKw,
         /** Conductor selected for this segment, and how close it runs to its effective ampacity. */
         String cableTypeId,

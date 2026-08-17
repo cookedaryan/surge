@@ -3,6 +3,7 @@ import { Card, CardTitle, Button } from '../../components/ui';
 import { useUiStore } from '../../lib/store';
 import { useProjectData } from '../map/useProjectData';
 import { api } from '../../lib/api';
+import { formatMoney } from '../../lib/format/money';
 
 export function BomPane() {
   const currentProjectId = useUiStore((s) => s.currentProjectId);
@@ -32,7 +33,9 @@ export function BomPane() {
     runExport('pdf', () => api.downloadPdfReport(currentProjectId as string));
 
   const lengthKm = bom ? (bom.totalNetworkLengthMeters / 1000).toFixed(2) : '0.00';
-  const cost = bom?.totalEstimatedCost?.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) ?? '$0.00';
+  // Was `?? '$0.00'`, which reported a network nobody had priced as a free one, in a currency the
+  // catalogue does not use.
+  const cost = formatMoney(bom?.totalEstimatedCost, bom?.costCurrency);
   const losses = bom?.totalElectricalLossesKw?.toFixed(2) ?? '0.00';
 
   return (

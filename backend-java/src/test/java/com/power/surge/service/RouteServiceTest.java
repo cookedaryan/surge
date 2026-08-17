@@ -123,6 +123,70 @@ class RouteServiceTest {
     }
 
     /**
+     * A route the engine did not price must carry no cost.
+     *
+     * <p>This used to be {@code route length × 80}: a constant with no basis, no currency and no
+     * provenance, which then flowed into the BOM total, the scenario comparison and the route popups
+     * as though it were an estimate. On a 2.5 km segment it produced a confident $200,000.
+     */
+    @Test
+    void saveRoutesFromGeoJson_doesNotFabricateACostFromLength() {
+        UUID jobId = UUID.randomUUID();
+        Project project = new Project("Test Project", "Description");
+        OptimizationJob job = new OptimizationJob(project, "MULTI_OBJECTIVE_A_STAR", null, null, null, null);
+
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+        when(routeRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, Object> geoJson = Map.of(
+                "type", "FeatureCollection",
+                "features", List.of(feature("Feeder-01", "SEG-1")));
+
+        routeService.saveRoutesFromGeoJson(jobId, geoJson);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<GeneratedRoute>> saved = ArgumentCaptor.forClass(List.class);
+        verify(routeRepository).saveAll(saved.capture());
+        GeneratedRoute route = saved.getValue().get(0);
+        assertThat(route.getTotalCost())
+                .as("2500 m used to become a confident 200,000 here")
+                .isNull();
+        assertThat(route.getConductorCost()).isNull();
+        // The length itself is real and must survive: only the invented cost is gone.
+        assertThat(route.getTotalLengthMeters()).isEqualByComparingTo("2500.0");
+    }
+
+    /** A cost the engine did report on the feature is still honoured. */
+    @Test
+    void saveRoutesFromGeoJson_keepsACostTheEngineSupplied() {
+        UUID jobId = UUID.randomUUID();
+        Project project = new Project("Test Project", "Description");
+        OptimizationJob job = new OptimizationJob(project, "MULTI_OBJECTIVE_A_STAR", null, null, null, null);
+
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+        when(routeRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Map<String, Object> geoJson = Map.of(
+                "type", "FeatureCollection",
+                "features", List.of(Map.of(
+                        "type", "Feature",
+                        "geometry", Map.of("type", "LineString",
+                                "coordinates", List.of(List.of(77.23, 28.63), List.of(77.25, 28.64))),
+                        "properties", Map.of(
+                                "feederName", "Feeder-01",
+                                "totalLengthMeters", 2500.0,
+                                "total_cost", 91234.56,
+                                "poleCount", 15))));
+
+        routeService.saveRoutesFromGeoJson(jobId, geoJson);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<GeneratedRoute>> saved = ArgumentCaptor.forClass(List.class);
+        verify(routeRepository).saveAll(saved.capture());
+        assertThat(saved.getValue().get(0).getTotalCost()).isEqualByComparingTo("91234.56");
+    }
+
+    /**
      * The engine's per-segment conductor cost has to reach the route row.
      *
      * <p>Conductor is the only cost component the engine attributes to a single segment, and it is

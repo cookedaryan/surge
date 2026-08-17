@@ -232,7 +232,10 @@ export class SurgeMapEngine {
                 ? `<div class="popup-row"><span>Current:</span> <strong>${props.cableRequiredCurrentA} A of ${shown(props.cableEffectiveAmpacityA)} A</strong></div>`
                 : ''
             }
-            <div class="popup-row"><span>Estimated Cost:</span> <strong>${shown(props.totalCost, asMoney)}</strong></div>
+            <div class="popup-row"><span>Conductor cost:</span> <strong>${shown(
+              props.conductorCost,
+              (v) => asMoney(v, props.costCurrency as string | null | undefined)
+            )}</strong></div>
           </div>
         `);
       }

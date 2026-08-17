@@ -40,7 +40,7 @@ describe('shown', () => {
     // a parcel with no acquisition cost, a segment carrying no load -- displayed the invented
     // number instead. A zero is an answer.
     expect(shown(0, asMw)).toBe('0 MW');
-    expect(shown(0, asMoney)).toBe('$0');
+    expect(shown(0, asMoney)).toBe('0');
     expect(shown(0)).toBe('0');
   });
 
@@ -52,7 +52,7 @@ describe('shown', () => {
   it('formats numeric strings, which is how JSON money often arrives', () => {
     // BigDecimal fields serialise as strings often enough that a formatter has to cope.
     expect(shown('52.60', asPercent)).toBe('52.6%');
-    expect(shown('1500', asMoney)).toBe('$1,500');
+    expect(shown('1500', asMoney)).toBe('1,500');
   });
 
   it('passes through a non-numeric string rather than showing NaN', () => {
@@ -71,9 +71,17 @@ describe('formatters', () => {
     // Pinning either would pass on one machine and fail on the other -- CI runs en-US, this
     // project's team does not.
     const rendered = asMoney(5599319.4);
-    expect(rendered.startsWith('$')).toBe(true);
     expect(rendered).toMatch(/[,.  ]/);
     expect(rendered.replace(/[^0-9]/g, '')).toBe('5599319');
+  });
+
+  it("labels money with the run's currency and invents none without it", () => {
+    // The old formatter hardcoded "$" while the cost catalogue prices in INR, so every cost on
+    // the map carried the wrong unit -- a right number under a wrong currency.
+    expect(asMoney(1500, 'INR')).toContain('INR');
+    expect(asMoney(1500, 'INR')).not.toContain('$');
+    expect(asMoney(1500)).not.toContain('$');
+    expect(asMoney(1500, null)).not.toContain('$');
   });
 
   it('renders a rate per square metre', () => {

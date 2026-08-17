@@ -215,7 +215,22 @@ export interface OptimizationParams {
 export interface BomReport {
   totalNetworkLengthMeters: number;
   totalPoles: number;
-  totalEstimatedCost: number;
+  /**
+   * The network's CAPEX as the engine priced it, or null when the run was not costed.
+   *
+   * <p>Nullable deliberately. This was a number that fell back to a per-route `length x 80`
+   * fabrication, so it was never absent and never had to be read as unknown.
+   */
+  totalEstimatedCost: number | null;
+  /** ISO 4217 code for the figures here, or null when the run was not costed. */
+  costCurrency?: string | null;
+  /**
+   * Components the engine could not price.
+   *
+   * <p>Above zero, `totalEstimatedCost` is a partial sum: the engine omits a component it cannot
+   * price rather than pricing it at zero.
+   */
+  costFailureCount?: number | null;
   totalElectricalLossesKw: number;
   feederSummaries: unknown[];
 }

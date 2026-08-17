@@ -85,8 +85,15 @@ class ReportServiceTest {
                 new Coordinate(77.25, 28.64)
         });
         GeneratedRoute route = new GeneratedRoute(
-                job, "Feeder-01", new BigDecimal("2500.00"), new BigDecimal("150000.00"), new BigDecimal("12.5"), 15, lineString, null, null
+                job, "Feeder-01", new BigDecimal("2500.00"), null, new BigDecimal("12.5"), 15, lineString, null, null
         );
+        // Network capex comes from the engine's own figure on the job, not from summing per-route
+        // numbers: conductor is the only component attributed to a route, so a sum of routes would
+        // omit poles and land and present the remainder as a total.
+        job.applyCost("INR", new BigDecimal("100000.00"), new BigDecimal("50000.00"), BigDecimal.ZERO,
+                new BigDecimal("150000.00"), new BigDecimal("10.0000"), new BigDecimal("35000.00"),
+                new BigDecimal("300000.00"), new BigDecimal("450000.00"),
+                "IN-33KV-INDICATIVE", "2026.1", "2026-01-01", 0);
 
         LinearRing ring = geometryFactory.createLinearRing(new Coordinate[]{
                 new Coordinate(77.20, 28.60),
@@ -189,6 +196,91 @@ class ReportServiceTest {
                 .isEqualByComparingTo(BigDecimal.ZERO);
     }
 
+    /**
+     * An uncosted run must read as uncosted.
+     *
+     * <p>Every money figure in the exports came from a per-route {@code length × 80} fabrication, so
+     * a run with no cost catalogue still produced a full set of confident numbers. Removing the
+     * fabrication is only half the fix: printing 0 instead would turn "nobody priced this" into
+     * "this is free", which is worse, because a zero looks like an answer.
+     */
+    @Test
+    void generateBomCsv_saysNotCostedRatherThanZeroWhenNothingWasPriced() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Fixture f = fixture(projectId, jobId);
+
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of(
+                segment(f.job(), "FDR-001", "S1", "1000.00", null, "1.0")));
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
+
+        String csv = reportService.generateBomCsv(projectId, jobId);
+
+        assertThat(csv).contains("Estimated capex,Not costed");
+        // The column heading must not promise a total it is not carrying: conductor is the only
+        // component the engine attributes to a route.
+        assertThat(csv).contains("Conductor Cost");
+        assertThat(csv).doesNotContain("Total Cost ($)");
+        // No currency symbol is invented where no catalogue named one.
+        assertThat(csv).doesNotContain("capex ($)");
+        // And the feeder row itself: a roll-up of nothing is not zero. Summing an all-null column
+        // from BigDecimal.ZERO would print 0.000 here, which reads as a feeder that costs nothing.
+        assertThat(csv).contains("FDR-001,1,1000.000,0,Not costed,1.000");
+        // And the totals row, which appended the BigDecimal directly and so printed the
+        // literal string "null" once the figure could be absent.
+        assertThat(csv).doesNotContain(",null,");
+    }
+
+    /** With a catalogue, the figures appear under the currency they were priced in. */
+    @Test
+    void generateBomCsv_namesTheCurrencyTheRunWasPricedIn() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Fixture f = fixture(projectId, jobId);
+        f.job().applyCost("INR", new BigDecimal("208393.79"), new BigDecimal("188000.00"),
+                BigDecimal.ZERO, new BigDecimal("396393.79"), new BigDecimal("16.4264"),
+                new BigDecimal("57492.50"), new BigDecimal("613719.60"), new BigDecimal("1010113.38"),
+                "IN-33KV-INDICATIVE", "2026.1", "2026-01-01", 0);
+
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of(
+                segment(f.job(), "FDR-001", "S1", "1000.00", "104196.89", "1.0")));
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
+
+        String csv = reportService.generateBomCsv(projectId, jobId);
+
+        assertThat(csv).contains("Estimated capex (INR),396393.79");
+        assertThat(csv).contains("Conductor Cost (INR)");
+        assertThat(csv).contains("104196.89");
+    }
+
+    /**
+     * A partial sum has to be labelled as one.
+     *
+     * <p>The engine omits a component it could not price rather than pricing it at zero, so a capex
+     * with failures behind it is not the network's cost — and a reader has no way to know that from
+     * the number.
+     */
+    @Test
+    void generateBomCsv_flagsCapexThatIsMissingComponents() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Fixture f = fixture(projectId, jobId);
+        f.job().applyCost("INR", null, new BigDecimal("188000.00"), BigDecimal.ZERO,
+                new BigDecimal("188000.00"), null, null, null, null,
+                "IN-33KV-INDICATIVE", "2026.1", "2026-01-01", 1);
+
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of(
+                segment(f.job(), "FDR-001", "S1", "1000.00", null, "1.0")));
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
+
+        String csv = reportService.generateBomCsv(projectId, jobId);
+
+        assertThat(csv).contains("Cost components not priced,1 (capex above is incomplete)");
+    }
+
     @Test
     void generateBomCsv_success() {
         UUID projectId = UUID.randomUUID();
@@ -265,8 +357,14 @@ class ReportServiceTest {
                 new Coordinate(77.25, 28.64)
         });
         GeneratedRoute route = new GeneratedRoute(
-                job, "Feeder-01", new BigDecimal("2500.00"), new BigDecimal("150000.00"), new BigDecimal("12.5"), 15, lineString, null, null
+                job, "Feeder-01", new BigDecimal("2500.00"), null, new BigDecimal("12.5"), 15, lineString, null, null
         );
+        // The comparison reports the engine's own network capex from the job. It used to sum a
+        // per-route length x 80 fabrication.
+        job.applyCost("INR", new BigDecimal("100000.00"), new BigDecimal("50000.00"), BigDecimal.ZERO,
+                new BigDecimal("150000.00"), new BigDecimal("10.0000"), new BigDecimal("35000.00"),
+                new BigDecimal("300000.00"), new BigDecimal("450000.00"),
+                "IN-33KV-INDICATIVE", "2026.1", "2026-01-01", 0);
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(jobRepository.findAllByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of(job));
@@ -314,7 +412,7 @@ class ReportServiceTest {
         assertThat(first.feederName()).isEqualTo("FDR-001");
         assertThat(first.segmentCount()).isEqualTo(2);
         assertThat(first.lengthMeters()).isEqualByComparingTo("3000.00");
-        assertThat(first.totalCost()).isEqualByComparingTo("30000.00");
+        assertThat(first.conductorCost()).isEqualByComparingTo("30000.00");
         assertThat(first.electricalLossesKw()).isEqualByComparingTo("3.0");
     }
 
@@ -465,7 +563,11 @@ class ReportServiceTest {
                 new Coordinate(77.23, 28.63),
                 new Coordinate(77.25, 28.64)
         });
-        return new GeneratedRoute(job, feeder, new BigDecimal(length), new BigDecimal(cost),
+        GeneratedRoute route = new GeneratedRoute(job, feeder, new BigDecimal(length), null,
                 new BigDecimal(losses), 0, path, null, segmentId);
+        // The engine's own conductor price for this segment. The route's total_cost is deliberately
+        // left null: it used to hold a length x 80 fabrication.
+        route.applyConductorCost(cost != null ? new BigDecimal(cost) : null);
+        return route;
     }
 }

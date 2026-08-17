@@ -35,7 +35,17 @@ export function shown(value: unknown, format?: (v: number) => string): string {
 }
 
 export const asMw = (v: number): string => `${v} MW`;
-export const asMoney = (v: number): string => `$${Math.round(v).toLocaleString()}`;
+/**
+ * Money with the currency the figure is actually in.
+ *
+ * <p>This hardcoded "$". The cost catalogue prices in INR, so every cost on the map was labelled in
+ * the wrong unit — a right number under a wrong currency, which is its own kind of wrong. With no
+ * currency known the number is shown unprefixed rather than under a guessed symbol.
+ */
+export const asMoney = (v: number, currency?: string | null): string => {
+  const amount = Math.round(v).toLocaleString();
+  return currency ? `${currency} ${amount}` : amount;
+};
 export const asPercent = (v: number): string => `${v}%`;
 export const asKm = (v: number): string => `${(v / 1000).toFixed(2)} km`;
 export const asRatePerM2 = (v: number): string => `$${v}/m²`;

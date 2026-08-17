@@ -8,7 +8,9 @@ export async function getBomReport(projectId: string): Promise<BomReport> {
     return {
       totalNetworkLengthMeters: 0,
       totalPoles: 0,
-      totalEstimatedCost: 0,
+      // Null, not 0: a report that could not be fetched has an unknown cost, and a zero would read
+      // as a free network.
+      totalEstimatedCost: null,
       totalElectricalLossesKw: 0,
       feederSummaries: []
     };

@@ -27,7 +27,23 @@ public record EngineeringBomReportResponse(
         Integer totalPoles,
         Map<String, Integer> poleCountByRole,
         Map<String, Integer> poleCountByType,
+        /**
+         * The network's CAPEX as the engine priced it, or null when the run was not costed.
+         *
+         * <p>Null rather than zero, and a consumer must render it as "not costed" rather than as a
+         * number: a run without a cost catalogue is one whose price is unknown, not one that is free.
+         * This was previously the sum of a per-route {@code length × 80} fabrication.
+         */
         BigDecimal totalEstimatedCost,
+        /** ISO 4217 code for every money figure here, or null when the run was not costed. */
+        String costCurrency,
+        /**
+         * Components the engine could not price, or null when the run was not costed.
+         *
+         * <p>Above zero, {@code totalEstimatedCost} is a partial sum: the engine leaves a component
+         * out rather than pricing a gap at zero.
+         */
+        Integer costFailureCount,
         BigDecimal totalElectricalLossesKw,
         BigDecimal rowWidthMeters,
         BigDecimal totalAffectedAreaM2,
