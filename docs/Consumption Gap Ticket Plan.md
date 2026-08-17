@@ -46,8 +46,34 @@ not `web-map-next/src/map/`. All six were confirmed present:
 
 These gate everything downstream. Both are data-entry problems; the code around them is small.
 
-### P-1 · Cost catalogue — **blocks C-1, C-2, C-3, C-4, F-1**
-Java must send `costing_config`, which needs values nobody has supplied:
+### P-1 · Cost catalogue — **done** at `45d09f2` and `23f99e9`; **C-1, C-2, C-3, C-4, F-1 unblocked**
+Delivered with indicative rates, on the precedent this ticket itself set: seeding is acceptable,
+presenting seeded figures as verified is not. `V18` carries per-item `data_provenance`, and every
+seeded rate is `INDICATIVE`.
+
+Verified end to end against the running optimiser: the demo network prices at ₹396,394 CAPEX
+(₹208,394 conductor, ₹188,000 poles) and ₹1,010,113 lifecycle over 25 years, with no cost failures.
+
+Three findings, each pinned by a test:
+
+- **Coverage must be complete.** Rates are keyed on the conductor ids cable *sizing* selects, so one
+  unpriced conductor yields `CABLE_COST_NOT_FOUND` and no total at all. `conductorsWithoutRates()`
+  names the gaps rather than letting a catalogue look complete while buying nothing.
+- **A half-filled catalogue is worse than none.** Pole rates without conductor rates price part of
+  the network and void the bottom line, so `buildCostingConfig` returns null and the run stays
+  honestly uncosted.
+- **One currency throughout**, because nothing in the system converts between them.
+
+**Two things deliberately left out of scope.** `cost_aware_config` was not sent: it changes which
+candidate is recommended, which is a behaviour change rather than "compute the costs". And the
+seeded currency is INR while the frontend still prints a hardcoded `$` — C-2's scope, and until then
+the symbol is wrong while the number is right.
+
+**Still a business input:** the rates themselves. What is committed is a working structure with
+first-pass Indian 33 kV figures for comparing scenarios, not for committing money.
+
+**Original ticket text, for reference.** Java must send `costing_config`, which needs values nobody
+has supplied:
 
 - **Catalogue:** conductor installed cost per km per circuit (per cable type), pole installed cost
   each (per class: terminal / angle / intermediate / junction), land policy (fixed cost per
@@ -198,8 +224,9 @@ The per-parcel decisions have been in the response since `491ae64`.
 2. ~~**E-3, R-1**~~ — done at `71a0e36` and `4032805`.
 3. ~~**E-1b, E-4**~~ — done at `0d6cfc2`; E-1b needed no code.
 
-**Phases 1 and 2 are complete, E-6 included.** Everything remaining needs either a business input
-(P-1's rates, P-2's datasheets) or a schema change (`owner_id`) — except Phase 5 polish.
+**Phases 0–2 are complete.** P-1 landed with indicative rates, so **Phase 3 is now unblocked** and
+is the next work: C-1 → F-1 → C-2 → C-3, in that order. Phase 4 still needs the `owner_id` schema
+change first.
 
 **Worth noting for whoever picks up the next ticket:** four of the five tickets in this batch had
 inaccurate premises. E-3 was labelled "needs nothing" and needed Java work; E-1b was scoped as Java
