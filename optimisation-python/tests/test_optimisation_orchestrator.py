@@ -716,10 +716,12 @@ def test_corpus_generation_regression_safety(
         )
         config = replace(base_config, search=search_config, pole=pole_config)
 
-        result = optimise_project(project_input, config)
+        rows: list[dict[str, object]] = []
+        result = optimise_project(project_input, config, corpus_sink=rows.append)
 
         assert result.status == OptimisationStatus.SUCCESS
         assert not os.path.exists(test_path)
+        assert rows == []
 
 
 def test_corpus_neighbor_override_misuse_guard() -> None:
@@ -733,9 +735,19 @@ def test_corpus_neighbor_override_misuse_guard() -> None:
         )
 
 
-def test_corpus_emission_requires_sink_path() -> None:
+def test_corpus_emission_requires_sink(
+    project_input: ProjectInput,
+    base_config: OptimisationConfig,
+) -> None:
+    config = replace(
+        base_config,
+        search=CandidateSearchConfig(
+            enabled=True,
+            emit_training_corpus=True,
+        ),
+    )
     with pytest.raises(
-        ValueError,
-        match="training_corpus_path is required when emit_training_corpus=True",
+        OptimisationInputError,
+        match="requires a caller-provided corpus_sink",
     ):
-        CandidateSearchConfig(emit_training_corpus=True)
+        optimise_project(project_input, config)

@@ -19,13 +19,23 @@ class SyntheticProjectSpec:
     dispersion: float
     substation_offset: tuple[float, float]
     feeder_max_current_a: float
+    has_constraints: bool = False
+    cable_resistance_ohm_per_km: float = 0.03
 
 
 PROJECT_SPECS = (
     SyntheticProjectSpec("SYN-1-CLUSTERED-8", 8, 0.005, (0.0, 0.010), 276.0),
     SyntheticProjectSpec("SYN-2-SPREAD-12", 12, 0.020, (-0.012, 0.0), 322.0),
     SyntheticProjectSpec("SYN-3-CLUSTERED-20", 20, 0.008, (0.012, 0.012), 368.0),
-    SyntheticProjectSpec("SYN-4-SPREAD-30", 30, 0.030, (0.0, -0.015), 414.0),
+    SyntheticProjectSpec(
+        "SYN-4-SPREAD-30",
+        30,
+        0.030,
+        (0.0, -0.015),
+        414.0,
+        has_constraints=True,
+        cable_resistance_ohm_per_km=0.55,
+    ),
     SyntheticProjectSpec("SYN-5-MIXED-40", 40, 0.025, (0.018, 0.0), 460.0),
 )
 
@@ -64,6 +74,50 @@ def _costing_config() -> JsonObject:
             "loss_load_factor": 0.3,
             "energy_price_per_mwh": 50.0,
         },
+    }
+
+
+def _avoidance_geojson() -> JsonObject:
+    """Return deterministic hard and soft routing constraints."""
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [
+                            [-1.004, 51.991],
+                            [-0.996, 51.991],
+                            [-0.996, 51.996],
+                            [-1.004, 51.996],
+                            [-1.004, 51.991],
+                        ]
+                    ],
+                },
+                "properties": {
+                    "constraint_id": "synthetic-restricted-1",
+                    "constraint_type": "RESTRICTED_AREA",
+                    "routing_mode": "HARD_EXCLUSION",
+                    "buffer_m": 0.0,
+                },
+            },
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[-1.03, 52.005], [-0.97, 52.005]],
+                },
+                "properties": {
+                    "constraint_id": "synthetic-road-1",
+                    "constraint_type": "ROAD",
+                    "routing_mode": "SOFT_PENALTY",
+                    "buffer_m": 5.0,
+                    "cost_weight": 8.0,
+                },
+            },
+        ],
     }
 
 
@@ -120,12 +174,17 @@ def generate_synthetic_projects(
         project_json["cable_config"]["cable_types"][0]["max_current_a"] = (
             spec.feeder_max_current_a
         )
+        project_json["cable_config"]["cable_types"][0][
+            "resistance_ohm_per_km"
+        ] = spec.cable_resistance_ohm_per_km
         project_json["scenario_config"]["candidate_count"] = 2
         project_json["costing_config"] = _costing_config()
         project_json["cost_aware_config"] = {
             "engineering_weight": 0.7,
             "lifecycle_cost_weight": 0.3,
         }
+        if spec.has_constraints:
+            project_json["avoidance_geojson"] = _avoidance_geojson()
 
         output_path = corpus_dir / f"{spec.project_id}.json"
         with open(output_path, "w", encoding="utf-8") as f:

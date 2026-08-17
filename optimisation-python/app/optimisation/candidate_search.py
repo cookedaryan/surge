@@ -809,10 +809,7 @@ def run_candidate_beam_search(
             row["project_id"] = project_input.project_id
             row["scenario_id"] = child_id
             eval_data = corpus_candidate.evaluation
-            if eval_data and eval_data.assessment:
-                row["feasible"] = eval_data.assessment.eligible
-            else:
-                row["feasible"] = False
+            row["feasible"] = corpus_candidate.execution_failure is None
 
             row["total_route_length_m"] = corpus_candidate.scenario.total_route_length_m
 

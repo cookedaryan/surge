@@ -1,10 +1,8 @@
-import csv
 import hashlib
 import json
 import logging
 import math
-import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from typing import Any
 
@@ -334,8 +332,13 @@ def optimise_project(
     config: OptimisationConfig,
     *,
     evaluation_cache: CandidateEvaluationCache | None = None,
+    corpus_sink: Callable[[Mapping[str, object]], None] | None = None,
 ) -> OptimisationWorkflowResult:
     """Run the complete end-to-end Surge optimisation workflow."""
+    if config.search.emit_training_corpus and corpus_sink is None:
+        raise OptimisationInputError(
+            "emit_training_corpus=True requires a caller-provided corpus_sink"
+        )
 
     # 1. Validation
     _validate_input(project_input, config)
@@ -440,20 +443,6 @@ def optimise_project(
     if not substations:
         raise ValueError("Project graph contains no substation node")
     substation_node_id = substations[0]
-
-    corpus_sink = None
-    if config.search.emit_training_corpus and config.search.training_corpus_path:
-        path = config.search.training_corpus_path
-
-        def _corpus_sink(row: Mapping[str, object]) -> None:
-            file_exists = os.path.exists(path)
-            with open(path, mode="a", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=list(row.keys()))
-                if not file_exists:
-                    writer.writeheader()
-                writer.writerow(row)
-
-        corpus_sink = _corpus_sink
 
     try:
         all_candidates, recommendation, search_result = run_candidate_beam_search(
