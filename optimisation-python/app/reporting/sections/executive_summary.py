@@ -18,7 +18,10 @@ def build_executive_summary(report: DecisionReport) -> ReportSection:
         if scores.rank is not None:
             metrics.append(Metric(name="Rank", value=scores.rank))
 
-    summary = f"Engineering decision report for project {report.project_id}. Status: {report.status.value}."
+    summary = (
+        f"Engineering decision report for project {report.project_id}. "
+        f"Status: {report.status.value}."
+    )
 
     for warning in report.warnings:
         notices.append(f"[{warning.code}] {warning.message}")

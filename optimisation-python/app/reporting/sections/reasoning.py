@@ -1,4 +1,5 @@
-from typing import Iterable
+from collections.abc import Iterable
+
 from app.reporting.decision_models import DecisionFactor, DecisionReport
 from app.reporting.sections.models import ReportSection, Table
 

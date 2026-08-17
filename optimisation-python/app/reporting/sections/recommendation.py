@@ -39,7 +39,8 @@ def build_recommendation(report: DecisionReport) -> ReportSection:
     schema_limitations = REPORT_SCHEMA_LIMITATIONS.get(report.schema_version, {})
     if "spatial.hard_exclusion_violation_count" in schema_limitations:
         limitations.append(
-            "Hard-exclusion compliance count is not reported — current upstream value is not derived from materialized constraint evidence."
+            "Hard-exclusion compliance count is not reported — current upstream "
+            "value is not derived from materialized constraint evidence."
         )
     else:
         metrics.append(
