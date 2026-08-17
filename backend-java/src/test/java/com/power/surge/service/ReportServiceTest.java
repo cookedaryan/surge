@@ -387,6 +387,62 @@ class ReportServiceTest {
         assertThat(report.rowWidthMeters()).isEqualByComparingTo("22.00");
     }
 
+    /**
+     * Conductor is the largest material cost in a collector network. A bill of materials that
+     * names every pole but not the cable between them cannot be priced.
+     */
+    @Test
+    void theReportNamesTheConductorChosenForEachSegment() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        Fixture f = fixture(projectId, jobId);
+
+        GeneratedRoute sized = segment(f.job(), "FDR-001", "S1", "1000.00", "10000.00", "1.0");
+        sized.applyCableSelection("AL-240", new BigDecimal("210.50"),
+                new BigDecimal("400.00"), new BigDecimal("52.60"));
+        GeneratedRoute unsized = segment(f.job(), "FDR-001", "S2", "500.00", "5000.00", "0.5");
+
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId))
+                .thenReturn(List.of(sized, unsized));
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
+
+        EngineeringBomReportResponse report = reportService.generateBomReport(projectId, jobId);
+
+        RouteSegmentDetail first = report.segmentDetails().get(0);
+        assertThat(first.cableTypeId()).isEqualTo("AL-240");
+        assertThat(first.cableUtilisationPct()).isEqualByComparingTo("52.60");
+        // A segment with no reported conductor stays empty rather than inheriting a neighbour's.
+        assertThat(report.segmentDetails().get(1).cableTypeId()).isNull();
+    }
+
+    /** Procurement orders by conductor type, so the lengths have to be totalled by type. */
+    @Test
+    void conductorTotalsGroupByTypeAndKeepUnreportedSegmentsVisible() {
+        List<RouteSegmentDetail> segments = List.of(
+                segmentDetail("AL-240", "1000", "50.0"),
+                segmentDetail("AL-240", "500", "70.5"),
+                segmentDetail("AL-120", "200", "30.0"),
+                segmentDetail(null, "75", null));
+
+        var totals = ReportService.conductorTotals(segments);
+
+        assertThat(totals.keySet()).containsExactly("AL-240", "AL-120", "Not reported");
+        assertThat(totals.get("AL-240").segments()).isEqualTo(2);
+        assertThat(totals.get("AL-240").lengthMeters()).isEqualByComparingTo("1500");
+        // Peak, not average: the worst-loaded segment is what decides whether the choice holds.
+        assertThat(totals.get("AL-240").peakUtilisationPct()).isEqualByComparingTo("70.5");
+        // Unknown conductor is labelled, not dropped, so the lengths still add up to the network.
+        assertThat(totals.get("Not reported").lengthMeters()).isEqualByComparingTo("75");
+    }
+
+    private static RouteSegmentDetail segmentDetail(String cableType, String length, String utilisation) {
+        return new RouteSegmentDetail(
+                "FDR-001", "S", new BigDecimal(length), 0, BigDecimal.ZERO, BigDecimal.ZERO,
+                cableType, utilisation != null ? new BigDecimal(utilisation) : null,
+                null, null, null, null, 0, null);
+    }
+
     private record Fixture(Project project, OptimizationJob job) { }
 
     private Fixture fixture(UUID projectId, UUID jobId) {

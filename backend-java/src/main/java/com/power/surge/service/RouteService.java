@@ -99,6 +99,19 @@ public class RouteService {
 
     @Transactional
     public List<GeneratedRouteResponse> saveRoutesFromGeoJson(UUID jobId, Map<String, Object> feederRoutesGeoJson) {
+        return saveRoutesFromGeoJson(jobId, feederRoutesGeoJson, Map.of());
+    }
+
+    /**
+     * @param cableBySegment conductor selected per segment id, empty when the run reported none.
+     *                       Kept separate from the GeoJSON because the engine reports sizing on the
+     *                       candidate rather than on the geometry.
+     */
+    public List<GeneratedRouteResponse> saveRoutesFromGeoJson(
+            UUID jobId,
+            Map<String, Object> feederRoutesGeoJson,
+            Map<String, CableSelection> cableBySegment
+    ) {
         OptimizationJob job = getJobOrThrow(jobId);
 
         if (feederRoutesGeoJson == null || feederRoutesGeoJson.isEmpty()) {
@@ -186,6 +199,16 @@ public class RouteService {
                     null,
                     segmentId
             );
+
+            CableSelection cable = segmentId != null ? cableBySegment.get(segmentId) : null;
+            if (cable != null) {
+                route.applyCableSelection(
+                        cable.cableTypeId(),
+                        cable.requiredCurrentA(),
+                        cable.effectiveAmpacityA(),
+                        cable.utilisationPct()
+                );
+            }
             entities.add(route);
         }
 

@@ -52,6 +52,31 @@ public class GeneratedRoute extends AuditableEntity {
     private MultiPoint poleLocations;
 
     /**
+     * The conductor the optimiser selected for this segment, and how hard it is working.
+     *
+     * <p>Utilisation is kept beside the type because the type alone does not say whether the
+     * choice is comfortable or marginal — a segment at 98% of its effective ampacity is a
+     * different proposition from one at 40%.
+     *
+     * <p>Null where the run predates cable sizing, or where sizing reported nothing for this
+     * segment. A missing conductor is left missing rather than defaulted to something plausible.
+     */
+    @Column(name = "cable_type_id", length = 100)
+    private String cableTypeId;
+
+    @PositiveOrZero
+    @Column(name = "cable_required_current_a", precision = 10, scale = 2)
+    private BigDecimal cableRequiredCurrentA;
+
+    @PositiveOrZero
+    @Column(name = "cable_effective_ampacity_a", precision = 10, scale = 2)
+    private BigDecimal cableEffectiveAmpacityA;
+
+    @PositiveOrZero
+    @Column(name = "cable_utilisation_pct", precision = 6, scale = 2)
+    private BigDecimal cableUtilisationPct;
+
+    /**
      * The Python engine's segment_id for this edge (e.g. "SEG-FDR001-0001"), used to look up the
      * real pole count via GeneratedPole.connectedRouteIds instead of the /150m estimate stored in
      * poleCount above. Null for routes created before this linkage existed, or via the manual
@@ -119,6 +144,40 @@ public class GeneratedRoute extends AuditableEntity {
 
     public String getSegmentId() {
         return segmentId;
+    }
+
+    public String getCableTypeId() {
+        return cableTypeId;
+    }
+
+    public BigDecimal getCableRequiredCurrentA() {
+        return cableRequiredCurrentA;
+    }
+
+    public BigDecimal getCableEffectiveAmpacityA() {
+        return cableEffectiveAmpacityA;
+    }
+
+    public BigDecimal getCableUtilisationPct() {
+        return cableUtilisationPct;
+    }
+
+    /**
+     * Records the conductor the optimiser chose for this segment.
+     *
+     * <p>Applied after construction because sizing is reported per candidate, keyed by segment id,
+     * rather than arriving with the route geometry.
+     */
+    public void applyCableSelection(
+            String cableTypeId,
+            BigDecimal requiredCurrentA,
+            BigDecimal effectiveAmpacityA,
+            BigDecimal utilisationPct
+    ) {
+        this.cableTypeId = cableTypeId;
+        this.cableRequiredCurrentA = requiredCurrentA;
+        this.cableEffectiveAmpacityA = effectiveAmpacityA;
+        this.cableUtilisationPct = utilisationPct;
     }
 
     private static String requireFeederName(String feederName) {

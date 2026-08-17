@@ -260,7 +260,7 @@ class OptimisationContractTest {
         jobService.createAndRunJob(PROJECT_ID, new CreateOptimizationJobRequest(
                 "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
 
-        verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any());
+        verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any(), any());
         verify(poleService).savePolesFromGeoJson(eq(JOB_ID), any());
     }
 
@@ -298,7 +298,7 @@ class OptimisationContractTest {
         assertThat(response.status())
                 .as("a partial result is still a result; the job must not be marked failed")
                 .isEqualTo(JobStatus.COMPLETED);
-        verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any());
+        verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any(), any());
         verify(poleService).savePolesFromGeoJson(eq(JOB_ID), any());
     }
 

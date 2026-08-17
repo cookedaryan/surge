@@ -146,7 +146,8 @@ public class PdfReportService {
 
             section(document, "5. Route segment schedule", sectionFont);
             document.add(note("Endpoints in WGS 84 decimal degrees. Full segment geometry is included in the "
-                    + "CSV export as WKT.", noteFont));
+                    + "CSV export as WKT. Utilisation is the segment's required current as a percentage of the "
+                    + "chosen conductor's effective ampacity, after derating.", noteFont));
             document.add(segmentTable(bom, tinyFont));
 
             section(document, "6. Pole setting-out schedule", sectionFont);
@@ -268,16 +269,17 @@ public class PdfReportService {
     }
 
     private PdfPTable segmentTable(EngineeringBomReportResponse bom, Font tiny) throws Exception {
-        PdfPTable t = new PdfPTable(10);
+        PdfPTable t = new PdfPTable(12);
         t.setWidthPercentage(100);
-        t.setWidths(new float[]{1.5f, 2.0f, 1.3f, 0.9f, 1.5f, 1.3f, 1.5f, 1.5f, 1.5f, 1.5f});
+        t.setWidths(new float[]{
+                1.4f, 1.9f, 1.2f, 0.8f, 1.4f, 1.2f, 1.6f, 1.1f, 1.4f, 1.4f, 1.4f, 1.4f});
         t.setSpacingAfter(12);
         t.setHeaderRows(1);
         header(t, "Feeder", "Segment ID", "Length (m)", "Poles", "Est. cost", "Losses (kW)",
-                "Start lat", "Start lon", "End lat", "End lon");
+                "Conductor", "Util. (%)", "Start lat", "Start lon", "End lat", "End lon");
 
         if (bom.segmentDetails().isEmpty()) {
-            spanningNote(t, 10, "No route segments generated for this run.", tiny);
+            spanningNote(t, 12, "No route segments generated for this run.", tiny);
             return t;
         }
         for (RouteSegmentDetail s : bom.segmentDetails()) {
@@ -287,6 +289,8 @@ public class PdfReportService {
             cell(t, text(s.poleCount()), tiny);
             cell(t, money(s.totalCost()), tiny);
             cell(t, text(s.electricalLossesKw()), tiny);
+            cell(t, s.cableTypeId() != null ? s.cableTypeId() : "—", tiny);
+            cell(t, text(s.cableUtilisationPct()), tiny);
             cell(t, coord(s.startLatitude()), tiny);
             cell(t, coord(s.startLongitude()), tiny);
             cell(t, coord(s.endLatitude()), tiny);

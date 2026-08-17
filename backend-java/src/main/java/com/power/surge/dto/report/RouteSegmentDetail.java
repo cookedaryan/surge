@@ -17,6 +17,9 @@ public record RouteSegmentDetail(
         Integer poleCount,
         BigDecimal totalCost,
         BigDecimal electricalLossesKw,
+        /** Conductor selected for this segment, and how close it runs to its effective ampacity. */
+        String cableTypeId,
+        BigDecimal cableUtilisationPct,
         Double startLatitude,
         Double startLongitude,
         Double endLatitude,

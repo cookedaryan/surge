@@ -260,6 +260,8 @@ public class ReportService {
                 poleCount,
                 route.getTotalCost(),
                 route.getElectricalLossesKw(),
+                route.getCableTypeId(),
+                route.getCableUtilisationPct(),
                 start != null ? start.getY() : null,
                 start != null ? start.getX() : null,
                 end != null ? end.getY() : null,
@@ -388,8 +390,23 @@ public class ReportService {
                 .append(report.totalEstimatedCost()).append(",")
                 .append(report.totalElectricalLossesKw()).append("\n\n");
 
+        // Conductor length by type is what a procurement team orders against, so it is totalled
+        // here rather than left to be summed out of the segment schedule by hand.
+        csv.append("--- CONDUCTOR SCHEDULE ---\n");
+        csv.append("Cable Type,Segments,Length (m),Peak Utilisation (%)\n");
+        for (Map.Entry<String, ConductorTotals> e : conductorTotals(report.segmentDetails()).entrySet()) {
+            csv.append(escapeCsv(e.getKey())).append(",")
+                    .append(e.getValue().segments()).append(",")
+                    .append(e.getValue().lengthMeters().toPlainString()).append(",")
+                    .append(e.getValue().peakUtilisationPct() != null
+                            ? e.getValue().peakUtilisationPct().toPlainString() : "")
+                    .append("\n");
+        }
+        csv.append("\n");
+
         csv.append("--- ROUTE SEGMENT SCHEDULE ---\n");
         csv.append("Feeder Name,Segment ID,Length (m),Pole Count,Total Cost ($),Electrical Losses (kW),"
+                + "Cable Type,Cable Utilisation (%),"
                 + "Start Latitude,Start Longitude,End Latitude,End Longitude,Vertices,Path (WKT)\n");
         for (RouteSegmentDetail s : report.segmentDetails()) {
             csv.append(escapeCsv(s.feederName())).append(",")
@@ -398,6 +415,9 @@ public class ReportService {
                     .append(s.poleCount() != null ? s.poleCount() : 0).append(",")
                     .append(nullToZero(s.totalCost())).append(",")
                     .append(nullToZero(s.electricalLossesKw())).append(",")
+                    .append(escapeCsv(s.cableTypeId())).append(",")
+                    .append(s.cableUtilisationPct() != null
+                            ? s.cableUtilisationPct().toPlainString() : "").append(",")
                     .append(coord(s.startLatitude())).append(",")
                     .append(coord(s.startLongitude())).append(",")
                     .append(coord(s.endLatitude())).append(",")
@@ -438,6 +458,44 @@ public class ReportService {
                 .append(report.totalCompensationCost()).append("\n");
 
         return csv.toString();
+    }
+
+    /** Conductor length and peak loading for one cable type across the network. */
+    record ConductorTotals(int segments, BigDecimal lengthMeters, BigDecimal peakUtilisationPct) {
+    }
+
+    /**
+     * Totals conductor by type, ordered longest first.
+     *
+     * <p>Segments whose conductor is unknown are grouped under an explicit label rather than
+     * dropped, so the reported lengths still add up to the network and a gap in the data is
+     * visible instead of silently absorbed.
+     */
+    static Map<String, ConductorTotals> conductorTotals(List<RouteSegmentDetail> segments) {
+        Map<String, ConductorTotals> totals = new LinkedHashMap<>();
+        for (RouteSegmentDetail s : segments) {
+            String type = s.cableTypeId() != null ? s.cableTypeId() : "Not reported";
+            ConductorTotals existing = totals.get(type);
+            BigDecimal length = s.lengthMeters() != null ? s.lengthMeters() : BigDecimal.ZERO;
+            BigDecimal peak = s.cableUtilisationPct();
+
+            if (existing == null) {
+                totals.put(type, new ConductorTotals(1, length, peak));
+            } else {
+                BigDecimal newPeak = existing.peakUtilisationPct();
+                if (peak != null && (newPeak == null || peak.compareTo(newPeak) > 0)) {
+                    newPeak = peak;
+                }
+                totals.put(type, new ConductorTotals(
+                        existing.segments() + 1,
+                        existing.lengthMeters().add(length),
+                        newPeak));
+            }
+        }
+        return totals.entrySet().stream()
+                .sorted((a, b) -> b.getValue().lengthMeters().compareTo(a.getValue().lengthMeters()))
+                .collect(java.util.stream.Collectors.toMap(
+                        Map.Entry::getKey, Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new));
     }
 
     /** Six decimals is ~0.11 m — finer than a pole can be positioned, and never scientific notation. */

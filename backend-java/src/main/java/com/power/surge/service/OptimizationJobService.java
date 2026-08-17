@@ -247,7 +247,10 @@ public class OptimizationJobService {
             if ("success".equalsIgnoreCase(pythonResp.status())) {
                 if (pythonResp.feederRoutesGeojson() != null && !pythonResp.feederRoutesGeojson().isEmpty()) {
                     sseProgressService.emitProgress(job.getId(), 85, "Saving route geometries and pole locations to PostGIS", com.power.surge.domain.JobStatus.RUNNING);
-                    routeService.saveRoutesFromGeoJson(job.getId(), pythonResp.feederRoutesGeojson());
+                    routeService.saveRoutesFromGeoJson(
+                            job.getId(),
+                            pythonResp.feederRoutesGeojson(),
+                            CableSelection.fromResponse(pythonResp));
                 }
                 if (pythonResp.polesGeojson() != null && !pythonResp.polesGeojson().isEmpty()) {
                     poleService.savePolesFromGeoJson(job.getId(), pythonResp.polesGeojson());
