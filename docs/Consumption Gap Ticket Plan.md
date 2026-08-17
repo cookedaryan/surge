@@ -172,8 +172,27 @@ improvements needs per-metric knowledge of which direction is better, which the 
 
 Strict order — F-1 before C-2 would blank every cost in the product.
 
-### C-1 · Parse Python's `cost_summary` and persist it
-**Effort:** 1 day · **Layer:** Java
+### C-1 · Parse Python's `cost_summary` and persist it — **done** at `233ff54`
+**Naming correction:** there is no `cost_summary`. `ProjectOptimizationResult` has no cost field at
+all; the money is on `candidates[].cost`, so the parse goes through the recommended candidate.
+
+`CostOutcome.fromResponse` reads it and `V19` persists it in two places, because the engine reports
+cost at two granularities:
+
+- **On the job:** the breakdown (conductor / pole / land CAPEX, loss energy and cost, present-value
+  OPEX, lifecycle total) plus the catalogue id, version and price basis that produced it, and
+  `cost_failure_count`.
+- **On each route:** `conductor_cost`. That is the *only* component the engine attributes to a single
+  segment — pole costs are per class and land costs per parcel, so splitting either across routes
+  would mean inventing an apportionment the engine never made.
+
+All columns nullable and left null when nothing was priced: a run without a catalogue has no cost,
+and a zero reads as free. `cost_failure_count` carries the rest — the engine leaves a component null
+rather than costing a gap at zero, so a non-zero count separates a total from a partial sum, and any
+consumer that sums the parts must check it.
+
+The `length × 80` fallback is deliberately untouched; that is F-1.
+**Actual:** 0.5 day · **Layer:** Java
 
 ### F-1 · Remove the `length × $80` fallback
 `RouteService.java:176`. Only after C-1, so removal reveals real costs instead of blanks. Where a
