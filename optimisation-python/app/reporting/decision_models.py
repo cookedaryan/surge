@@ -1,10 +1,8 @@
 """Immutable domain models for the PY-036 Decision Report."""
 
-import datetime
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal
 
 from app.algorithms.pole_micro_siting import PoleMicroSitingMove
 from app.optimisation.search_models import (
@@ -19,17 +17,18 @@ class DecisionReportStatus(StrEnum):
     SUCCESS = "SUCCESS"
     NO_FEASIBLE_CANDIDATE = "NO_FEASIBLE_CANDIDATE"
     INCOMPLETE = "INCOMPLETE"
+    FAILED = "FAILED"
 
 
 @dataclass(frozen=True)
 class ReportProvenance:
-    engineering_fingerprint: str
-    economic_fingerprint: str
+    engineering_fingerprint: str | None
+    economic_fingerprint: str | None
     catalogue_id: str | None
     catalogue_version: str | None
     cost_model_version: str | None
-    search_enabled: bool
-    micro_siting_enabled: bool
+    search_enabled: bool | None
+    micro_siting_enabled: bool | None
     report_schema_version: str = "1.0.0"
 
 
@@ -93,7 +92,7 @@ class SpatialSummary:
 @dataclass(frozen=True)
 class LandDecisionSummary:
     affected_parcels: int
-    unique_owners: int
+    unique_owners: int | None
     owner_interactions: int
     # Future: explicit parcel buy/lease/reroute decisions
 
@@ -105,9 +104,9 @@ class PoleSummary:
     angle_poles: int
     intermediate_poles: int
     junction_poles: int
-    moved_poles: int
-    total_movement_m: float
-    micro_siting_moves: tuple[PoleMicroSitingMove, ...] = ()
+    moved_poles: int | None
+    total_movement_m: float | None
+    micro_siting_moves: tuple[PoleMicroSitingMove, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -136,7 +135,7 @@ class RecommendationSummary:
     spatial: SpatialSummary
     land: LandDecisionSummary
     poles: PoleSummary | None
-    economics: EconomicsSummary
+    economics: EconomicsSummary | None
     scores: ScoreSummary
 
 
@@ -166,6 +165,7 @@ class RejectedCandidate:
     failure_code: WorkflowFailureCode | str
     failure_stage: WorkflowStage | str
     message: str
+    disqualification_codes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -202,7 +202,7 @@ class DecisionReport:
     schema_version: str
     status: DecisionReportStatus
     project_id: str
-    optimisation_run_id: str
+    optimisation_run_id: str | None
     provenance: ReportProvenance
     recommendation: RecommendationSummary | None
     alternatives: tuple[AlternativeSummary, ...] = ()

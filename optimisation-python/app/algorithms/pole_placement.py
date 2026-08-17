@@ -85,6 +85,7 @@ class PoleMicroSitingConfig:
     min_improvement:
         Strict minimum score improvement required to accept a local pole move.
     """
+
     enabled: bool = False
     search_radius_m: float = 15.0
     candidate_spacing_m: float = 5.0

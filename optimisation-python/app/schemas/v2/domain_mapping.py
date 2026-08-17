@@ -81,9 +81,7 @@ def _to_land_context(
             ParcelCommercialProfile(
                 parcel_id=profile.parcel_id,
                 owner_id=profile.owner_id,
-                availability_status=LandAvailabilityStatus(
-                    profile.availability_status
-                ),
+                availability_status=LandAvailabilityStatus(profile.availability_status),
                 transaction_options=tuple(
                     LandTransactionTerms(
                         mode=LandTransactionMode(option.mode),

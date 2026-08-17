@@ -390,8 +390,7 @@ def test_profiled_land_cost_replaces_catalogue_fallback(
     assert assessment.land_recurring_cost_pv_amount == Decimal("50")
     assert assessment.land_access_present_value_amount == Decimal("150")
     assert not any(
-        item.category.startswith("land_fallback")
-        for item in assessment.line_items
+        item.category.startswith("land_fallback") for item in assessment.line_items
     )
 
 
