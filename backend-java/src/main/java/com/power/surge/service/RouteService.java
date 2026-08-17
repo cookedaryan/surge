@@ -99,18 +99,30 @@ public class RouteService {
 
     @Transactional
     public List<GeneratedRouteResponse> saveRoutesFromGeoJson(UUID jobId, Map<String, Object> feederRoutesGeoJson) {
-        return saveRoutesFromGeoJson(jobId, feederRoutesGeoJson, Map.of());
+        return saveRoutesFromGeoJson(jobId, feederRoutesGeoJson, Map.of(), Map.of());
     }
 
-    /**
-     * @param cableBySegment conductor selected per segment id, empty when the run reported none.
-     *                       Kept separate from the GeoJSON because the engine reports sizing on the
-     *                       candidate rather than on the geometry.
-     */
     public List<GeneratedRouteResponse> saveRoutesFromGeoJson(
             UUID jobId,
             Map<String, Object> feederRoutesGeoJson,
             Map<String, CableSelection> cableBySegment
+    ) {
+        return saveRoutesFromGeoJson(jobId, feederRoutesGeoJson, cableBySegment, Map.of());
+    }
+
+    /**
+     * @param cableBySegment       conductor selected per segment id, empty when the run reported none.
+     *                             Kept separate from the GeoJSON because the engine reports sizing on
+     *                             the candidate rather than on the geometry.
+     * @param conductorCostBySegment what the engine priced each segment's conductor at, empty when the
+     *                             run was not costed. Also reported on the candidate, and the only
+     *                             cost component attributable to an individual route.
+     */
+    public List<GeneratedRouteResponse> saveRoutesFromGeoJson(
+            UUID jobId,
+            Map<String, Object> feederRoutesGeoJson,
+            Map<String, CableSelection> cableBySegment,
+            Map<String, BigDecimal> conductorCostBySegment
     ) {
         OptimizationJob job = getJobOrThrow(jobId);
 
@@ -208,6 +220,11 @@ public class RouteService {
                         cable.effectiveAmpacityA(),
                         cable.utilisationPct()
                 );
+            }
+            if (segmentId != null) {
+                // Left null when the engine priced nothing for this segment, rather than zeroed:
+                // an unpriced conductor is unknown, not free.
+                route.applyConductorCost(conductorCostBySegment.get(segmentId));
             }
             entities.add(route);
         }

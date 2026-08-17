@@ -189,6 +189,141 @@ public class OptimizationJob extends AuditableEntity {
         return completedAt;
     }
 
+    /**
+     * What the run cost, as the engine computed it.
+     *
+     * <p>All nullable, and deliberately so: a run with no cost catalogue, or one whose catalogue did
+     * not price a conductor the run selected, genuinely has no cost. Null lets a report say "not
+     * costed"; a zero would read as free.
+     */
+    @Column(name = "cost_currency", length = 3)
+    private String costCurrency;
+
+    @Column(name = "conductor_capex", precision = 16, scale = 2)
+    private BigDecimal conductorCapex;
+
+    @Column(name = "pole_capex", precision = 16, scale = 2)
+    private BigDecimal poleCapex;
+
+    @Column(name = "land_capex", precision = 16, scale = 2)
+    private BigDecimal landCapex;
+
+    @Column(name = "total_capex", precision = 16, scale = 2)
+    private BigDecimal totalCapex;
+
+    @Column(name = "annual_loss_energy_mwh", precision = 16, scale = 4)
+    private BigDecimal annualLossEnergyMwh;
+
+    @Column(name = "annual_loss_cost", precision = 16, scale = 2)
+    private BigDecimal annualLossCost;
+
+    @Column(name = "present_value_opex", precision = 16, scale = 2)
+    private BigDecimal presentValueOpex;
+
+    @Column(name = "lifecycle_cost", precision = 16, scale = 2)
+    private BigDecimal lifecycleCost;
+
+    @Column(name = "cost_catalogue_id", length = 60)
+    private String costCatalogueId;
+
+    @Column(name = "cost_catalogue_version", length = 30)
+    private String costCatalogueVersion;
+
+    @Column(name = "cost_price_basis_date", length = 30)
+    private String costPriceBasisDate;
+
+    /**
+     * Components the engine could not price.
+     *
+     * <p>Above zero, the totals are incomplete by construction: the engine leaves a component null
+     * rather than costing a gap at zero, so this count is what separates a total from a partial sum.
+     */
+    @Column(name = "cost_failure_count")
+    private Integer costFailureCount;
+
+    /** Records the money the engine computed for the network that was chosen. */
+    public void applyCost(
+            String currency,
+            BigDecimal conductorCapex,
+            BigDecimal poleCapex,
+            BigDecimal landCapex,
+            BigDecimal totalCapex,
+            BigDecimal annualLossEnergyMwh,
+            BigDecimal annualLossCost,
+            BigDecimal presentValueOpex,
+            BigDecimal lifecycleCost,
+            String catalogueId,
+            String catalogueVersion,
+            String priceBasisDate,
+            Integer failureCount
+    ) {
+        this.costCurrency = currency;
+        this.conductorCapex = conductorCapex;
+        this.poleCapex = poleCapex;
+        this.landCapex = landCapex;
+        this.totalCapex = totalCapex;
+        this.annualLossEnergyMwh = annualLossEnergyMwh;
+        this.annualLossCost = annualLossCost;
+        this.presentValueOpex = presentValueOpex;
+        this.lifecycleCost = lifecycleCost;
+        this.costCatalogueId = catalogueId;
+        this.costCatalogueVersion = catalogueVersion;
+        this.costPriceBasisDate = priceBasisDate;
+        this.costFailureCount = failureCount;
+    }
+
+    public String getCostCurrency() {
+        return costCurrency;
+    }
+
+    public BigDecimal getConductorCapex() {
+        return conductorCapex;
+    }
+
+    public BigDecimal getPoleCapex() {
+        return poleCapex;
+    }
+
+    public BigDecimal getLandCapex() {
+        return landCapex;
+    }
+
+    public BigDecimal getTotalCapex() {
+        return totalCapex;
+    }
+
+    public BigDecimal getAnnualLossEnergyMwh() {
+        return annualLossEnergyMwh;
+    }
+
+    public BigDecimal getAnnualLossCost() {
+        return annualLossCost;
+    }
+
+    public BigDecimal getPresentValueOpex() {
+        return presentValueOpex;
+    }
+
+    public BigDecimal getLifecycleCost() {
+        return lifecycleCost;
+    }
+
+    public String getCostCatalogueId() {
+        return costCatalogueId;
+    }
+
+    public String getCostCatalogueVersion() {
+        return costCatalogueVersion;
+    }
+
+    public String getCostPriceBasisDate() {
+        return costPriceBasisDate;
+    }
+
+    public Integer getCostFailureCount() {
+        return costFailureCount;
+    }
+
     public void markRunning() {
         this.status = JobStatus.RUNNING;
         this.startedAt = Instant.now();

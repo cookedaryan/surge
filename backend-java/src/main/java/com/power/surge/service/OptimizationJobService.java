@@ -254,13 +254,36 @@ public class OptimizationJobService {
             sseProgressService.emitProgress(job.getId(), 70, "Processing radial feeder topology and route outputs", com.power.surge.domain.JobStatus.RUNNING);
             String summaryJson = objectMapper.writeValueAsString(buildResultSummary(pythonResp));
 
+            CostOutcome cost = CostOutcome.fromResponse(pythonResp);
+
             if ("success".equalsIgnoreCase(pythonResp.status())) {
                 if (pythonResp.feederRoutesGeojson() != null && !pythonResp.feederRoutesGeojson().isEmpty()) {
                     sseProgressService.emitProgress(job.getId(), 85, "Saving route geometries and pole locations to PostGIS", com.power.surge.domain.JobStatus.RUNNING);
                     routeService.saveRoutesFromGeoJson(
                             job.getId(),
                             pythonResp.feederRoutesGeojson(),
-                            CableSelection.fromResponse(pythonResp));
+                            CableSelection.fromResponse(pythonResp),
+                            cost.conductorCostBySegment());
+                }
+                // Recorded on the job even when absent, so a later reader can tell an uncosted run
+                // from one nobody has looked at.
+                job.applyCost(
+                        cost.currency(),
+                        cost.conductorCapex(),
+                        cost.poleCapex(),
+                        cost.landCapex(),
+                        cost.totalCapex(),
+                        cost.annualLossEnergyMwh(),
+                        cost.annualLossCost(),
+                        cost.presentValueOpex(),
+                        cost.lifecycleCost(),
+                        cost.catalogueId(),
+                        cost.catalogueVersion(),
+                        cost.priceBasisDate(),
+                        cost.failureCount());
+                if (cost.isAbsent()) {
+                    log.info("Job {} completed without costs; the catalogue priced nothing for the "
+                            + "recommended candidate.", job.getId());
                 }
                 if (pythonResp.polesGeojson() != null && !pythonResp.polesGeojson().isEmpty()) {
                     poleService.savePolesFromGeoJson(job.getId(), pythonResp.polesGeojson());

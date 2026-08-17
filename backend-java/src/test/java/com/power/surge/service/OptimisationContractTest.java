@@ -263,7 +263,7 @@ class OptimisationContractTest {
         jobService.createAndRunJob(PROJECT_ID, new CreateOptimizationJobRequest(
                 "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
 
-        verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any(), any());
+        verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any(), any(), any());
         verify(poleService).savePolesFromGeoJson(eq(JOB_ID), any());
     }
 
@@ -301,8 +301,75 @@ class OptimisationContractTest {
         assertThat(response.status())
                 .as("a partial result is still a result; the job must not be marked failed")
                 .isEqualTo(JobStatus.COMPLETED);
-        verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any(), any());
+        verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any(), any(), any());
         verify(poleService).savePolesFromGeoJson(eq(JOB_ID), any());
+    }
+
+    /**
+     * The money the engine computed has to land on the job and on the routes.
+     *
+     * <p>Both were being discarded. The job kept no cost at all, and every per-route figure the
+     * product displayed came from {@code route length × 80}.
+     */
+    @Test
+    void aCostedRunPersistsTheBreakdownAndThePerSegmentConductorCost() {
+        Map<String, Object> candidate = Map.of(
+                "scenario_id", "SCN-001",
+                "cost", Map.of(
+                        "currency", "INR",
+                        "conductor_capex", 208_393.79,
+                        "pole_capex", 188_000.0,
+                        "land_capex", 0.0,
+                        "total_capex", 396_393.79,
+                        "annual_loss_energy_mwh", 16.4264,
+                        "lifecycle_cost", 1_010_113.38,
+                        "catalogue_id", "IN-33KV-INDICATIVE",
+                        "catalogue_version", "2026.1",
+                        "line_items", List.of(Map.of(
+                                "category", "conductor",
+                                "item_id", "SEG-FDR001-0001",
+                                "amount", 104_196.89))));
+
+        givenFullyPopulatedProject(new PythonOptimisationResponse(
+                "job-1", "success", "Balanced",
+                Map.of("type", "FeatureCollection", "features", List.of(Map.of("type", "Feature"))),
+                Map.of("type", "FeatureCollection", "features", List.of(Map.of("type", "Feature"))),
+                Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                "SUCCESS", List.of(candidate),
+                Map.of("recommended_scenario_id", "SCN-001"), Map.of(), List.of()));
+
+        jobService.createAndRunJob(PROJECT_ID, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+        ArgumentCaptor<OptimizationJob> savedJob = ArgumentCaptor.forClass(OptimizationJob.class);
+        verify(jobRepository, org.mockito.Mockito.atLeastOnce()).save(savedJob.capture());
+        OptimizationJob job = savedJob.getValue();
+        assertThat(job.getTotalCapex()).isEqualByComparingTo("396393.79");
+        assertThat(job.getLifecycleCost()).isEqualByComparingTo("1010113.38");
+        assertThat(job.getCostCurrency()).isEqualTo("INR");
+        assertThat(job.getCostCatalogueId()).isEqualTo("IN-33KV-INDICATIVE");
+        assertThat(job.getCostFailureCount()).isZero();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Map<String, java.math.BigDecimal>> costs = ArgumentCaptor.forClass(Map.class);
+        verify(routeService).saveRoutesFromGeoJson(any(UUID.class), any(), any(), costs.capture());
+        assertThat(costs.getValue()).containsEntry("SEG-FDR001-0001", new BigDecimal("104196.89"));
+    }
+
+    /** An uncosted run must record nulls, not zeros: a run with no catalogue is not a free network. */
+    @Test
+    void anUncostedRunLeavesTheCostFieldsNull() {
+        givenFullyPopulatedProject(successResponse());
+
+        jobService.createAndRunJob(PROJECT_ID, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+        ArgumentCaptor<OptimizationJob> savedJob = ArgumentCaptor.forClass(OptimizationJob.class);
+        verify(jobRepository, org.mockito.Mockito.atLeastOnce()).save(savedJob.capture());
+        OptimizationJob job = savedJob.getValue();
+        assertThat(job.getTotalCapex()).isNull();
+        assertThat(job.getLifecycleCost()).isNull();
+        assertThat(job.getCostCurrency()).isNull();
     }
 
     /**

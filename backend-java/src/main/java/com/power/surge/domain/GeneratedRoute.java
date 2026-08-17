@@ -72,6 +72,20 @@ public class GeneratedRoute extends AuditableEntity {
     @Column(name = "cable_effective_ampacity_a", precision = 10, scale = 2)
     private BigDecimal cableEffectiveAmpacityA;
 
+    /**
+     * What the conductor on this segment costs, as the engine priced it.
+     *
+     * <p>The only cost component attributable to a single route: pole and land costs are computed per
+     * pole class and per affected parcel, so splitting them across routes would mean inventing an
+     * apportionment the engine never made.
+     *
+     * <p>Null where the run had no cost catalogue, or where the catalogue did not price the
+     * conductor this segment selected. Absent rather than zero, because zero reads as free.
+     */
+    @PositiveOrZero
+    @Column(name = "conductor_cost", precision = 14, scale = 2)
+    private BigDecimal conductorCost;
+
     @PositiveOrZero
     @Column(name = "cable_utilisation_pct", precision = 6, scale = 2)
     private BigDecimal cableUtilisationPct;
@@ -178,6 +192,15 @@ public class GeneratedRoute extends AuditableEntity {
         this.cableRequiredCurrentA = requiredCurrentA;
         this.cableEffectiveAmpacityA = effectiveAmpacityA;
         this.cableUtilisationPct = utilisationPct;
+    }
+
+    /** Records what the engine priced this segment's conductor at. */
+    public void applyConductorCost(BigDecimal conductorCost) {
+        this.conductorCost = conductorCost;
+    }
+
+    public BigDecimal getConductorCost() {
+        return conductorCost;
     }
 
     private static String requireFeederName(String feederName) {
