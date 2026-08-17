@@ -25,7 +25,6 @@ class CandidateSearchConfig:
     max_search_evaluations: int = 40
     max_candidate_proposals: int = 200
     emit_training_corpus: bool = False
-    training_corpus_path: str | None = None
     corpus_neighbor_override: int | None = None
 
     def __post_init__(self) -> None:
@@ -34,15 +33,6 @@ class CandidateSearchConfig:
                 raise ValueError(
                     "corpus_neighbor_override requires emit_training_corpus=True"
                 )
-            if self.training_corpus_path is not None:
-                raise ValueError(
-                    "training_corpus_path requires emit_training_corpus=True"
-                )
-        elif not self.training_corpus_path or not self.training_corpus_path.strip():
-            raise ValueError(
-                "training_corpus_path is required when emit_training_corpus=True"
-            )
-
         if not isinstance(self.enabled, bool):
             raise ValueError("enabled must be a boolean")
         for name, value in (

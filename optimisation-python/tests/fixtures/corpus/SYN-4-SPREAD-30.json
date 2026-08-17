@@ -462,7 +462,7 @@
     "cable_types": [
       {
         "cable_type_id": "66kV_800mm2",
-        "resistance_ohm_per_km": 0.03,
+        "resistance_ohm_per_km": 0.55,
         "reactance_ohm_per_km": 0.1,
         "capacitance_nf_per_km": 200.0,
         "max_current_a": 414.0,
@@ -536,5 +536,69 @@
   "cost_aware_config": {
     "engineering_weight": 0.7,
     "lifecycle_cost_weight": 0.3
+  },
+  "avoidance_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                -1.004,
+                51.991
+              ],
+              [
+                -0.996,
+                51.991
+              ],
+              [
+                -0.996,
+                51.996
+              ],
+              [
+                -1.004,
+                51.996
+              ],
+              [
+                -1.004,
+                51.991
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "constraint_id": "synthetic-restricted-1",
+          "constraint_type": "RESTRICTED_AREA",
+          "routing_mode": "HARD_EXCLUSION",
+          "buffer_m": 0.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              -1.03,
+              52.005
+            ],
+            [
+              -0.97,
+              52.005
+            ]
+          ]
+        },
+        "properties": {
+          "constraint_id": "synthetic-road-1",
+          "constraint_type": "ROAD",
+          "routing_mode": "SOFT_PENALTY",
+          "buffer_m": 5.0,
+          "cost_weight": 8.0
+        }
+      }
+    ]
   }
 }
