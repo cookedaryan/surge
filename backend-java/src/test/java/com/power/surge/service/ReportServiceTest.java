@@ -133,6 +133,29 @@ class ReportServiceTest {
         org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
         OptimizationJob job = new OptimizationJob(project, "MULTI_OBJECTIVE_A_STAR", null, null, null, null);
         org.springframework.test.util.ReflectionTestUtils.setField(job, "id", jobId);
+        
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "resultSummaryJson", """
+            {
+              "recommendation": {
+                "recommended_scenario_id": "SCENARIO_1"
+              },
+              "candidates": [
+                {
+                  "scenario_id": "SCENARIO_1",
+                  "land": {
+                    "parcel_count": 1,
+                    "parcel_decisions": [
+                      {
+                        "parcel_id": "P-001",
+                        "affected_area_m2": 1500.0,
+                        "selected_present_value": 3000.0
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+        """);
 
         // A large parcel whose corridor overlap is only a narrow strip.
         LinearRing ring = geometryFactory.createLinearRing(new Coordinate[]{
@@ -150,15 +173,13 @@ class ReportServiceTest {
         when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of());
         when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
         when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of(parcel));
-        when(parcelRepository.findRowCorridorAreaByParcel(eq(projectId), eq(jobId), anyDouble()))
-                .thenReturn(List.<Object[]>of(new Object[]{"P-001", 1500.0}));
 
         EngineeringBomReportResponse report = reportService.generateBomReport(projectId, jobId);
 
         ParcelImpactSummary summary = report.parcelImpactSummaries().get(0);
         assertThat(summary.affectedAreaM2()).isEqualTo(1500.0);
-        // 1500 m2 at $2.00/m2 — derived from the corridor overlap, not the parcel's full extent.
-        assertThat(summary.estimatedCompensationCost()).isEqualByComparingTo(new BigDecimal("3000.00"));
+        // 1500 m2 at $2.00/m2 — derived from the corridor overlap from the JSON, not the parcel's full extent.
+        assertThat(summary.estimatedCompensationCost()).isEqualByComparingTo("3000.00");
     }
 
     /** A spatial failure must not invent an area that would feed a compensation figure. */
@@ -186,8 +207,6 @@ class ReportServiceTest {
         when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of());
         when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
         when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of(parcel));
-        when(parcelRepository.findRowCorridorAreaByParcel(eq(projectId), eq(jobId), anyDouble()))
-                .thenThrow(new org.springframework.dao.InvalidDataAccessResourceUsageException("no postgis"));
 
         EngineeringBomReportResponse report = reportService.generateBomReport(projectId, jobId);
 

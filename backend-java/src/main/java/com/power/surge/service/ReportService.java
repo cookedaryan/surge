@@ -116,27 +116,17 @@ public class ReportService {
         // by two segments and so appears in both of their row counts above.
         int totalPoles = !poles.isEmpty() ? poles.size() : feederSummaries.stream().mapToInt(FeederBomSummary::poleCount).sum();
 
-        // Land compensation is owed for the ground the line actually occupies, so the area comes
-        // from intersecting each parcel with the routes' right-of-way corridor, measured on the
-        // ellipsoid by PostGIS. It previously used the parcel's entire area, converted with a
-        // fixed metres-per-degree factor and then scaled by an unexplained 0.001 — which on the
-        // reference project reported 38 m² against a true corridor overlap of 18,884 m².
-        Map<String, Double> affectedAreaByParcel = rowCorridorAreaByParcel(projectId, job.getId());
-
         LandOutcome landOutcome = LandOutcome.fromResultSummaryJson(job.getResultSummaryJson());
 
         List<ParcelImpactSummary> parcelSummaries = new ArrayList<>();
         for (CadastralParcel p : parcels) {
-            Double affectedArea = affectedAreaByParcel.getOrDefault(p.getParcelId(), 0.0);
-            BigDecimal costRate = p.getAcquisitionCostPerM2() != null ? p.getAcquisitionCostPerM2() : BigDecimal.ZERO;
-            BigDecimal estimatedComp = costRate.multiply(BigDecimal.valueOf(affectedArea)).setScale(2, RoundingMode.HALF_UP);
-
             String ownerId = null;
             String availabilityStatus = null;
             String transactionMode = null;
             BigDecimal selectedPresentValue = null;
             String priceBasis = null;
             String priceDate = null;
+            Double affectedArea = 0.0;
             if (landOutcome != null && landOutcome.parcelDecisions().containsKey(p.getParcelId())) {
                 LandOutcome.LandParcelDecision d = landOutcome.parcelDecisions().get(p.getParcelId());
                 ownerId = d.ownerId();
@@ -145,7 +135,11 @@ public class ReportService {
                 selectedPresentValue = d.selectedPresentValue();
                 priceBasis = d.costBasis();
                 priceDate = d.priceDate();
+                affectedArea = d.affectedAreaM2() != null ? d.affectedAreaM2() : 0.0;
             }
+
+            BigDecimal costRate = p.getAcquisitionCostPerM2() != null ? p.getAcquisitionCostPerM2() : BigDecimal.ZERO;
+            BigDecimal estimatedComp = costRate.multiply(BigDecimal.valueOf(affectedArea)).setScale(2, RoundingMode.HALF_UP);
 
             parcelSummaries.add(new ParcelImpactSummary(
                     p.getParcelId(),
@@ -347,28 +341,7 @@ public class ReportService {
         );
     }
 
-    /**
-     * Per-parcel right-of-way overlap, keyed by parcel id.
-     *
-     * <p>Returns an empty map if the spatial query cannot run, which makes every parcel report zero
-     * affected area. That is the honest failure mode: better to show no impact than to invent a
-     * figure that feeds a compensation estimate.
-     */
-    private Map<String, Double> rowCorridorAreaByParcel(UUID projectId, UUID jobId) {
-        try {
-            Map<String, Double> areas = new LinkedHashMap<>();
-            for (Object[] row : parcelRepository.findRowCorridorAreaByParcel(
-                    projectId, jobId, DEFAULT_ROW_WIDTH_M / 2.0)) {
-                if (row.length >= 2 && row[0] != null && row[1] != null) {
-                    areas.put(String.valueOf(row[0]), ((Number) row[1]).doubleValue());
-                }
-            }
-            return areas;
-        } catch (RuntimeException e) {
-            log.warn("Could not compute right-of-way parcel overlap for job {}: {}", jobId, e.toString());
-            return Map.of();
-        }
-    }
+
 
     public String generateBomCsv(UUID projectId, UUID jobId) {
         EngineeringBomReportResponse report = generateBomReport(projectId, jobId);

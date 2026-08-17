@@ -121,6 +121,7 @@ class ParcelLandDecision:
     selected_present_value: Decimal | None
     cost_basis: LandPriceStatus
     price_date: datetime.date | None
+    affected_area_m2: float | None = None
 
 
 @dataclass(frozen=True)

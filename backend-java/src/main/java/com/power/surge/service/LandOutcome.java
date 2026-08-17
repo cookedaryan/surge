@@ -28,7 +28,8 @@ public record LandOutcome(
             String selectedMode,
             BigDecimal selectedPresentValue,
             String costBasis,
-            String priceDate
+            String priceDate,
+            Double affectedAreaM2
     ) {}
 
     public static LandOutcome fromResultSummaryJson(String resultSummaryJson) {
@@ -64,7 +65,8 @@ public record LandOutcome(
                             pd.hasNonNull("selected_mode") ? pd.get("selected_mode").asText() : null,
                             pd.hasNonNull("selected_present_value") ? new BigDecimal(pd.get("selected_present_value").asText()).setScale(2, RoundingMode.HALF_UP) : null,
                             pd.hasNonNull("cost_basis") ? pd.get("cost_basis").asText() : null,
-                            pd.hasNonNull("price_date") ? pd.get("price_date").asText() : null
+                            pd.hasNonNull("price_date") ? pd.get("price_date").asText() : null,
+                            pd.hasNonNull("affected_area_m2") ? pd.get("affected_area_m2").asDouble() : null
                     ));
                 }
             }

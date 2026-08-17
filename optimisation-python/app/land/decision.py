@@ -89,7 +89,7 @@ def assess_candidate_land(
     )
     unique_exposures = {exposure.parcel_id: exposure for exposure in parcel_exposures}
     decisions = tuple(
-        _assess_parcel(parcel_id, profiles.get(parcel_id), lifecycle_config)
+        _assess_parcel(unique_exposures[parcel_id], profiles.get(parcel_id), lifecycle_config)
         for parcel_id in sorted(unique_exposures)
     )
     selected_options = tuple(
@@ -144,13 +144,13 @@ def assess_candidate_land(
 
 
 def _assess_parcel(
-    parcel_id: str,
+    exposure: ParcelEngineeringExposure,
     profile: ParcelCommercialProfile | None,
     lifecycle_config: LifecycleCostConfig | None,
 ) -> ParcelLandDecision:
     if profile is None:
         return ParcelLandDecision(
-            parcel_id=parcel_id,
+            parcel_id=exposure.parcel_id,
             owner_id=None,
             availability_status=LandAvailabilityStatus.UNKNOWN,
             feasible_options=(),
@@ -158,6 +158,7 @@ def _assess_parcel(
             selected_present_value=None,
             cost_basis=LandPriceStatus.UNKNOWN,
             price_date=None,
+            affected_area_m2=exposure.row_intersection_area_m2,
         )
 
     options = tuple(
@@ -175,7 +176,7 @@ def _assess_parcel(
         default=None,
     )
     return ParcelLandDecision(
-        parcel_id=parcel_id,
+        parcel_id=exposure.parcel_id,
         owner_id=profile.owner_id,
         availability_status=profile.availability_status,
         feasible_options=options,
@@ -183,6 +184,7 @@ def _assess_parcel(
         selected_present_value=selected.present_value if selected else None,
         cost_basis=selected.price_status if selected else LandPriceStatus.UNKNOWN,
         price_date=selected.price_date if selected else None,
+        affected_area_m2=exposure.row_intersection_area_m2,
     )
 
 

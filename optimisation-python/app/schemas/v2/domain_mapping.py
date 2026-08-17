@@ -100,6 +100,7 @@ def _to_land_summary(
                 ),
                 cost_basis=d.cost_basis.value,
                 price_date=d.price_date.isoformat() if d.price_date else None,
+                affected_area_m2=d.affected_area_m2,
             )
             for d in assessment.parcel_decisions
         ],

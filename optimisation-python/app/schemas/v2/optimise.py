@@ -401,6 +401,7 @@ class LandParcelDecisionSummary(ApiModel):
     selected_present_value: float | None = None
     cost_basis: str
     price_date: str | None = None
+    affected_area_m2: float | None = None
 
 
 class CandidateLandSummary(ApiModel):
