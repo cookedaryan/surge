@@ -56,6 +56,49 @@ export interface CandidateEngineeringMetrics {
   environmental_overlap_m2?: number;
 }
 
+/** One conductor upgrade the repair loop tried, with the loading it moved. */
+export interface RepairAttempt {
+  segment_id?: string | null;
+  iteration?: number | null;
+  from_cable_type_id?: string | null;
+  to_cable_type_id?: string | null;
+  trigger_violation_type?: string | null;
+  reason_code?: string | null;
+  pre_repair_loading_pct?: number | null;
+  post_repair_loading_pct?: number | null;
+  pre_repair_voltage_pu?: number | null;
+  post_repair_voltage_pu?: number | null;
+}
+
+/** The biggest conductor the catalogue had, which is the ceiling repair was working against. */
+export interface LargestCableAvailable {
+  cable_type_id?: string | null;
+  effective_ampacity_a?: number | null;
+  parallel_count?: number | null;
+}
+
+/**
+ * Why electrical repair gave up.
+ *
+ * <p>Without this a failed run said `REPAIR_EXHAUSTED` and nothing else, leaving no way to tell an
+ * undersized catalogue from a design no conductor can fix.
+ */
+export interface RepairDiagnostics {
+  status?: string;
+  summary?: string;
+  unresolved_violations?: ElectricalViolation[];
+  repair_attempts?: RepairAttempt[];
+  largest_cable_available?: LargestCableAvailable | null;
+  catalogue_size?: number;
+}
+
+export interface CandidateExecutionFailure {
+  code?: string;
+  message?: string;
+  stage?: string | null;
+  details?: RepairDiagnostics | null;
+}
+
 export interface CandidateSummary {
   scenario_id: string;
   strategy?: string;
@@ -64,6 +107,7 @@ export interface CandidateSummary {
   rank?: number;
   total_benefit_score?: number | null;
   engineering_metrics?: CandidateEngineeringMetrics | null;
+  execution_failure?: CandidateExecutionFailure | null;
   disqualifications?: string[];
 }
 

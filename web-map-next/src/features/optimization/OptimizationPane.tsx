@@ -11,7 +11,8 @@ import type {
   ElectricalViolation,
   FeederElectricalResult,
   Job,
-  JobDecisionSummary
+  JobDecisionSummary,
+  RepairDiagnostics
 } from '../../lib/api';
 
 /** Statuses after which a job will not change again. */
@@ -244,13 +245,16 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
                     ))}
                   </ul>
                 )}
+                {c.execution_failure?.details && (
+                  <RepairDiagnosticsPanel details={c.execution_failure.details} />
+                )}
               </div>
             ))}
           </div>
         )}
-        {summary?.failures && summary.failures.length > 0 && (
+        {unexplainedFailures(summary).length > 0 && (
           <div className="mt-2 flex flex-col gap-1">
-            {summary.failures.map((f, i) => (
+            {unexplainedFailures(summary).map((f, i) => (
               <p key={i} className="text-[11.5px] text-textFaint">
                 <span className="font-mono text-textMuted">{f.stage}</span>: {f.message}
               </p>
@@ -459,6 +463,110 @@ function CandidateComparison({
 }
 
 /**
+ * A measured value at the precision the engine reports it, not at full float width.
+ *
+ * <p>Voltages arrive as 1.0599745548368775 and loadings as 93.15750540268613. Four decimals matches
+ * what the engine's own violation messages print, and trailing zeros are dropped so a current of
+ * 1880 does not read as 1880.0000.
+ */
+function measure(value: number): string {
+  return String(Number(value.toFixed(4)));
+}
+
+/**
+ * Failures whose message is not already shown against a candidate.
+ *
+ * <p>Every candidate that fails electrical validation produces both an `execution_failure` and an
+ * entry in `failures`, carrying the same sentence. Rendering both repeats each failure twice — and
+ * with three candidates the card became the same paragraph six times over.
+ */
+function unexplainedFailures(summary: JobDecisionSummary | null) {
+  const failures = summary?.failures ?? [];
+  const shown = new Set(
+    (summary?.candidates ?? [])
+      .map((c) => c.execution_failure?.message ?? c.execution_failure?.details?.summary)
+      .filter((m): m is string => !!m)
+  );
+  return failures.filter((f) => !shown.has(f.message));
+}
+
+/**
+ * Why electrical repair gave up, in the terms an engineer can act on.
+ *
+ * <p>A failed run used to say `REPAIR_EXHAUSTED` and stop, which cannot distinguish a catalogue
+ * that is too small from a design no conductor will fix. Python has reported the difference since
+ * `710f75f`; this is where it becomes visible.
+ */
+function RepairDiagnosticsPanel({ details }: { details: RepairDiagnostics }) {
+  const unresolved = details.unresolved_violations ?? [];
+  const attempts = details.repair_attempts ?? [];
+  const largest = details.largest_cable_available;
+
+  return (
+    <div className="mt-1 flex flex-col gap-1.5 border-l-2 border-danger/40 pl-2">
+      {unresolved.length > 0 && (
+        <div>
+          <p className="text-[11px] uppercase tracking-wide text-textMuted m-0 mb-0.5">
+            Unresolved ({unresolved.length})
+          </p>
+          <ul className="m-0 list-none p-0">
+            {unresolved.map((v, i) => (
+              <li key={`${v.code}-${i}`} className="text-[11px] text-text">
+                <span className="font-mono text-textMuted">{v.node_id || v.segment_id || v.feeder_id}</span>{' '}
+                {v.measured_value != null && v.limit_value != null ? (
+                  <span className="font-mono tabular">
+                    {measure(v.measured_value)} / {measure(v.limit_value)} limit
+                  </span>
+                ) : (
+                  v.code.replace(/_/g, ' ').toLowerCase()
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div>
+        <p className="text-[11px] uppercase tracking-wide text-textMuted m-0 mb-0.5">
+          Conductor upgrades ({attempts.length})
+        </p>
+        {attempts.length === 0 ? (
+          // Not an empty table: repair upgrades conductors to clear overloads, so no attempts on a
+          // voltage failure is itself the finding — a bigger conductor was never the lever.
+          <p className="text-[11px] text-textFaint m-0">None attempted.</p>
+        ) : (
+          <ul className="m-0 list-none p-0">
+            {attempts.map((a, i) => (
+              <li key={i} className="text-[11px] text-text">
+                <span className="font-mono text-textMuted">{a.segment_id ?? '—'}</span>{' '}
+                {a.from_cable_type_id} → {a.to_cable_type_id}
+                {a.pre_repair_loading_pct != null && a.post_repair_loading_pct != null && (
+                  <span className="font-mono tabular text-textFaint">
+                    {' '}
+                    ({measure(a.pre_repair_loading_pct)}% → {measure(a.post_repair_loading_pct)}%)
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {largest?.cable_type_id && (
+        <p className="text-[11px] text-textFaint m-0">
+          Largest of {details.catalogue_size ?? '?'} conductors:{' '}
+          <span className="font-mono text-textMuted">{largest.cable_type_id}</span>
+          {largest.effective_ampacity_a != null && (
+            <span className="font-mono tabular"> at {measure(largest.effective_ampacity_a)} A</span>
+          )}
+          {largest.parallel_count != null && largest.parallel_count > 1 && ` (${largest.parallel_count}×)`}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
  * The breached limits behind the network's violation count.
  *
  * <p>"1 violation" tells an operator something is wrong and gives them nowhere to look. Naming the
@@ -482,7 +590,7 @@ function ViolationList({ violations }: { violations: ElectricalViolation[] }) {
               {hasNumbers && (
                 <span className="font-mono tabular">
                   {' '}
-                  — {v.measured_value} vs {v.limit_value} limit
+                  — {measure(v.measured_value!)} vs {measure(v.limit_value!)} limit
                 </span>
               )}
             </li>
