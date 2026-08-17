@@ -108,6 +108,63 @@ def test_v1_feeder_capacity_remains_authoritative_with_explicit_cable() -> None:
     assert invocation.project_input.feeder_capacity_mw == 20.0
 
 
+def test_v1_forwards_land_commercial_context() -> None:
+    """
+    The land engine is reached through v1 as well as v2.
+
+    Java calls v1, and v1 is where the compatibility translation lives that Java's
+    route and pole parsing depends on. Without this the commercial land model --
+    purchase, lease and easement options valued on present value, and owner
+    interactions counted by owner rather than by parcel -- could only be driven
+    from an endpoint nothing calls.
+    """
+    payload = create_payload()
+    payload["land_context"] = {
+        "currency": "USD",
+        "as_of_date": "2026-01-01",
+        "parcel_profiles": [
+            {
+                "parcel_id": "P-001",
+                "owner_id": "OWNER-1",
+                "availability_status": "NEGOTIABLE",
+                "transaction_options": [
+                    {
+                        "mode": "EASEMENT",
+                        "price_status": "QUOTED",
+                        "upfront_cost": "1500",
+                        "annual_cost": "300",
+                        "term_years": 25,
+                        "price_date": "2026-01-01",
+                    }
+                ],
+            }
+        ],
+    }
+
+    invocation = legacy_to_workflow_invocation(
+        OptimisationRequest.model_validate(payload)
+    )
+
+    context = invocation.project_input.land_context
+    assert context is not None, "land context must survive the v1 translation"
+    assert context.currency == "USD"
+    profile = context.parcel_profiles[0]
+    assert profile.parcel_id == "P-001"
+    # Owner identity is the part that makes owner-contact minimisation meaningful;
+    # without it the engine falls back to counting parcels.
+    assert profile.owner_id == "OWNER-1"
+    assert profile.transaction_options[0].annual_cost == 300
+
+
+def test_v1_without_land_context_still_runs() -> None:
+    """Every existing caller sends no land context and must keep working."""
+    invocation = legacy_to_workflow_invocation(
+        OptimisationRequest.model_validate(create_payload())
+    )
+
+    assert invocation.project_input.land_context is None
+
+
 def test_invalid_scenario() -> None:
     payload = create_payload()
     payload["scenario"] = "Invalid Scenario"

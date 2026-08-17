@@ -8,6 +8,7 @@ from app.schemas.v2.optimise import (
     CandidateSummary,
     FailuresSummary,
     GenerationSummary,
+    LandCommercialContextRequest,
     OperatingPointConfig,
     PoleConfigRequest,
     RecommendationSummary,
@@ -60,6 +61,11 @@ class OptimisationRequest(BaseModel):
     scoring_weights: ScoringWeightsRequest = Field(
         default_factory=ScoringWeightsRequest
     )
+    # Optional so every existing caller keeps working unchanged. Without it the
+    # land engine still runs, but with no commercial profile for any parcel:
+    # owner interactions fall back to counting parcels, and no purchase, lease
+    # or easement option can be valued.
+    land_context: LandCommercialContextRequest | None = None
 
 
 class OptimisationMetrics(BaseModel):
