@@ -438,7 +438,7 @@ def _compute_mutation_features(
             if len(pts) > 1:
                 cx = assignment.centroid.x
                 cy = assignment.centroid.y
-                dists = [((p.x - cx)**2 + (p.y - cy)**2)**0.5 for p in pts]
+                dists = [((p.x - cx) ** 2 + (p.y - cy) ** 2) ** 0.5 for p in pts]
                 dispersions.append(statistics.stdev(dists))
             else:
                 dispersions.append(0.0)
@@ -616,7 +616,7 @@ def run_candidate_beam_search(
                             EdgeReconnectMutation,
                             FeederReassignmentMutation,
                             FeederSwapMutation,
-                        )
+                        ),
                     ):
                         raise AssertionError(
                             f"Unexpected mutation type: {type(mutation)}"
@@ -670,6 +670,9 @@ def run_candidate_beam_search(
                 candidate_sequence += 1
                 child_id = f"SCN-S{round_idx + 1}-{candidate_sequence:03d}"
                 if search_config.emit_training_corpus:
+                    features["round_idx"] = round_idx + 1
+                    features["heuristic_score"] = mutation_weight
+                    features["parent_id"] = parent_id
                     corpus_rows.append((child_id, features))
                 lineage = CandidateLineage(parent_id, round_idx + 1, mutation)
                 parent_parameters = archive[parent_id].scenario.parameters

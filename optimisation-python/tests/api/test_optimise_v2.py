@@ -503,9 +503,7 @@ def test_exhausted_repair_reports_what_defeated_it(
             ),
             repair_log=(),
             initial_cable_sizing=None,
-            exhaustion_reason=(
-                RepairExhaustionReason.NO_LARGER_CONDUCTOR_FOR_OVERLOAD
-            ),
+            exhaustion_reason=(RepairExhaustionReason.NO_LARGER_CONDUCTOR_FOR_OVERLOAD),
         )
 
     monkeypatch.setattr(

@@ -154,9 +154,9 @@ def generate_synthetic_projects(
         project_json = copy.deepcopy(base_json)
         project_json["project_id"] = spec.project_id
         project_json["request_id"] = f"REQ-{spec.project_id}"
-        project_json["substation_geojson"]["features"][0]["geometry"][
-            "coordinates"
-        ] = list(project_data.substation.location.coords[0])
+        project_json["substation_geojson"]["features"][0]["geometry"]["coordinates"] = (
+            list(project_data.substation.location.coords[0])
+        )
         project_json["wtg_geojson"]["features"] = [
             {
                 "type": "Feature",
@@ -174,9 +174,9 @@ def generate_synthetic_projects(
         project_json["cable_config"]["cable_types"][0]["max_current_a"] = (
             spec.feeder_max_current_a
         )
-        project_json["cable_config"]["cable_types"][0][
-            "resistance_ohm_per_km"
-        ] = spec.cable_resistance_ohm_per_km
+        project_json["cable_config"]["cable_types"][0]["resistance_ohm_per_km"] = (
+            spec.cable_resistance_ohm_per_km
+        )
         project_json["scenario_config"]["candidate_count"] = 2
         project_json["costing_config"] = _costing_config()
         project_json["cost_aware_config"] = {
