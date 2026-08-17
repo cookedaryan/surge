@@ -194,13 +194,35 @@ consumer that sums the parts must check it.
 The `length × 80` fallback is deliberately untouched; that is F-1.
 **Actual:** 0.5 day · **Layer:** Java
 
-### F-1 · Remove the `length × $80` fallback
-`RouteService.java:176`. Only after C-1, so removal reveals real costs instead of blanks. Where a
-run has no costing, show "Not costed" rather than a number.
-**Effort:** 0.5 day · **Layer:** Java
+### F-1 · Remove the `length × $80` fallback — **done** at `abbf102`
+**The ticket's "Layer: Java" was wrong, and dangerously so.** The frontend read
+`?? '$0.00'` and `|| 0`, so a Java-only change would have converted every null into a confident
+zero — a network nobody priced reading as a free one, which is worse than the fabrication it
+replaced. Both sides had to move together.
 
-### C-2 · Real CAPEX in the BOM panel
-**Effort:** 0.5 day · **Layer:** Java + Frontend
+- Network capex is now the engine's own `total_capex`, not a sum of per-route figures: conductor is
+  the only component attributed to a route, so summing routes omits poles and land and presents the
+  remainder as a total. The per-route column is relabelled **Conductor cost** for the same reason.
+- Absent figures read "Not costed" in the BOM pane, the map strip, the scenario comparison, the CSV
+  and the PDF.
+- Where the engine could not price a component, the report states how many and that the capex above
+  is incomplete.
+- **No invented currency.** Both money formatters hardcoded `$` while the catalogue prices in INR,
+  so every cost carried the wrong unit. The currency now travels with the figures and is stated once
+  per column; unknown means unprefixed, not a guessed symbol. **This closes the INR/`$` mismatch that
+  P-1 flagged for C-2.**
+
+Two defects found while wiring it: the feeder roll-up folded money from `BigDecimal.ZERO`, so a
+feeder nobody priced reported `0.000`; and the CSV totals row appended the `BigDecimal` directly,
+printing the literal string `null` once the figure could be absent.
+**Actual:** 1 day · **Layer:** Java + Frontend
+
+### C-2 · Real CAPEX in the BOM panel — **mostly delivered by F-1**
+F-1 could not remove the fabrication without also fixing what displayed it, so the BOM panel, the map
+strip and the scenario comparison already show the engine's real capex under the right currency, or
+"Not costed". What remains of this ticket is presentation rather than correctness: the panel shows one
+capex figure where the engine reports a breakdown, which is C-3's subject.
+**Remaining:** ~0 · **Layer:** Frontend
 
 ### C-3 · Lifecycle cost breakdown — conductor / pole / land CAPEX plus loss OPEX
 **Effort:** 1 day · **Layer:** Frontend
@@ -253,7 +275,12 @@ work and needed none; E-6's stated cause was not the real one. The plan's labels
 point, not a finding — check the payload before estimating.
 
 4. **P-1** — start collecting rates now; it gates all of Phase 3.
-5. **Phase 3** in strict order: C-1 → F-1 → C-2 → C-3.
+5. ~~**Phase 3** in strict order: C-1 → F-1~~ — done at `233ff54` and `abbf102`. **C-2 came with
+   F-1**, which could not be done Java-only. **C-3** (lifecycle breakdown) is what is left, plus
+   **C-4** (BoQ line-item table).
+
+   The strict ordering mattered exactly as written: F-1 before C-1 would have blanked every cost in
+   the product rather than replacing it.
 6. **`owner_id` migration**, then Phase 4.
 7. **Phase 5** as capacity allows.
 
