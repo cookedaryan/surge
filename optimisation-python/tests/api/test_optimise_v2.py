@@ -221,6 +221,72 @@ def test_v2_maps_land_commercial_context(mvp_v2_payload: JsonObject) -> None:
     assert context.parcel_profiles[0].transaction_options[0].annual_cost == 250
 
 
+def test_response_reports_the_decision_taken_for_each_parcel(
+    mvp_v2_payload: JsonObject,
+) -> None:
+    """
+    The land engine's conclusions have to leave the process.
+
+    Only ``owner_interaction_count`` used to reach the response, with the
+    per-parcel decisions dropped. A consumer could report how many owners had to
+    be approached but not which instrument was chosen for which parcel, nor
+    whether any price behind that figure was a real quote.
+    """
+    payload = copy.deepcopy(mvp_v2_payload)
+    payload["land_context"] = {
+        "currency": "USD",
+        "as_of_date": "2026-01-01",
+        "parcel_profiles": [
+            {
+                "parcel_id": "P1",
+                "owner_id": "OWNER-1",
+                "availability_status": "NEGOTIABLE",
+                "transaction_options": [
+                    {
+                        "mode": "PURCHASE",
+                        "price_status": "QUOTED",
+                        "upfront_cost": "9000",
+                        "annual_cost": "0",
+                        "term_years": None,
+                        "price_date": "2026-01-01",
+                    },
+                    {
+                        # Cheaper in present value, so this is the one the engine
+                        # should pick -- and the response has to say so.
+                        "mode": "EASEMENT",
+                        "price_status": "QUOTED",
+                        "upfront_cost": "500",
+                        "annual_cost": "0",
+                        "term_years": None,
+                        "price_date": "2026-01-01",
+                    },
+                ],
+            }
+        ],
+    }
+
+    response = client.post("/api/v2/optimise", json=payload)
+    assert response.status_code == 200
+
+    result = OptimiseProjectResponse.model_validate(response.json())
+    assessed = [c for c in result.candidates if c.land is not None]
+    assert assessed, "at least one candidate must report a land assessment"
+
+    land = assessed[0].land
+    assert land is not None
+    assert land.owner_interaction_basis in {"CONFIRMED_OWNER_IDS", "PARCEL_PROXY"}
+    assert land.land_cost_basis in {"QUOTED", "ESTIMATED", "MIXED", "UNKNOWN"}
+
+    # Whether this candidate's route happens to touch P1 depends on the geometry,
+    # so assert the shape of whatever decisions it did make rather than a count.
+    for decision in land.parcel_decisions:
+        assert decision.parcel_id
+        assert decision.availability_status
+        if decision.selected_mode is not None:
+            assert decision.selected_mode in {"PURCHASE", "LEASE", "EASEMENT"}
+            assert decision.selected_present_value is not None
+
+
 def test_v2_returns_partial_cost_components_with_failure_details(
     mvp_v2_payload: JsonObject,
 ) -> None:

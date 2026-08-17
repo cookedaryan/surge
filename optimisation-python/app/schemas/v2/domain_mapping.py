@@ -21,6 +21,7 @@ from app.gis.preprocessing import (
     validate_project_routing_endpoints,
 )
 from app.land.models import (
+    CandidateLandAssessment,
     LandAvailabilityStatus,
     LandCommercialContext,
     LandPriceStatus,
@@ -45,6 +46,7 @@ from app.optimisation.workflow_models import (
 )
 from app.schemas.v2.optimise import (
     CandidateCostSummary,
+    CandidateLandSummary,
     CandidateSummary,
     CostFailureSummary,
     CostLineItemSummary,
@@ -52,6 +54,7 @@ from app.schemas.v2.optimise import (
     FailuresSummary,
     GenerationSummary,
     GroupScoreSummary,
+    LandParcelDecisionSummary,
     OptimiseProjectRequest,
     OptimiseProjectResponse,
     RecommendationReasonSummary,
@@ -66,6 +69,41 @@ MAX_RASTER_CELLS = 15_000_000
 class WorkflowInvocation:
     project_input: ProjectInput
     config: OptimisationConfig
+
+
+def _to_land_summary(
+    assessment: "CandidateLandAssessment | None",
+) -> CandidateLandSummary | None:
+    """Expose the per-parcel land decisions, not only the totals."""
+    if assessment is None:
+        return None
+    return CandidateLandSummary(
+        parcel_count=assessment.parcel_count,
+        owner_interaction_count=assessment.owner_interaction_count,
+        owner_interaction_basis=assessment.owner_interaction_basis.value,
+        unknown_owner_count=assessment.unknown_owner_count,
+        unavailable_parcel_ids=list(assessment.unavailable_parcel_ids),
+        land_cost_basis=assessment.land_cost_basis.value,
+        is_feasible=assessment.is_feasible,
+        parcel_decisions=[
+            LandParcelDecisionSummary(
+                parcel_id=d.parcel_id,
+                owner_id=d.owner_id,
+                availability_status=d.availability_status.value,
+                selected_mode=d.selected_mode.value if d.selected_mode else None,
+                # Money crosses the wire as a float like every other cost in this
+                # response. The Decimal is authoritative inside the engine.
+                selected_present_value=(
+                    float(d.selected_present_value)
+                    if d.selected_present_value is not None
+                    else None
+                ),
+                cost_basis=d.cost_basis.value,
+                price_date=d.price_date.isoformat() if d.price_date else None,
+            )
+            for d in assessment.parcel_decisions
+        ],
+    )
 
 
 def _to_land_context(
@@ -601,6 +639,7 @@ def to_api_response(
                 if c.execution_failure
                 else None,
                 cable_sizing=asdict(c.cable_sizing) if c.cable_sizing else None,
+                land=_to_land_summary(c.land_assessment),
             )
         )
 

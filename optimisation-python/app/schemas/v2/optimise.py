@@ -391,6 +391,43 @@ class CandidateCostSummary(ApiModel):
     failures: list[CostFailureSummary] = Field(default_factory=list)
 
 
+class LandParcelDecisionSummary(ApiModel):
+    """What the engine decided to do about one parcel, and on what basis."""
+
+    parcel_id: str
+    owner_id: str | None = None
+    availability_status: str
+    selected_mode: str | None = None
+    selected_present_value: float | None = None
+    cost_basis: str
+    price_date: str | None = None
+
+
+class CandidateLandSummary(ApiModel):
+    """
+    The land outcome for one candidate, parcel by parcel.
+
+    The totals already appear on CandidateCostSummary. They cannot answer the
+    question a reviewer actually asks -- *which* instrument was chosen for
+    *which* parcel, and was that price quoted or guessed -- so the per-parcel
+    decisions are carried here.
+
+    ``owner_interaction_basis`` matters as much as the count beside it: when
+    parcels carry no owner identity the engine can only count parcels and call
+    them owners, and a consumer that reports the number without the basis is
+    reporting a guess as a fact.
+    """
+
+    parcel_count: int
+    owner_interaction_count: int
+    owner_interaction_basis: str
+    unknown_owner_count: int
+    unavailable_parcel_ids: list[str] = Field(default_factory=list)
+    land_cost_basis: str
+    is_feasible: bool
+    parcel_decisions: list[LandParcelDecisionSummary] = Field(default_factory=list)
+
+
 class CandidateSummary(ApiModel):
     scenario_id: str
     parameter_set_id: str
@@ -410,6 +447,7 @@ class CandidateSummary(ApiModel):
     disqualifications: list[str] | None = None
     execution_failure: dict[str, Any] | None = None
     cable_sizing: dict[str, Any] | None = None
+    land: CandidateLandSummary | None = None
 
 
 class RecommendationSummary(ApiModel):
