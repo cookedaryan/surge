@@ -6,7 +6,12 @@ import { useUiStore } from '../../lib/store';
 import { useJobProgress } from './useJobProgress';
 import { useProjectData } from '../map/useProjectData';
 import { api } from '../../lib/api';
-import type { Job, JobDecisionSummary } from '../../lib/api';
+import type {
+  ElectricalViolation,
+  FeederElectricalResult,
+  Job,
+  JobDecisionSummary
+} from '../../lib/api';
 
 /** Statuses after which a job will not change again. */
 const TERMINAL_STATUSES = ['COMPLETED', 'FAILED', 'CANCELLED'];
@@ -336,8 +341,115 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
             warn={sc.hard_exclusion_violation_count > 0}
           />
         )}
+
+        {summary.violations && summary.violations.length > 0 && (
+          <ViolationList violations={summary.violations} />
+        )}
+
+        {summary.feeders && summary.feeders.length > 0 && (
+          <FeederBreakdown feeders={summary.feeders} />
+        )}
       </div>
     </Card>
+  );
+}
+
+/**
+ * The breached limits behind the network's violation count.
+ *
+ * <p>"1 violation" tells an operator something is wrong and gives them nowhere to look. Naming the
+ * feeder or segment, with the measured value against the limit, is the difference between knowing
+ * there is a problem and being able to act on it.
+ */
+function ViolationList({ violations }: { violations: ElectricalViolation[] }) {
+  return (
+    <div>
+      <p className="text-[11.5px] uppercase tracking-wide font-bold mb-1 text-danger">
+        Violations ({violations.length})
+      </p>
+      <ul className="m-0 list-none p-0 flex flex-col gap-1">
+        {violations.map((v, i) => {
+          const where = v.segment_id || v.node_id || v.feeder_id;
+          const hasNumbers = v.measured_value != null && v.limit_value != null;
+          return (
+            <li key={`${v.code}-${i}`} className="text-[11.5px] text-text">
+              <span className="font-semibold">{v.code.replace(/_/g, ' ').toLowerCase()}</span>
+              {where && <span className="text-textMuted"> at {where}</span>}
+              {hasNumbers && (
+                <span className="font-mono tabular">
+                  {' '}
+                  — {v.measured_value} vs {v.limit_value} limit
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Per-feeder electrical results, collapsed by default.
+ *
+ * <p>Python computes these for every feeder and Java only ever forwarded the network totals, so a
+ * network reported as valid could still contain one feeder doing all the suffering. Collapsed
+ * because on a normal run it is detail, and expanded is where an engineer goes when a total looks
+ * wrong.
+ */
+function FeederBreakdown({ feeders }: { feeders: FeederElectricalResult[] }) {
+  const [open, setOpen] = useState(false);
+  const invalid = feeders.filter((f) => f.valid === false).length;
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`flex w-full items-center justify-between gap-2 text-[11.5px] uppercase tracking-wide font-bold mb-1 ${
+          invalid > 0 ? 'text-danger' : 'text-textMuted'
+        }`}
+      >
+        <span>
+          Per-feeder electrical ({feeders.length})
+          {invalid > 0 && ` — ${invalid} invalid`}
+        </span>
+        <span aria-hidden="true">{open ? '−' : '+'}</span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-1">
+          <div className="grid grid-cols-5 gap-x-2 text-[11px] uppercase tracking-wide text-textFaint">
+            <span>Feeder</span>
+            <span className="text-right">Losses</span>
+            <span className="text-right">Loading</span>
+            <span className="text-right">V min</span>
+            <span className="text-right">V max</span>
+          </div>
+          {feeders.map((f) => (
+            <div
+              key={f.feeder_id}
+              className={`grid grid-cols-5 gap-x-2 text-[11.5px] font-mono tabular ${
+                f.valid === false ? 'text-danger' : 'text-text'
+              }`}
+            >
+              <span className="font-ui">{f.feeder_id}</span>
+              <span className="text-right">
+                {f.active_loss_mw != null ? `${(f.active_loss_mw * 1000).toFixed(1)} kW` : '—'}
+              </span>
+              <span className="text-right">
+                {f.maximum_loading_percent != null ? `${f.maximum_loading_percent.toFixed(1)}%` : '—'}
+              </span>
+              <span className="text-right">
+                {f.minimum_voltage_pu != null ? f.minimum_voltage_pu.toFixed(3) : '—'}
+              </span>
+              <span className="text-right">
+                {f.maximum_voltage_pu != null ? f.maximum_voltage_pu.toFixed(3) : '—'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

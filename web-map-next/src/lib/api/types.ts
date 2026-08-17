@@ -80,6 +80,37 @@ export interface SpatialConstraintSummary {
   affected_parcel_overlap_length_m: number;
 }
 
+/** One feeder's electrical result. The network summary reports only the totals. */
+export interface FeederElectricalResult {
+  feeder_id: string;
+  wtg_count?: number;
+  segment_count?: number;
+  route_length_m?: number;
+  active_loss_mw?: number | null;
+  reactive_loss_mvar?: number | null;
+  minimum_voltage_pu?: number | null;
+  maximum_voltage_pu?: number | null;
+  maximum_loading_percent?: number | null;
+  valid?: boolean;
+}
+
+/**
+ * A breached limit, with the value that breached it.
+ *
+ * <p>The electrical summary carries a violation *count*, which says something is wrong without
+ * saying where — so this is what turns "1 violation" into somewhere to look.
+ */
+export interface ElectricalViolation {
+  code: string;
+  message: string;
+  scope?: string;
+  node_id?: string | null;
+  segment_id?: string | null;
+  feeder_id?: string | null;
+  measured_value?: number | null;
+  limit_value?: number | null;
+}
+
 export interface JobDecisionSummary {
   workflowStatus?: string;
   candidates?: CandidateSummary[];
@@ -87,6 +118,8 @@ export interface JobDecisionSummary {
   failures?: { stage: string; code: string; message: string }[];
   networkSummary?: NetworkSummary;
   electricalSummary?: ElectricalSummary;
+  feeders?: FeederElectricalResult[];
+  violations?: ElectricalViolation[];
   poleSummary?: PoleSummary;
   spatialConstraintSummary?: SpatialConstraintSummary;
 }

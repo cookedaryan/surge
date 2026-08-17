@@ -571,6 +571,12 @@ public class OptimizationJobService {
             putIfPresent(summary, "electricalSummary", recommendedResult.get("electrical_summary"));
             putIfPresent(summary, "poleSummary", recommendedResult.get("pole_summary"));
             putIfPresent(summary, "spatialConstraintSummary", recommendedResult.get("spatial_constraint_summary"));
+            // Per-feeder results and the violations behind them. The network-level electrical
+            // summary reports one loss figure and a violation *count*, which says a limit was
+            // breached without saying which feeder breached it or by how much — so an operator
+            // could see that something was wrong and had nowhere to look.
+            putIfPresent(summary, "feeders", recommendedResult.get("feeders"));
+            putIfPresent(summary, "violations", recommendedResult.get("violations"));
         }
         return summary;
     }

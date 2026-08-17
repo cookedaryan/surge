@@ -303,6 +303,50 @@ class OptimisationContractTest {
         verify(poleService).savePolesFromGeoJson(eq(JOB_ID), any());
     }
 
+    /**
+     * Per-feeder results and the violations behind them have to survive into the stored summary.
+     *
+     * <p>The network-level electrical summary reports one loss figure and a violation *count*: it
+     * says a limit was breached without saying which feeder breached it or by how much. On the
+     * reference project one feeder sits at 1.055 pu while the network reads as valid, which is
+     * exactly the case the totals cannot show.
+     */
+    @Test
+    void theStoredSummaryKeepsPerFeederResultsAndViolations() {
+        Map<String, Object> recommendedResult = Map.of(
+                "network_summary", Map.of("feeder_count", 2),
+                "electrical_summary", Map.of("converged", true, "valid", true, "violation_count", 1),
+                "feeders", List.of(
+                        Map.of("feeder_id", "FDR-001", "active_loss_mw", 0.4125,
+                                "maximum_loading_percent", 90.4, "valid", true),
+                        Map.of("feeder_id", "FDR-003", "active_loss_mw", 0.5176,
+                                "maximum_voltage_pu", 1.055, "valid", false)),
+                "violations", List.of(Map.of(
+                        "code", "BUS_OVERVOLTAGE", "message", "bus above limit",
+                        "node_id", "wtg:KS-51_S3", "measured_value", 1.06, "limit_value", 1.05)));
+
+        givenFullyPopulatedProject(new PythonOptimisationResponse(
+                "job-1", "success", "Balanced",
+                Map.of("type", "FeatureCollection", "features", List.of(Map.of("type", "Feature"))),
+                Map.of("type", "FeatureCollection", "features", List.of(Map.of("type", "Feature"))),
+                Map.of("feeder_count", 2), "SUCCESS", List.of(), Map.of(),
+                recommendedResult, List.of()));
+
+        OptimizationJobResponse response = jobService.createAndRunJob(PROJECT_ID,
+                new CreateOptimizationJobRequest(
+                        "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+        String summary = response.resultSummaryJson();
+        assertThat(summary).as("the summary must carry the per-feeder results")
+                .contains("\"feeders\"")
+                .contains("FDR-003")
+                .contains("1.055");
+        assertThat(summary).as("and the violations behind the count")
+                .contains("\"violations\"")
+                .contains("BUS_OVERVOLTAGE")
+                .contains("wtg:KS-51_S3");
+    }
+
     /** A rejected run must not leave route or pole data behind from a network that was not chosen. */
     @Test
     void aFailedRunPersistsNoRoutesOrPoles() {
