@@ -3,6 +3,7 @@ package com.power.surge.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.power.surge.client.PythonOptimizationClient;
 import com.power.surge.domain.CadastralParcel;
+import com.power.surge.domain.JobStatus;
 import com.power.surge.domain.LineType;
 import com.power.surge.domain.OptimizationJob;
 import com.power.surge.domain.Project;
@@ -13,6 +14,7 @@ import com.power.surge.domain.WtgLocation;
 import com.power.surge.dto.client.python.PythonOptimisationRequest;
 import com.power.surge.dto.client.python.PythonOptimisationResponse;
 import com.power.surge.dto.job.CreateOptimizationJobRequest;
+import com.power.surge.dto.job.OptimizationJobResponse;
 import com.power.surge.repository.CadastralParcelRepository;
 import com.power.surge.repository.GeneratedRouteRepository;
 import com.power.surge.repository.OptimizationJobRepository;
@@ -258,6 +260,44 @@ class OptimisationContractTest {
         jobService.createAndRunJob(PROJECT_ID, new CreateOptimizationJobRequest(
                 "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
 
+        verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any());
+        verify(poleService).savePolesFromGeoJson(eq(JOB_ID), any());
+    }
+
+    // --- outcome contract, pinned ahead of the v1 -> v2 migration ------------
+    //
+    // These fix the *observable* result for each workflow status rather than any internal detail,
+    // so they stay true if the migration preserves behaviour and fail loudly if it does not.
+    //
+    // The specific hazard: v1 collapses the workflow's four-value status into two, mapping both
+    // SUCCESS and PARTIAL_SUCCESS to the literal "success" (`schemas/legacy_mapping.py:77`). v2
+    // returns the four values raw. The service decides success with
+    // `"success".equalsIgnoreCase(pythonResp.status())`, so a naive repoint at v2 would read
+    // PARTIAL_SUCCESS as failure, mark the job FAILED and throw away routes and poles the
+    // optimiser did produce.
+
+    /**
+     * A run that produced a usable network while falling short somewhere must keep that network.
+     *
+     * <p>Partial success is the normal outcome when one feeder cannot be solved but the rest can —
+     * discarding the whole result would throw away work the operator can act on.
+     */
+    @Test
+    void aPartiallySuccessfulRunStillPersistsWhatItProduced() {
+        givenFullyPopulatedProject(new PythonOptimisationResponse(
+                "job-1", "success", "Balanced",
+                Map.of("type", "FeatureCollection", "features", List.of(Map.of("type", "Feature"))),
+                Map.of("type", "FeatureCollection", "features", List.of(Map.of("type", "Feature"))),
+                Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                "PARTIAL_SUCCESS", List.of(), Map.of(), Map.of(), List.of()));
+
+        OptimizationJobResponse response = jobService.createAndRunJob(PROJECT_ID,
+                new CreateOptimizationJobRequest(
+                        "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+        assertThat(response.status())
+                .as("a partial result is still a result; the job must not be marked failed")
+                .isEqualTo(JobStatus.COMPLETED);
         verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any());
         verify(poleService).savePolesFromGeoJson(eq(JOB_ID), any());
     }
