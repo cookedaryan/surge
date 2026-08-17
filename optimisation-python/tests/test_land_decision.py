@@ -105,8 +105,7 @@ def test_assessment_selects_lowest_present_value_and_counts_unique_owners() -> N
     assert assessment.parcel_decisions[0].selected_mode == LandTransactionMode.LEASE
     assert assessment.owner_interaction_count == 1
     assert (
-        assessment.owner_interaction_basis
-        == OwnerInteractionBasis.CONFIRMED_OWNER_IDS
+        assessment.owner_interaction_basis == OwnerInteractionBasis.CONFIRMED_OWNER_IDS
     )
     assert assessment.land_purchase_capex == Decimal("2000")
     assert assessment.land_recurring_cost_pv == lease_pv

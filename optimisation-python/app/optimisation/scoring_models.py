@@ -132,9 +132,7 @@ class CandidateScoringConfig:
             ):
                 raise ValueError("Active spatial subweights must sum to 1.0")
         elif any(weight != 0.0 for weight in spatial_subs):
-            raise ValueError(
-                "Inactive spatial group must have exactly 0.0 subweights"
-            )
+            raise ValueError("Inactive spatial group must have exactly 0.0 subweights")
 
         elec_subs = [
             self.electrical_subweights.active_loss,

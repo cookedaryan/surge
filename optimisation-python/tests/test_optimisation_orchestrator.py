@@ -347,9 +347,7 @@ def test_workflow_returns_canonical_poles_for_recommended_network(
         and candidate.engineering_assessment.engineering_metrics_available
         for candidate in result.candidates
     )
-    assert all(
-        candidate.land_assessment is not None for candidate in result.candidates
-    )
+    assert all(candidate.land_assessment is not None for candidate in result.candidates)
 
     pole_network = result.pole_network
     assert pole_network is not None

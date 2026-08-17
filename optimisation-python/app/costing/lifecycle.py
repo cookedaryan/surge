@@ -284,9 +284,7 @@ def evaluate_candidate_cost(
             catalogue,
             line_items,
         )
-        land_purchase_capex_amount = (
-            land_assessment.land_purchase_capex + fallback_cost
-        )
+        land_purchase_capex_amount = land_assessment.land_purchase_capex + fallback_cost
         land_recurring_cost_pv_amount = land_assessment.land_recurring_cost_pv
         land_access_present_value_amount = (
             land_purchase_capex_amount + land_recurring_cost_pv_amount
@@ -322,9 +320,7 @@ def evaluate_candidate_cost(
         and land_purchase_capex_amount is not None
     ):
         total_capex_amount = (
-            conductor_capex_amount
-            + pole_capex_amount
-            + land_purchase_capex_amount
+            conductor_capex_amount + pole_capex_amount + land_purchase_capex_amount
         )
 
     # 4. OPEX Losses
@@ -404,9 +400,7 @@ def evaluate_candidate_cost(
             pole_capex=_quantize_money(pole_capex_amount),
             land_purchase_capex=_quantize_money(land_purchase_capex_amount),
             land_recurring_cost_pv=_quantize_money(land_recurring_cost_pv_amount),
-            land_access_present_value=_quantize_money(
-                land_access_present_value_amount
-            ),
+            land_access_present_value=_quantize_money(land_access_present_value_amount),
             total_capex=_quantize_money(total_capex_amount),
             annual_loss_energy_mwh=annual_loss_energy_mwh,
             annual_loss_cost=_quantize_money(annual_loss_cost),

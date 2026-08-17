@@ -233,7 +233,8 @@ def build_project_result(
             post_repair_voltage_pu=log.post_repair_voltage_pu,
             repair_iteration=log.repair_iteration,
             reason_code=log.reason_code,
-        ) for log in repair_log
+        )
+        for log in repair_log
     ]
 
     return ProjectOptimizationResult(

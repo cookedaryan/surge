@@ -1,14 +1,28 @@
 import math
+from dataclasses import replace
 from decimal import Decimal
-import pytest
 from unittest.mock import MagicMock
 
 from app.costing.models import CandidateCostAssessment, CandidateLifecycleCost
 from app.electrical.load_flow.models import LoadFlowNetworkResult
-from app.optimisation.engineering_metric_models import CandidateEngineeringAssessment, CandidateEngineeringMetrics
-from app.optimisation.scenario_models import PNCScenario, ScenarioParameters, ScenarioStrategy
-from app.pnc.models import ProjectPNCNetwork
-from app.optimisation.scoring_models import CandidateAssessment, CandidateEvaluation, GroupScore, MetricScore
+from app.optimisation.engineering_metric_models import (
+    CandidateEngineeringAssessment,
+    CandidateEngineeringMetrics,
+)
+from app.optimisation.scenario_models import (
+    PNCScenario,
+)
+from app.optimisation.scoring_models import (
+    CandidateAssessment,
+    CandidateEvaluation,
+    Disqualification,
+    DisqualificationCode,
+)
+from app.optimisation.search_models import (
+    CandidateSearchResult,
+    CandidateSearchStatistics,
+    SearchTerminationReason,
+)
 from app.optimisation.workflow_models import (
     CandidateFailure,
     CandidateWorkflowResult,
@@ -17,13 +31,16 @@ from app.optimisation.workflow_models import (
     WorkflowFailureCode,
     WorkflowStage,
 )
-from app.reporting.builder import build_decision_report
+from app.reporting.builder import _calculate_delta, build_decision_report
 from app.reporting.decision_models import (
     AlternativeStatus,
     ComparisonOutcome,
     DecisionReportStatus,
     MetricDirection,
 )
+
+_PROJECT_ID = "PRJ-001"
+
 
 def create_mock_candidate(
     scenario_id: str,
@@ -71,7 +88,7 @@ def create_mock_candidate(
     metrics.soft_constraint_overlap_length_m = 0.0
     metrics.affected_parcel_count = parcels
     metrics.owner_interaction_count = parcels
-    
+
     eng_assess = MagicMock(spec=CandidateEngineeringAssessment)
     eng_assess.scenario_id = scenario_id
     eng_assess.metrics = metrics
@@ -84,7 +101,7 @@ def create_mock_candidate(
     cost_obj.land_capex = Decimal("100000.0")
     cost_obj.present_value_opex = Decimal("200000.0")
     cost_obj.currency = "USD"
-    
+
     cost_assess = MagicMock(spec=CandidateCostAssessment)
     cost_assess.scenario_id = scenario_id
     cost_assess.cost = cost_obj
@@ -103,11 +120,20 @@ def create_mock_candidate(
     eval_obj.economic_benefit_score = 0.9
     eval_obj.final_benefit_score = 0.85
     eval_obj.rank = rank
-    
+
     assessment = MagicMock(spec=CandidateAssessment)
     assessment.scenario_id = scenario_id
     assessment.eligible = feasible
-    assessment.disqualifications = () if feasible else (MagicMock(message="Infeasible"),)
+    assessment.disqualifications = (
+        ()
+        if feasible
+        else (
+            Disqualification(
+                code=DisqualificationCode.ELECTRICAL_VIOLATION,
+                message="Infeasible",
+            ),
+        )
+    )
     eval_obj.assessment = assessment
 
     # Mock Presentation
@@ -129,13 +155,18 @@ def create_mock_candidate(
         presentation_result=pres_obj,
     )
 
+
 def test_decision_report_winner_and_feasible_alternative():
-    winner = create_mock_candidate("SCN-1", feasible=True, total_length=1000.0, cost=1000000.0, rank=1, parcels=3)
-    alt1 = create_mock_candidate("SCN-2", feasible=True, total_length=1200.0, cost=1100000.0, rank=2, parcels=4)
-    
+    winner = create_mock_candidate(
+        "SCN-1", feasible=True, total_length=1000.0, cost=1000000.0, rank=1, parcels=3
+    )
+    alt1 = create_mock_candidate(
+        "SCN-2", feasible=True, total_length=1200.0, cost=1100000.0, rank=2, parcels=4
+    )
+
     recom = MagicMock()
     recom.recommended_scenario_id = "SCN-1"
-    
+
     gen_mock = MagicMock()
     gen_mock.requested_candidate_count = 2
 
@@ -149,28 +180,41 @@ def test_decision_report_winner_and_feasible_alternative():
         pole_network=None,
         search_result=None,
     )
-    
-    report = build_decision_report(workflow_result)
-    
+
+    report = build_decision_report(workflow_result, _PROJECT_ID)
+
     assert report.status == DecisionReportStatus.SUCCESS
     assert report.recommendation is not None
     assert report.recommendation.reference.candidate_id == "SCN-1"
-    
+    assert report.optimisation_run_id is None
+    assert report.provenance.engineering_fingerprint is None
+    assert report.provenance.economic_fingerprint is None
+    assert report.provenance.search_enabled is None
+    assert report.provenance.micro_siting_enabled is None
+    assert report.recommendation.land.unique_owners is None
+    assert report.recommendation.poles is not None
+    assert report.recommendation.poles.moved_poles is None
+
     assert len(report.alternatives) == 1
     alt_summary = report.alternatives[0]
     assert alt_summary.reference.candidate_id == "SCN-2"
     assert alt_summary.status == AlternativeStatus.FEASIBLE
-    
+
     # Check comparisons
-    # Winner cost = 1M, Alt cost = 1.1M. Winner is LOWER_IS_BETTER. Delta = 1M - 1.1M = -100k (BETTER)
-    cost_delta = next(c for c in alt_summary.comparisons if c.metric == "lifecycle_cost")
+    # Winner cost = 1M, Alt cost = 1.1M.
+    # Winner is LOWER_IS_BETTER. Delta = 1M - 1.1M = -100k (BETTER)
+    cost_delta = next(
+        c for c in alt_summary.comparisons if c.metric == "lifecycle_cost"
+    )
     assert cost_delta.absolute_delta == -100000.0
     assert cost_delta.outcome == ComparisonOutcome.BETTER
-    assert math.isclose(cost_delta.relative_delta, -0.0909090909) # -100k / 1.1M
-    
+    assert math.isclose(cost_delta.relative_delta, -0.0909090909)  # -100k / 1.1M
+
     # Check reasoning
     assert report.reasoning is not None
-    assert len(report.reasoning.advantages) > 0 # Winner should have advantages over alt
+    assert (
+        len(report.reasoning.advantages) > 0
+    )  # Winner should have advantages over alt
     assert any(a.factor == "lifecycle_cost" for a in report.reasoning.advantages)
 
 
@@ -178,10 +222,10 @@ def test_decision_report_infeasible_alternative():
     winner = create_mock_candidate("SCN-1", feasible=True, rank=1)
     # Alt is infeasible
     alt1 = create_mock_candidate("SCN-2", feasible=False, rank=None)
-    
+
     recom = MagicMock()
     recom.recommended_scenario_id = "SCN-1"
-    
+
     gen_mock = MagicMock()
     gen_mock.requested_candidate_count = 2
 
@@ -193,22 +237,23 @@ def test_decision_report_infeasible_alternative():
         recommended_result=winner.presentation_result,
         failures=(),
     )
-    
-    report = build_decision_report(workflow_result)
-    
+
+    report = build_decision_report(workflow_result, _PROJECT_ID)
+
     assert report.status == DecisionReportStatus.SUCCESS
     assert len(report.alternatives) == 0
     assert len(report.rejected_candidates) == 1
-    
+
     rejected = report.rejected_candidates[0]
     assert rejected.reference.candidate_id == "SCN-2"
-    assert rejected.failure_code == "DISQUALIFIED"
+    assert rejected.failure_code == DisqualificationCode.ELECTRICAL_VIOLATION
     assert rejected.failure_stage == WorkflowStage.SCORING
+    assert rejected.disqualification_codes == ("ELECTRICAL_VIOLATION",)
 
 
 def test_decision_report_no_winner():
     alt1 = create_mock_candidate("SCN-1", feasible=False, rank=None)
-    
+
     workflow_result = OptimisationWorkflowResult(
         status=OptimisationStatus.NO_FEASIBLE_CANDIDATE,
         generation_result=None,
@@ -217,26 +262,26 @@ def test_decision_report_no_winner():
         recommended_result=None,
         failures=(),
     )
-    
-    report = build_decision_report(workflow_result)
-    
+
+    report = build_decision_report(workflow_result, _PROJECT_ID)
+
     assert report.status == DecisionReportStatus.NO_FEASIBLE_CANDIDATE
     assert report.recommendation is None
     assert len(report.rejected_candidates) == 1
-    
+
     rejected = report.rejected_candidates[0]
     assert rejected.reference.candidate_id == "SCN-1"
 
 
 def test_decision_report_missing_data_preserves_none():
     winner = create_mock_candidate("SCN-1", feasible=True, rank=1)
-    
+
     # Set something to None to test it preserves None, not 0
     winner.cost_assessment.cost = None
-    
+
     recom = MagicMock()
     recom.recommended_scenario_id = "SCN-1"
-    
+
     gen_mock = MagicMock()
     gen_mock.requested_candidate_count = 1
 
@@ -248,14 +293,14 @@ def test_decision_report_missing_data_preserves_none():
         recommended_result=winner.presentation_result,
         failures=(),
     )
-    
-    report = build_decision_report(workflow_result)
+
+    report = build_decision_report(workflow_result, _PROJECT_ID)
     assert report.recommendation.economics.lifecycle_cost is None
-    
+
     # Since cost is missing on winner, delta should also be None in alt comparison
     alt = create_mock_candidate("SCN-2", feasible=True, rank=2)
     alt.cost_assessment.cost = None
-    
+
     gen_mock2 = MagicMock()
     gen_mock2.requested_candidate_count = 2
 
@@ -267,9 +312,130 @@ def test_decision_report_missing_data_preserves_none():
         recommended_result=winner.presentation_result,
         failures=(),
     )
-    
-    report2 = build_decision_report(workflow_result)
-    cost_comp = next(c for c in report2.alternatives[0].comparisons if c.metric == "lifecycle_cost")
+
+    report2 = build_decision_report(workflow_result, _PROJECT_ID)
+    cost_comp = next(
+        c for c in report2.alternatives[0].comparisons if c.metric == "lifecycle_cost"
+    )
     assert cost_comp.absolute_delta is None
     assert cost_comp.relative_delta is None
     assert cost_comp.outcome is None
+
+
+def test_decision_report_allows_missing_cost_assessment() -> None:
+    winner = replace(
+        create_mock_candidate("SCN-1", feasible=True, rank=1),
+        cost_assessment=None,
+    )
+    recommendation = MagicMock(recommended_scenario_id="SCN-1")
+    generation = MagicMock(requested_candidate_count=1)
+    workflow_result = OptimisationWorkflowResult(
+        status=OptimisationStatus.SUCCESS,
+        generation_result=generation,
+        candidates=(winner,),
+        recommendation=recommendation,
+        recommended_result=winner.presentation_result,
+        failures=(),
+    )
+
+    report = build_decision_report(workflow_result, _PROJECT_ID)
+
+    assert report.recommendation is not None
+    assert report.recommendation.economics is None
+
+
+def test_partial_success_maps_to_incomplete_report() -> None:
+    winner = create_mock_candidate("SCN-1", feasible=True, rank=1)
+    recommendation = MagicMock(recommended_scenario_id="SCN-1")
+    generation = MagicMock(requested_candidate_count=2)
+    workflow_result = OptimisationWorkflowResult(
+        status=OptimisationStatus.PARTIAL_SUCCESS,
+        generation_result=generation,
+        candidates=(winner,),
+        recommendation=recommendation,
+        recommended_result=winner.presentation_result,
+        failures=(),
+    )
+
+    report = build_decision_report(workflow_result, _PROJECT_ID)
+
+    assert report.status == DecisionReportStatus.INCOMPLETE
+
+
+def test_failed_workflow_maps_to_failed_report() -> None:
+    failure = CandidateFailure(
+        stage=WorkflowStage.PNC_GENERATION,
+        code=WorkflowFailureCode.GENERATION_FAILED,
+        message="Candidate generation failed",
+    )
+    workflow_result = OptimisationWorkflowResult(
+        status=OptimisationStatus.FAILED,
+        generation_result=None,
+        candidates=(),
+        recommendation=None,
+        recommended_result=None,
+        failures=(failure,),
+    )
+
+    report = build_decision_report(workflow_result, _PROJECT_ID)
+
+    assert report.status == DecisionReportStatus.FAILED
+    assert report.recommendation is None
+
+
+def test_decimal_delta_preserves_fixed_point_precision() -> None:
+    delta = _calculate_delta(
+        "lifecycle_cost",
+        Decimal("10000000000000000.01"),
+        Decimal("10000000000000000.02"),
+        MetricDirection.LOWER_IS_BETTER,
+    )
+
+    assert delta.absolute_delta == Decimal("-0.01")
+    assert delta.outcome == ComparisonOutcome.BETTER
+
+
+def test_search_termination_evidence_comes_from_statistics() -> None:
+    winner = create_mock_candidate("SCN-1", feasible=True, rank=1)
+    recommendation = MagicMock(recommended_scenario_id="SCN-1")
+    generation = MagicMock(requested_candidate_count=1)
+    statistics = CandidateSearchStatistics(
+        proposed_count=1,
+        unique_count=1,
+        duplicate_count=0,
+        structural_rejection_count=0,
+        evaluation_cache_hit_count=0,
+        search_evaluations_used=1,
+        feasible_count=1,
+        failure_count=0,
+        search_evaluation_budget=10,
+        proposed_candidate_budget=10,
+        termination_reason=SearchTerminationReason.NO_NEW_UNIQUE_CANDIDATES,
+    )
+    search_result = CandidateSearchResult(
+        rounds_completed=1,
+        statistics=statistics,
+        initial_best_scenario_id="SCN-1",
+        final_best_scenario_id="SCN-1",
+        initial_route_length_m=1000.0,
+        final_route_length_m=1000.0,
+        initial_lifecycle_cost=None,
+        final_lifecycle_cost=None,
+    )
+    workflow_result = OptimisationWorkflowResult(
+        status=OptimisationStatus.SUCCESS,
+        generation_result=generation,
+        candidates=(winner,),
+        recommendation=recommendation,
+        recommended_result=winner.presentation_result,
+        failures=(),
+        search_result=search_result,
+    )
+
+    report = build_decision_report(workflow_result, _PROJECT_ID)
+
+    assert report.optimization_evidence is not None
+    assert (
+        report.optimization_evidence.termination_reason
+        == SearchTerminationReason.NO_NEW_UNIQUE_CANDIDATES
+    )

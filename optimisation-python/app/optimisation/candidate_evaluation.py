@@ -115,9 +115,7 @@ def evaluate_candidate(
             row_corridor_width_m=project_input.row_width_m,
         )
     except Exception as exc:
-        logger.warning(
-            "%s spatial analysis failed: %s", scenario.scenario_id, str(exc)
-        )
+        logger.warning("%s spatial analysis failed: %s", scenario.scenario_id, str(exc))
 
     # 1.6 Initial Pole Placement and Micro-Siting
     pole_result = None
@@ -130,8 +128,7 @@ def evaluate_candidate(
             if config.pole.micro_siting and config.pole.micro_siting.enabled:
                 micro_context = PoleMicroSitingContext(
                     route_geometries={
-                        route.route_id: route.geometry
-                        for route in pole_result.routes
+                        route.route_id: route.geometry for route in pole_result.routes
                     },
                     constraint_layers=project_input.constraint_layers,
                     land_context=project_input.land_context,
@@ -171,9 +168,7 @@ def evaluate_candidate(
     )
 
     if not land_assessment.is_feasible:
-        logger.warning(
-            "%s crosses unavailable land parcel(s)", scenario.scenario_id
-        )
+        logger.warning("%s crosses unavailable land parcel(s)", scenario.scenario_id)
         assessment = CandidateEngineeringAssessment(
             scenario_id=scenario.scenario_id,
             metrics=None,

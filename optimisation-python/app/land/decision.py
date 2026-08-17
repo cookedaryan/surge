@@ -52,10 +52,7 @@ def assess_transaction_option(
         rate = lifecycle_config.discount_rate if lifecycle_config else _ZERO
         recurring_pv = terms.annual_cost * present_value_factor(rate, years)
 
-    feasible = (
-        terms.price_status != LandPriceStatus.UNKNOWN
-        and recurring_cost_is_known
-    )
+    feasible = terms.price_status != LandPriceStatus.UNKNOWN and recurring_cost_is_known
     return LandOptionAssessment(
         mode=terms.mode,
         price_status=terms.price_status,
@@ -76,8 +73,10 @@ def assess_candidate_land(
     lifecycle_config: LifecycleCostConfig | None,
 ) -> CandidateLandAssessment:
     """Select the lowest-PV feasible option for every affected parcel."""
-    if land_context and lifecycle_config and (
-        land_context.currency.casefold() != lifecycle_config.currency.casefold()
+    if (
+        land_context
+        and lifecycle_config
+        and (land_context.currency.casefold() != lifecycle_config.currency.casefold())
     ):
         raise ValueError(
             "Land commercial context currency must match lifecycle currency"
@@ -88,9 +87,7 @@ def assess_candidate_land(
         if land_context
         else {}
     )
-    unique_exposures = {
-        exposure.parcel_id: exposure for exposure in parcel_exposures
-    }
+    unique_exposures = {exposure.parcel_id: exposure for exposure in parcel_exposures}
     decisions = tuple(
         _assess_parcel(parcel_id, profiles.get(parcel_id), lifecycle_config)
         for parcel_id in sorted(unique_exposures)

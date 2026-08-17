@@ -59,7 +59,7 @@ def make_feature(
     )
 
 
-def analyse(  
+def analyse(
     routes: tuple[RefinedPhysicalRoute, ...] = (make_route(),),
     features: tuple[ConstraintFeature, ...] = (),
     *,

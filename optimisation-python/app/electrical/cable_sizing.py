@@ -81,6 +81,7 @@ def size_cables_for_network(
     sizing_power_factor: float = 1.0,
 ) -> CableSizingResult:
     """Assign minimum electrically suitable cable to each radial segment."""
+
     def effective_ampacity(c: LoadFlowCableType) -> float:
         return c.max_current_a * c.derating_factor * c.parallel_count
 
@@ -126,9 +127,7 @@ def size_cables_for_network(
                 assumed_pf = None
             else:
                 s_mva = (
-                    abs(p_mw) / sizing_power_factor
-                    if sizing_power_factor > 0
-                    else 0.0
+                    abs(p_mw) / sizing_power_factor if sizing_power_factor > 0 else 0.0
                 )
                 basis = "ACTIVE_POWER_ONLY"
                 assumed_pf = sizing_power_factor

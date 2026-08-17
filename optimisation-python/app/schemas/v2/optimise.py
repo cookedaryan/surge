@@ -259,17 +259,13 @@ class ParcelCommercialProfileRequest(ApiModel):
         "UNAVAILABLE",
         "UNKNOWN",
     ]
-    transaction_options: list[LandTransactionTermsRequest] = Field(
-        default_factory=list
-    )
+    transaction_options: list[LandTransactionTermsRequest] = Field(default_factory=list)
 
 
 class LandCommercialContextRequest(ApiModel):
     currency: str = Field(min_length=3, max_length=3)
     as_of_date: datetime.date
-    parcel_profiles: list[ParcelCommercialProfileRequest] = Field(
-        default_factory=list
-    )
+    parcel_profiles: list[ParcelCommercialProfileRequest] = Field(default_factory=list)
 
 
 class OptimiseProjectRequest(ApiModel):
