@@ -30,6 +30,21 @@ public class CadastralParcel extends AuditableEntity {
     @Column(name = "owner_name", length = 200)
     private String ownerName;
 
+    @Column(name = "owner_id")
+    private java.util.UUID ownerId;
+
+    @Column(name = "availability_status", length = 50)
+    private String availabilityStatus;
+
+    @Column(name = "transaction_mode", length = 50)
+    private String transactionMode;
+
+    @Column(name = "price_status", length = 50)
+    private String priceStatus;
+
+    @Column(name = "price_date", length = 30)
+    private String priceDate;
+
     @Column(name = "acquisition_cost_per_m2", precision = 14, scale = 2)
     private BigDecimal acquisitionCostPerM2;
 
@@ -59,12 +74,41 @@ public class CadastralParcel extends AuditableEntity {
         return ownerName;
     }
 
+    public java.util.UUID getOwnerId() {
+        return ownerId;
+    }
+
+    public String getAvailabilityStatus() {
+        return availabilityStatus;
+    }
+
+    public String getTransactionMode() {
+        return transactionMode;
+    }
+
+    public String getPriceStatus() {
+        return priceStatus;
+    }
+
+    public String getPriceDate() {
+        return priceDate;
+    }
+
     public BigDecimal getAcquisitionCostPerM2() {
         return acquisitionCostPerM2;
     }
 
     public Polygon getGeometry() {
         return geometry;
+    }
+
+    public void updateCommercialDetails(java.util.UUID ownerId, String availabilityStatus, String transactionMode, String priceStatus, String priceDate, BigDecimal acquisitionCostPerM2) {
+        this.ownerId = ownerId;
+        this.availabilityStatus = availabilityStatus;
+        this.transactionMode = transactionMode;
+        this.priceStatus = priceStatus;
+        this.priceDate = priceDate;
+        this.acquisitionCostPerM2 = requireNonNegativeCost(acquisitionCostPerM2);
     }
 
     private static String requireParcelId(String parcelId) {

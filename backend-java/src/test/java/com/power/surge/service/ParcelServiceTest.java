@@ -50,6 +50,11 @@ class ParcelServiceTest {
         CreateParcelRequest request = new CreateParcelRequest(
                 "P-001",
                 "Jane Doe",
+                null, // ownerId
+                "AVAILABLE", // availabilityStatus
+                "PURCHASE", // transactionMode
+                "ESTIMATED", // priceStatus
+                null, // priceDate
                 new BigDecimal("120.50"),
                 List.of(List.of(List.of(77.20, 28.60), List.of(77.21, 28.60), List.of(77.21, 28.61), List.of(77.20, 28.60)))
         );

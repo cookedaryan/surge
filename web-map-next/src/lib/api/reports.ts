@@ -11,8 +11,27 @@ export async function getBomReport(projectId: string): Promise<BomReport> {
       // Null, not 0: a report that could not be fetched has an unknown cost, and a zero would read
       // as a free network.
       totalEstimatedCost: null,
+      conductorCapex: null,
+      poleCapex: null,
+      landCapex: null,
+      annualLossEnergyMwh: null,
+      annualLossCost: null,
+      presentValueOpex: null,
+      lifecycleCost: null,
       totalElectricalLossesKw: 0,
-      feederSummaries: []
+      rowWidthMeters: 0,
+      totalAffectedAreaM2: 0,
+      totalCompensationCost: 0,
+      poleCountByRole: {},
+      poleCountByType: {},
+      feederSummaries: [],
+      segmentDetails: [],
+      poleSchedule: [],
+      ownerInteractionCount: null,
+      ownerInteractionBasis: null,
+      landCostBasis: null,
+      landIsFeasible: null,
+      parcelImpactSummaries: []
     };
   }
 }

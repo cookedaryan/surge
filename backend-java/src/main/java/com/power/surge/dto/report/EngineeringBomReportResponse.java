@@ -44,6 +44,13 @@ public record EngineeringBomReportResponse(
          * out rather than pricing a gap at zero.
          */
         Integer costFailureCount,
+        BigDecimal conductorCapex,
+        BigDecimal poleCapex,
+        BigDecimal landCapex,
+        BigDecimal annualLossEnergyMwh,
+        BigDecimal annualLossCost,
+        BigDecimal presentValueOpex,
+        BigDecimal lifecycleCost,
         BigDecimal totalElectricalLossesKw,
         BigDecimal rowWidthMeters,
         BigDecimal totalAffectedAreaM2,
@@ -51,6 +58,10 @@ public record EngineeringBomReportResponse(
         List<FeederBomSummary> feederSummaries,
         List<RouteSegmentDetail> segmentDetails,
         List<PoleScheduleEntry> poleSchedule,
+        Integer ownerInteractionCount,
+        String ownerInteractionBasis,
+        String landCostBasis,
+        Boolean landIsFeasible,
         List<ParcelImpactSummary> parcelImpactSummaries,
         Instant generatedAt
 ) {

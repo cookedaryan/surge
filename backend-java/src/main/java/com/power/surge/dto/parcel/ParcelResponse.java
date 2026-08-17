@@ -15,6 +15,11 @@ public record ParcelResponse(
         UUID projectId,
         String parcelId,
         String ownerName,
+        UUID ownerId,
+        String availabilityStatus,
+        String transactionMode,
+        String priceStatus,
+        String priceDate,
         BigDecimal acquisitionCostPerM2,
         List<List<List<Double>>> coordinates,
         Instant createdAt
@@ -44,6 +49,11 @@ public record ParcelResponse(
                 parcel.getProject().getId(),
                 parcel.getParcelId(),
                 parcel.getOwnerName(),
+                parcel.getOwnerId(),
+                parcel.getAvailabilityStatus(),
+                parcel.getTransactionMode(),
+                parcel.getPriceStatus(),
+                parcel.getPriceDate(),
                 parcel.getAcquisitionCostPerM2(),
                 rings,
                 parcel.getCreatedAt()

@@ -120,18 +120,42 @@ public class ReportService {
         // reference project reported 38 m² against a true corridor overlap of 18,884 m².
         Map<String, Double> affectedAreaByParcel = rowCorridorAreaByParcel(projectId, job.getId());
 
+        LandOutcome landOutcome = LandOutcome.fromResultSummaryJson(job.getResultSummaryJson());
+
         List<ParcelImpactSummary> parcelSummaries = new ArrayList<>();
         for (CadastralParcel p : parcels) {
             Double affectedArea = affectedAreaByParcel.getOrDefault(p.getParcelId(), 0.0);
             BigDecimal costRate = p.getAcquisitionCostPerM2() != null ? p.getAcquisitionCostPerM2() : BigDecimal.ZERO;
             BigDecimal estimatedComp = costRate.multiply(BigDecimal.valueOf(affectedArea)).setScale(2, RoundingMode.HALF_UP);
 
+            String ownerId = null;
+            String availabilityStatus = null;
+            String transactionMode = null;
+            BigDecimal selectedPresentValue = null;
+            String priceBasis = null;
+            String priceDate = null;
+            if (landOutcome != null && landOutcome.parcelDecisions().containsKey(p.getParcelId())) {
+                LandOutcome.LandParcelDecision d = landOutcome.parcelDecisions().get(p.getParcelId());
+                ownerId = d.ownerId();
+                availabilityStatus = d.availabilityStatus();
+                transactionMode = d.selectedMode();
+                selectedPresentValue = d.selectedPresentValue();
+                priceBasis = d.costBasis();
+                priceDate = d.priceDate();
+            }
+
             parcelSummaries.add(new ParcelImpactSummary(
                     p.getParcelId(),
                     p.getOwnerName(),
+                    ownerId,
                     p.getAcquisitionCostPerM2(),
                     affectedArea,
-                    estimatedComp
+                    estimatedComp,
+                    availabilityStatus,
+                    transactionMode,
+                    selectedPresentValue,
+                    priceBasis,
+                    priceDate
             ));
         }
 
@@ -165,6 +189,13 @@ public class ReportService {
                 job.getTotalCapex(),
                 job.getCostCurrency(),
                 job.getCostFailureCount(),
+                job.getConductorCapex(),
+                job.getPoleCapex(),
+                job.getLandCapex(),
+                job.getAnnualLossEnergyMwh(),
+                job.getAnnualLossCost(),
+                job.getPresentValueOpex(),
+                job.getLifecycleCost(),
                 totalLosses.setScale(2, RoundingMode.HALF_UP),
                 rowWidth,
                 totalAffectedArea,
@@ -172,6 +203,10 @@ public class ReportService {
                 feederSummaries,
                 segmentDetails,
                 poles.stream().map(ReportService::toScheduleEntry).toList(),
+                landOutcome != null ? landOutcome.ownerInteractionCount() : null,
+                landOutcome != null ? landOutcome.ownerInteractionBasis() : null,
+                landOutcome != null ? landOutcome.landCostBasis() : null,
+                landOutcome != null ? landOutcome.isFeasible() : null,
                 parcelSummaries,
                 Instant.now()
         );

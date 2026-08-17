@@ -57,6 +57,14 @@ public class ParcelService {
                 request.acquisitionCostPerM2(),
                 polygon
         );
+        parcel.updateCommercialDetails(
+                request.ownerId(),
+                request.availabilityStatus(),
+                request.transactionMode(),
+                request.priceStatus(),
+                request.priceDate(),
+                request.acquisitionCostPerM2()
+        );
         return ParcelResponse.fromEntity(parcelRepository.save(parcel));
     }
 
@@ -103,9 +111,16 @@ public class ParcelService {
             }
 
             String ownerName = extractString(properties, "ownerName", "owner_name", "owner");
+            String ownerIdStr = extractString(properties, "ownerId", "owner_id");
+            UUID ownerId = ownerIdStr != null ? UUID.fromString(ownerIdStr) : null;
+            String availabilityStatus = extractString(properties, "availabilityStatus", "availability_status");
+            String transactionMode = extractString(properties, "transactionMode", "transaction_mode");
+            String priceStatus = extractString(properties, "priceStatus", "price_status");
+            String priceDate = extractString(properties, "priceDate", "price_date");
             BigDecimal costPerM2 = extractBigDecimal(properties, "acquisitionCostPerM2", "cost_per_m2", "rate_per_m2");
 
             CadastralParcel parcel = new CadastralParcel(project, parcelId, ownerName, costPerM2, polygon);
+            parcel.updateCommercialDetails(ownerId, availabilityStatus, transactionMode, priceStatus, priceDate, costPerM2);
             entities.add(parcel);
         }
 
@@ -141,6 +156,11 @@ public class ParcelService {
             Map<String, Object> properties = new LinkedHashMap<>();
             properties.put("parcelId", parcel.getParcelId());
             properties.put("ownerName", parcel.getOwnerName());
+            properties.put("ownerId", parcel.getOwnerId());
+            properties.put("availabilityStatus", parcel.getAvailabilityStatus());
+            properties.put("transactionMode", parcel.getTransactionMode());
+            properties.put("priceStatus", parcel.getPriceStatus());
+            properties.put("priceDate", parcel.getPriceDate());
             properties.put("acquisitionCostPerM2", parcel.getAcquisitionCostPerM2());
             feature.put("properties", properties);
 

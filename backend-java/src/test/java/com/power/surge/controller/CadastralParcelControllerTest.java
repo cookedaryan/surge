@@ -68,6 +68,11 @@ class CadastralParcelControllerTest {
                 projectId,
                 "P-0001",
                 "John Doe",
+                null,
+                "AVAILABLE",
+                "PURCHASE",
+                "ESTIMATED",
+                null,
                 new BigDecimal("150.00"),
                 List.of(List.of(List.of(77.20, 28.60), List.of(77.21, 28.60), List.of(77.21, 28.61), List.of(77.20, 28.60))),
                 Instant.now()

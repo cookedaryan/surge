@@ -231,8 +231,60 @@ export interface BomReport {
    * price rather than pricing it at zero.
    */
   costFailureCount?: number | null;
+  conductorCapex: number | null;
+  poleCapex: number | null;
+  landCapex: number | null;
+  annualLossEnergyMwh: number | null;
+  annualLossCost: number | null;
+  presentValueOpex: number | null;
+  lifecycleCost: number | null;
   totalElectricalLossesKw: number;
-  feederSummaries: unknown[];
+  rowWidthMeters: number;
+  totalAffectedAreaM2: number;
+  totalCompensationCost: number;
+  poleCountByRole: Record<string, number>;
+  poleCountByType: Record<string, number>;
+  feederSummaries: FeederBomSummary[];
+  segmentDetails: RouteSegmentDetail[];
+  poleSchedule: unknown[];
+  ownerInteractionCount: number | null;
+  ownerInteractionBasis: string | null;
+  landCostBasis: string | null;
+  landIsFeasible: boolean | null;
+  parcelImpactSummaries: ParcelImpactSummary[];
+}
+
+export interface ParcelImpactSummary {
+  parcelId: string;
+  ownerName?: string;
+  ownerId?: string | null;
+  acquisitionCostPerM2: number;
+  affectedAreaM2: number;
+  estimatedCompensationCost: number;
+  availabilityStatus?: string | null;
+  transactionMode?: string | null;
+  selectedPresentValue?: number | null;
+  priceBasis?: string | null;
+  priceDate?: string | null;
+}
+
+export interface FeederBomSummary {
+  feederName: string;
+  segmentCount: number;
+  lengthMeters: number;
+  poleCount: number;
+  electricalLossesKw: number;
+}
+
+export interface RouteSegmentDetail {
+  feederName: string;
+  segmentId: string;
+  lengthMeters: number;
+  poleCount: number;
+  conductorCost: number | null;
+  electricalLossesKw: number;
+  cableTypeId: string;
+  cableUtilisationPct: number;
 }
 
 export interface ImportPreviewFeature {
