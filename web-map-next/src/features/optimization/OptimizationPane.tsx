@@ -286,13 +286,26 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
             Optimised for <span className="text-text font-semibold">{job.scenario}</span>
           </p>
         )}
-        {reasons && reasons.length > 0 && (
+        {summary.recommendation?.reason_details && summary.recommendation.reason_details.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            {summary.recommendation.reason_details.map((rd, i) => (
+              <div key={i} className="flex flex-col border-l-2 border-accent/40 pl-2">
+                <span className="text-text font-medium text-[11.5px]">{rd.message}</span>
+                {rd.metric && rd.candidate_value != null && rd.comparison_value != null && (
+                  <span className="text-textFaint text-[10.5px]">
+                    {rd.metric}: {rd.candidate_value.toFixed(2)} (baseline: {rd.comparison_value.toFixed(2)})
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : reasons && reasons.length > 0 ? (
           <ul className="list-disc list-inside text-text">
             {reasons.map((r, i) => (
               <li key={i}>{r}</li>
             ))}
           </ul>
-        )}
+        ) : null}
 
         {ns && (
           <SummaryRow

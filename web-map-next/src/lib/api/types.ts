@@ -186,10 +186,22 @@ export interface ElectricalViolation {
   limit_value?: number | null;
 }
 
+export interface RecommendationReasonSummary {
+  code: string;
+  message: string;
+  metric?: string | null;
+  candidate_value?: number | null;
+  comparison_value?: number | null;
+}
+
 export interface JobDecisionSummary {
   workflowStatus?: string;
   candidates?: CandidateSummary[];
-  recommendation?: { recommended_scenario_id?: string | null; reasons?: string[] };
+  recommendation?: {
+    recommended_scenario_id?: string | null;
+    reasons?: string[];
+    reason_details?: RecommendationReasonSummary[];
+  };
   failures?: { stage: string; code: string; message: string }[];
   networkSummary?: NetworkSummary;
   electricalSummary?: ElectricalSummary;
