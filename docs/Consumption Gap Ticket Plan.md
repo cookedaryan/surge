@@ -90,15 +90,22 @@ as `1.0599745548368775`. That path had never rendered a real value, because the 
 had no violations — worth remembering as a shape of bug this codebase produces.
 **Actual:** 0.5 day · **Layer:** Frontend
 
-### E-6 · Say why repair attempted no upgrades *(new — found while doing E-4)*
-`repair_attempts` comes back empty on every voltage failure, and the diagnostics do not say why.
-The reason is real and known to the code — `_summarise_repair_failure` already comments that an
-overload has a definite fix in a bigger conductor whereas a voltage violation may need a different
-design — but it is a comment, so the UI can only report the absence, not the cause. Python should
-state it: a `no_upgrade_reason` on the diagnostics, set when every unresolved violation is a voltage
-code. The frontend deliberately does not infer this, because inferring it would mean asserting
-engineering reasoning the panel cannot see.
-**Effort:** 0.5 day · **Layer:** Python (+ small frontend)
+### E-6 · Say why repair attempted no upgrades — **done** at `497a321`
+Implemented differently from how this ticket described it, because the ticket's diagnosis was wrong.
+It proposed inferring the reason from the violation codes — set `no_upgrade_reason` when every
+unresolved violation is a voltage code — on the belief that repair only upgrades conductors for
+overloads. It does not: `_find_next_voltage_upgrade` attempts voltage upgrades too.
+
+The actual cause is narrower. The overvoltage branch searches only conductors of at least equal
+ampacity and requires no more capacitance, and larger conductors carry more capacitance, so it finds
+nothing. Inferring that from violation codes would have produced a plausible sentence that was not
+the real reason.
+
+So the reason is recorded where it is known: `RepairStatus.REPAIR_EXHAUSTED` is returned from eight
+places, and each now carries a `RepairExhaustionReason`. The diagnostics surface both the code and a
+sentence that explains rather than restates it. A completeness test fails if a new enum member is
+added without one, because the silent `null` is the exact failure this ticket existed to remove.
+**Actual:** 0.5 day · **Layer:** Python + Frontend
 
 ---
 
@@ -191,8 +198,13 @@ The per-parcel decisions have been in the response since `491ae64`.
 2. ~~**E-3, R-1**~~ — done at `71a0e36` and `4032805`.
 3. ~~**E-1b, E-4**~~ — done at `0d6cfc2`; E-1b needed no code.
 
-**Phase 1 and 2 are complete.** Everything remaining needs either a business input (P-1's rates,
-P-2's datasheets) or a schema change (`owner_id`), except **E-6** and Phase 5.
+**Phases 1 and 2 are complete, E-6 included.** Everything remaining needs either a business input
+(P-1's rates, P-2's datasheets) or a schema change (`owner_id`) — except Phase 5 polish.
+
+**Worth noting for whoever picks up the next ticket:** four of the five tickets in this batch had
+inaccurate premises. E-3 was labelled "needs nothing" and needed Java work; E-1b was scoped as Java
+work and needed none; E-6's stated cause was not the real one. The plan's labels are a starting
+point, not a finding — check the payload before estimating.
 
 4. **P-1** — start collecting rates now; it gates all of Phase 3.
 5. **Phase 3** in strict order: C-1 → F-1 → C-2 → C-3.
