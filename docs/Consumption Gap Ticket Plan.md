@@ -101,15 +101,20 @@ capacity was never imported is worse than one admitting it does not know. **Excl
 fallback on line 210**, which belongs with F-1 in Phase 3.
 **Effort:** 0.5 day · **Layer:** Frontend
 
-### E-3 · Per-feeder electrical breakdown *(needs nothing)*
-Per-feeder losses, voltage range and loading already sit in `result_summary_json`. Surface them in
-a collapsible section of the decision card.
-**Effort:** 1 day · **Layer:** Java (expose) + Frontend
+### E-3 · Per-feeder electrical breakdown — **done** at `71a0e36`
+This ticket's premise was wrong: the per-feeder results were *not* in `result_summary_json`.
+`buildResultSummary` pulled four summaries out of `recommended_result` and dropped both `feeders`
+and `violations`, so the Java side was work, not just exposure. Both are now forwarded and shown —
+a collapsible per-feeder table whose header reports the invalid count without being opened, and a
+violation list naming the bus, the measured value and the limit.
+**Actual:** 0.5 day · **Layer:** Java + Frontend
 
-### R-1 · Candidate comparison on success, not only on failure *(needs nothing)*
-Today the UI hides the alternatives when a run succeeds, which is precisely when an engineer wants
-to know what the recommendation beat and by how much.
-**Effort:** 1 day · **Layer:** Frontend
+### R-1 · Candidate comparison on success, not only on failure — **done** at `4032805`
+The candidate list *was* already stored in full. Shown on success in rank order with the
+recommended row marked and each candidate's length, losses, poles and loading beside its benefit
+score. Absolute values rather than the engine's `baseline_comparisons` deltas: reading those as
+improvements needs per-metric knowledge of which direction is better, which the panel does not have.
+**Actual:** 0.5 day · **Layer:** Frontend
 
 ---
 
@@ -165,13 +170,18 @@ The per-parcel decisions have been in the response since `491ae64`.
 
 ## Suggested working order
 
-1. **E-2, F-2** — half a day each, no dependencies, immediately visible.
-2. **E-1b, E-4** — completes the diagnostics work already half-done.
-3. **E-3, R-1** — data already present, real analytical value.
+1. ~~**E-2, F-2**~~ — done at `1095ddf`.
+2. ~~**E-3, R-1**~~ — done at `71a0e36` and `4032805`.
+3. **E-1b, E-4** — completes the diagnostics work already half-done. Now the only unblocked
+   engineering ticket left outside Phase 5.
 4. **P-1** — start collecting rates now; it gates all of Phase 3.
 5. **Phase 3** in strict order: C-1 → F-1 → C-2 → C-3.
 6. **`owner_id` migration**, then Phase 4.
 7. **Phase 5** as capacity allows.
+
+Phase 5's **M-1/M-2** are now partly moot: the candidate engineering metrics R-1 renders are the
+same ones M-1 was to parse, so M-2 shrinks to showing traversal cost and environmental overlap for
+the recommended candidate.
 
 ## Totals
 
