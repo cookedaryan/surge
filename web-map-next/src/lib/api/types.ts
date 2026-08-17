@@ -107,6 +107,13 @@ export interface CandidateExecutionFailure {
   details?: RepairDiagnostics | null;
 }
 
+export interface CandidateGroupScore {
+  group: string;
+  group_score: number;
+  group_weight: number;
+  weighted_score: number;
+}
+
 export interface CandidateSummary {
   scenario_id: string;
   strategy?: string;
@@ -117,6 +124,7 @@ export interface CandidateSummary {
   engineering_metrics?: CandidateEngineeringMetrics | null;
   execution_failure?: CandidateExecutionFailure | null;
   disqualifications?: string[];
+  group_scores?: CandidateGroupScore[] | null;
 }
 
 export interface ElectricalSummary {

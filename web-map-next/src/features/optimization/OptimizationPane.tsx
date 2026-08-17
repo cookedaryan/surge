@@ -463,7 +463,23 @@ function CandidateComparison({
                     {m?.maximum_loading_percent != null ? `${m.maximum_loading_percent.toFixed(1)}%` : '—'}
                   </span>
                 </div>
-                <p className="text-[11px] text-textFaint m-0 mt-0.5">
+                {c.group_scores && c.group_scores.length > 0 && c.total_benefit_score != null && c.total_benefit_score > 0 && (
+                  <div className="mt-1 flex h-1.5 w-full overflow-hidden rounded-full bg-surface2 opacity-80">
+                    {c.group_scores.map((gs, i) => {
+                      const SCORE_COLORS = ['bg-accent', 'bg-success', 'bg-warning', 'bg-danger', 'bg-textMuted'];
+                      const width = Math.max(0, (gs.weighted_score / c.total_benefit_score!) * 100);
+                      return (
+                        <div
+                          key={gs.group}
+                          className={`h-full ${SCORE_COLORS[i % SCORE_COLORS.length]}`}
+                          style={{ width: `${width}%` }}
+                          title={`${gs.group}: ${gs.weighted_score.toFixed(3)} (weight: ${gs.group_weight.toFixed(2)})`}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+                <p className="text-[11px] text-textFaint m-0 mt-1">
                   {c.strategy ? c.strategy.replace(/_/g, ' ') : 'unnamed strategy'}
                   {c.electrical_status === 'INVALID' && (
                     <span className="text-danger"> · electrically invalid</span>
