@@ -4,6 +4,16 @@ import { SVG_ICONS } from './icons';
 import { FEEDER_COLORS, assignFeederColors, assignFeederDashPatterns, feederNameOf } from './feederColors';
 import type { LayerName } from '../store';
 
+import {
+  asKm,
+  asMoney,
+  asMw,
+  asPercent,
+  asRatePerM2,
+  isHighUtilisation,
+  shown
+} from './popupValues';
+
 export class SurgeMapEngine {
   map: L.Map;
   layers: Record<LayerName, L.FeatureGroup>;
@@ -73,7 +83,7 @@ export class SurgeMapEngine {
           <div class="popup-card">
             <h4>${SVG_ICONS.wtg} Wind Turbine Generator</h4>
             <div class="popup-row"><span>Turbine ID:</span> <strong>${props.externalId || props.id || feature.id}</strong></div>
-            <div class="popup-row"><span>Capacity:</span> <strong>${props.capacityMw || 3.0} MW</strong></div>
+            <div class="popup-row"><span>Capacity:</span> <strong>${shown(props.capacityMw, asMw)}</strong></div>
             <div class="popup-row"><span>Status:</span> <strong>${status.replace(/_/g, ' ')}</strong></div>
             <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
             ${excluded ? '<div class="popup-note">Excluded from optimisation by status.</div>' : ''}
@@ -101,7 +111,7 @@ export class SurgeMapEngine {
           <div class="popup-card">
             <h4>${SVG_ICONS.substation} Substation</h4>
             <div class="popup-row"><span>Substation ID:</span> <strong>${props.externalId || props.id || feature.id}</strong></div>
-            <div class="popup-row"><span>Grid Capacity:</span> <strong>${props.capacityMw || 100} MW</strong></div>
+            <div class="popup-row"><span>Grid Capacity:</span> <strong>${shown(props.capacityMw, asMw)}</strong></div>
             <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
           </div>
         `);
@@ -197,17 +207,32 @@ export class SurgeMapEngine {
       },
       onEachFeature: (feature, layer) => {
         const props = (feature.properties || {}) as Record<string, any>;
-        const lengthMeters = props.totalLengthMeters || props.length_m || 0;
-        const poles = props.poleCount || (lengthMeters > 0 ? Math.ceil(lengthMeters / 150.0) : 0);
+        const lengthMeters = props.totalLengthMeters ?? props.length_m ?? null;
+        // Utilisation says whether the conductor choice is comfortable or marginal, which the type
+        // alone does not. Flagged past 85% because that is where an engineer wants to look.
+        const utilisation = props.cableUtilisationPct;
+        const utilisationClass = isHighUtilisation(utilisation) ? 'popup-warn' : '';
         layer.bindPopup(`
           <div class="popup-card">
             <h4>${SVG_ICONS.route} Feeder Route</h4>
-            <div class="popup-row"><span>Feeder:</span> <strong>${props.feederName || props.feeder_id || 'Feeder'}</strong></div>
-            <div class="popup-row"><span>Length:</span> <strong>${
-              lengthMeters > 0 ? (lengthMeters / 1000).toFixed(2) + ' km' : 'N/A'
-            }</strong></div>
-            <div class="popup-row"><span>Poles Placed:</span> <strong>${poles}</strong></div>
-            <div class="popup-row"><span>Estimated Cost:</span> <strong>$${(props.totalCost || Math.round(lengthMeters * 80)).toLocaleString()}</strong></div>
+            <div class="popup-row"><span>Feeder:</span> <strong>${shown(props.feederName ?? props.feeder_id)}</strong></div>
+            ${props.segmentId ? `<div class="popup-row"><span>Segment:</span> <strong>${props.segmentId}</strong></div>` : ''}
+            <div class="popup-row"><span>Length:</span> <strong>${shown(
+              lengthMeters,
+              asKm
+            )}</strong></div>
+            <div class="popup-row"><span>Poles Placed:</span> <strong>${shown(props.poleCount)}</strong></div>
+            <div class="popup-row"><span>Conductor:</span> <strong>${shown(props.cableTypeId)}</strong></div>
+            <div class="popup-row"><span>Utilisation:</span> <strong class="${utilisationClass}">${shown(
+              utilisation,
+              asPercent
+            )}</strong></div>
+            ${
+              props.cableRequiredCurrentA !== null && props.cableRequiredCurrentA !== undefined
+                ? `<div class="popup-row"><span>Current:</span> <strong>${props.cableRequiredCurrentA} A of ${shown(props.cableEffectiveAmpacityA)} A</strong></div>`
+                : ''
+            }
+            <div class="popup-row"><span>Estimated Cost:</span> <strong>${shown(props.totalCost, asMoney)}</strong></div>
           </div>
         `);
       }
@@ -270,8 +295,11 @@ export class SurgeMapEngine {
           <div class="popup-card">
             <h4>${SVG_ICONS.parcel} Cadastral Land Parcel</h4>
             <div class="popup-row"><span>Parcel ID:</span> <strong>${props.parcelId || feature.id}</strong></div>
-            <div class="popup-row"><span>Owner:</span> <strong>${props.ownerName || 'Private Owner'}</strong></div>
-            <div class="popup-row"><span>Acquisition Rate:</span> <strong>$${props.acquisitionCostPerM2 || 100}/m²</strong></div>
+            <div class="popup-row"><span>Owner:</span> <strong>${shown(props.ownerName)}</strong></div>
+            <div class="popup-row"><span>Acquisition Rate:</span> <strong>${shown(
+              props.acquisitionCostPerM2,
+              asRatePerM2
+            )}</strong></div>
           </div>
         `);
       }

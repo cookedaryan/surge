@@ -332,6 +332,14 @@ public class RouteService {
             properties.put("totalCost", route.getTotalCost());
             properties.put("electricalLossesKw", route.getElectricalLossesKw());
             properties.put("poleCount", realPoleCount != null ? realPoleCount.intValue() : route.getPoleCount());
+            // The conductor chosen for this segment, and how hard it is working. Persisted since
+            // the cable-sizing wiring but only ever visible in the BOM exports, so an engineer
+            // clicking a line on the map could not see what it was made of.
+            properties.put("cableTypeId", route.getCableTypeId());
+            properties.put("cableUtilisationPct", route.getCableUtilisationPct());
+            properties.put("cableRequiredCurrentA", route.getCableRequiredCurrentA());
+            properties.put("cableEffectiveAmpacityA", route.getCableEffectiveAmpacityA());
+            properties.put("segmentId", route.getSegmentId());
             properties.put("jobId", route.getJob().getId());
             feature.put("properties", properties);
 

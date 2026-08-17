@@ -100,5 +100,10 @@ body {
 .popup-row { display: flex; justify-content: space-between; gap: 12px; font-size: 11.5px; padding: 2px 0; color: var(--text-muted); }
 .popup-row strong { color: var(--text); font-weight: 600; }
 .popup-note { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); font-size: 10.5px; color: var(--text-faint); }
+/* Deliberately quieter than a real value and italic, so a missing figure reads as absent rather
+   than as data. These popups used to fill the gaps with invented numbers instead. */
+.popup-unknown { font-style: italic; font-weight: 400; color: var(--text-faint); }
+/* A conductor near its effective ampacity is the thing worth noticing on a route popup. */
+.popup-warn { color: var(--danger); }
 
 .text-cyan { color: var(--accent); }
