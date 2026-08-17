@@ -6,6 +6,7 @@ from app.presentation.models import ProjectOptimizationResult
 from app.schemas.v2.optimise import (
     CableConfigRequest,
     CandidateSummary,
+    CostingConfigRequest,
     FailuresSummary,
     GenerationSummary,
     LandCommercialContextRequest,
@@ -66,6 +67,13 @@ class OptimisationRequest(BaseModel):
     # owner interactions fall back to counting parcels, and no purchase, lease
     # or easement option can be valued.
     land_context: LandCommercialContextRequest | None = None
+    # Optional for the same reason, and with a sharper consequence: without it
+    # ``evaluate_candidate_cost`` is never called, so every candidate comes back
+    # with ``cost: null`` and there is no CAPEX, no loss valuation and no
+    # lifecycle figure to compare scenarios on. This model ignores unknown fields,
+    # so a caller sending costing_config before it existed here had it silently
+    # dropped and got uncosted results with no error to explain them.
+    costing_config: CostingConfigRequest | None = None
 
 
 class OptimisationMetrics(BaseModel):

@@ -41,6 +41,7 @@ def legacy_to_workflow_invocation(payload: OptimisationRequest) -> WorkflowInvoc
         scenario_config=payload.scenario_config,
         scoring_weights=payload.scoring_weights,
         land_context=payload.land_context,
+        costing_config=payload.costing_config,
     )
     invocation = to_workflow_invocation(request)
     return WorkflowInvocation(
