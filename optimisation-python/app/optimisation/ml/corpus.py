@@ -36,12 +36,29 @@ def load_training_corpus(path: Path) -> TrainingCorpus:
 
     processed_rows = []
     project_ids = set()
+    scenario_ids = set()
     groups: dict[tuple[Any, ...], list[dict[str, Any]]] = {}
+    
+    valid_mutations = {"EDGE_RECONNECT", "FEEDER_REASSIGNMENT", "FEEDER_SWAP"}
 
     for i, row in enumerate(raw_rows):
         if not row["project_id"].strip():
             raise ValueError(f"Row {i} has empty project_id")
         project_ids.add(row["project_id"])
+        
+        if not row["parent_id"].strip():
+            raise ValueError(f"Row {i} has empty parent_id")
+            
+        scenario_id = row["scenario_id"].strip()
+        if not scenario_id:
+            raise ValueError(f"Row {i} has empty scenario_id")
+        project_scenario = (row["project_id"], scenario_id)
+        if project_scenario in scenario_ids:
+            raise ValueError(f"Duplicate scenario_id: {scenario_id} for project {row['project_id']}")
+        scenario_ids.add(project_scenario)
+        
+        if row["mutation_type"] not in valid_mutations:
+            raise ValueError(f"Row {i} has invalid mutation_type: {row['mutation_type']}")
 
         if not row["feasible"].strip() in ("True", "False"):
             raise ValueError(f"Row {i} has invalid feasible value: {row['feasible']}")
@@ -79,8 +96,12 @@ def load_training_corpus(path: Path) -> TrainingCorpus:
             if not row.get(cost_col) or not row[cost_col].strip():
                 raise ValueError(f"Row {i} is feasible but missing cost")
             row["lifecycle_cost"] = float(row[cost_col])
+            if math.isnan(row["lifecycle_cost"]) or math.isinf(row["lifecycle_cost"]) or row["lifecycle_cost"] < 0:
+                raise ValueError(f"Row {i} has invalid lifecycle_cost: {row['lifecycle_cost']}")
 
             row["total_route_length_m"] = float(row["total_route_length_m"])
+            if math.isnan(row["total_route_length_m"]) or math.isinf(row["total_route_length_m"]) or row["total_route_length_m"] < 0:
+                raise ValueError(f"Row {i} has invalid total_route_length_m: {row['total_route_length_m']}")
         else:
             row["evaluation.rank"] = None
             row["lifecycle_cost"] = None

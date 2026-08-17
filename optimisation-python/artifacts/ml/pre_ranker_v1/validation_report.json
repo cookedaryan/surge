@@ -42,10 +42,10 @@
   "models": {
     "ridge": {
       "project_metrics": {
-        "SYN-5-MIXED-40": {
+        "SYN-1-CLUSTERED-8": {
           "capture_at_k": 1.0,
-          "top_k_recall": 0.2,
-          "rank_correlation": 0.18949343339587246
+          "top_k_recall": 0.6666666666666666,
+          "rank_correlation": 0.16493193768735567
         },
         "SYN-2-SPREAD-12": {
           "capture_at_k": 0.0,
@@ -57,29 +57,29 @@
           "top_k_recall": 0.0,
           "rank_correlation": 0.29756097560975614
         },
-        "SYN-1-CLUSTERED-8": {
-          "capture_at_k": 1.0,
-          "top_k_recall": 0.6666666666666666,
-          "rank_correlation": 0.16493193768735567
-        },
         "SYN-4-SPREAD-30": {
           "capture_at_k": 0.0,
           "top_k_recall": 0.4,
           "rank_correlation": 0.24803001876172615
+        },
+        "SYN-5-MIXED-40": {
+          "capture_at_k": 1.0,
+          "top_k_recall": 0.2,
+          "rank_correlation": 0.18949343339587246
         }
       },
       "macro_metrics": {
         "capture_at_k": 0.4,
         "top_k_recall": 0.29333333333333333,
-        "rank_correlation": 0.21561302918850309
+        "rank_correlation": 0.21561302918850306
       }
     },
     "hist_gb": {
       "project_metrics": {
-        "SYN-5-MIXED-40": {
-          "capture_at_k": 0.0,
-          "top_k_recall": 0.2,
-          "rank_correlation": 0.7007504690431521
+        "SYN-1-CLUSTERED-8": {
+          "capture_at_k": 0.6666666666666666,
+          "top_k_recall": 0.6666666666666666,
+          "rank_correlation": 0.555404442478746
         },
         "SYN-2-SPREAD-12": {
           "capture_at_k": 0.0,
@@ -91,15 +91,15 @@
           "top_k_recall": 0.0,
           "rank_correlation": 0.578611632270169
         },
-        "SYN-1-CLUSTERED-8": {
-          "capture_at_k": 0.6666666666666666,
-          "top_k_recall": 0.6666666666666666,
-          "rank_correlation": 0.555404442478746
-        },
         "SYN-4-SPREAD-30": {
           "capture_at_k": 1.0,
           "top_k_recall": 0.2,
           "rank_correlation": 0.21482176360225144
+        },
+        "SYN-5-MIXED-40": {
+          "capture_at_k": 0.0,
+          "top_k_recall": 0.2,
+          "rank_correlation": 0.7007504690431521
         }
       },
       "macro_metrics": {

@@ -8,6 +8,12 @@ from typing import Any
 import joblib
 from sklearn.pipeline import Pipeline
 
+from .feature_schema import (
+    CATEGORICAL_FEATURES,
+    NUMERIC_FEATURES,
+    PRE_RANKER_FEATURE_SCHEMA_VERSION,
+)
+
 
 @dataclass
 class ValidationSummary:
@@ -37,6 +43,7 @@ class ArtifactMetadata:
     model_sha256: str
     library_versions: dict[str, str]
     model_parameters: dict[str, Any]
+    feature_profile: dict[str, Any]
     validation_summary: ValidationSummary
 
 

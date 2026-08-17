@@ -37,6 +37,35 @@
     "solver": "auto",
     "tol": 0.0001
   },
+  "feature_profile": {
+    "heuristic_score": {
+      "min": 1.0675292771501859,
+      "max": 1958.1740799119023
+    },
+    "capacity_delta_mw": {
+      "min": 0.0,
+      "max": 5.0
+    },
+    "turbine_dispersion_stddev": {
+      "min": 0.0,
+      "max": 548.919943110232
+    },
+    "parent_rank": {
+      "min": 1.0,
+      "max": 2.0
+    },
+    "round_idx": {
+      "min": 1.0,
+      "max": 2.0
+    },
+    "mutation_type": {
+      "categories": [
+        "EDGE_RECONNECT",
+        "FEEDER_REASSIGNMENT",
+        "FEEDER_SWAP"
+      ]
+    }
+  },
   "validation_summary": {
     "projects": 5,
     "rows": 200,
@@ -51,7 +80,7 @@
       "ridge": {
         "capture_at_k": 0.4,
         "top_k_recall": 0.29333333333333333,
-        "rank_correlation": 0.21561302918850309
+        "rank_correlation": 0.21561302918850306
       },
       "hist_gb": {
         "capture_at_k": 0.3333333333333333,

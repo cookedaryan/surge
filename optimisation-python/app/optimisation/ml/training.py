@@ -35,7 +35,7 @@ def build_pipeline(model_name: str, random_seed: int = 42) -> Pipeline:
 def cross_validate_model(
     model_name: str, rows: list[dict[str, Any]], k: int, random_seed: int = 42
 ) -> tuple[dict[str, dict[str, float]], dict[str, float]]:
-    project_ids = list({r["project_id"] for r in rows})
+    project_ids = sorted({r["project_id"] for r in rows})
     project_metrics = {}
 
     for test_proj in project_ids:

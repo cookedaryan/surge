@@ -10,6 +10,9 @@ from .feature_schema import COMPARISON_GROUP_COLUMNS
 def compute_group_metrics(
     group_rows: list[dict[str, Any]], k: int, score_key: str
 ) -> dict[str, float]:
+    if k <= 0:
+        raise ValueError("k must be strictly positive")
+        
     n = len(group_rows)
     if n <= 1:
         return {

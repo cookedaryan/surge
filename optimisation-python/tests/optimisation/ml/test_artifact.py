@@ -30,6 +30,7 @@ def test_save_artifact(tmp_path: Path):
         "",
         {},
         {},
+        {},
         val_sum,
     )
 

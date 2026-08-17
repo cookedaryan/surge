@@ -28,11 +28,27 @@ from app.optimisation.ml.training import (  # noqa: E402
     train_final_model,
 )
 from app.optimisation.ml.validation import evaluate_baseline  # noqa: E402
+from app.optimisation.search_models import CandidateSearchConfig  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 
 
+def extract_feature_profile(rows: list[dict]) -> dict:
+    profile = {}
+    df = pd.DataFrame(rows)
+    for feat in MODEL_FEATURES:
+        if feat in CATEGORICAL_FEATURES:
+            profile[feat] = {"categories": sorted(list(df[feat].dropna().unique()))}
+        else:
+            profile[feat] = {
+                "min": float(df[feat].min()),
+                "max": float(df[feat].max()),
+            }
+    return profile
+
+
 def main() -> None:
+    default_k = CandidateSearchConfig().max_neighbors_per_parent
     parser = argparse.ArgumentParser(description="Train SURGE pre-ranker")
     parser.add_argument(
         "--corpus", type=Path, required=True, help="Path to search_corpus.csv"
@@ -40,7 +56,7 @@ def main() -> None:
     parser.add_argument(
         "--output", type=Path, required=True, help="Output directory for artifact"
     )
-    parser.add_argument("--k", type=int, default=5, help="Top-K for evaluation")
+    parser.add_argument("--k", type=int, default=default_k, help="Top-K for evaluation")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
 
     args = parser.parse_args()
@@ -63,6 +79,8 @@ def main() -> None:
     if len(usable_rows) == 0:
         logging.error("No usable ranking rows found.")
         sys.exit(1)
+
+    feature_profile = extract_feature_profile(usable_rows)
 
     # Validation
     logging.info("Evaluating baseline (heuristic_score)...")
@@ -149,6 +167,7 @@ def main() -> None:
             "pandas": pd.__version__,
         },
         model_parameters=final_pipeline.named_steps["estimator"].get_params(),
+        feature_profile=feature_profile,
         validation_summary=val_summary,
     )
 

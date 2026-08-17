@@ -1,7 +1,8 @@
-from app.optimisation.ml.validation import compute_group_metrics
-
-
 def test_compute_group_metrics_capture_and_recall():
+    import pytest
+
+    from app.optimisation.ml.validation import compute_group_metrics
+
     group = [
         {
             "scenario_id": "S1",
@@ -29,10 +30,10 @@ def test_compute_group_metrics_capture_and_recall():
         },
     ]
 
-    # Canonical top 2: S1, S2
-    # Predicted top 2 (lowest predicted_quality): S2, S3
-
     metrics = compute_group_metrics(group, k=2, score_key="predicted_quality")
 
-    assert metrics["capture_at_k"] == 0.0  # S1 is not in predicted top 2
-    assert metrics["top_k_recall"] == 0.5  # Only S2 is in both
+    assert metrics["capture_at_k"] == 0.0
+    assert metrics["top_k_recall"] == 0.5
+
+    with pytest.raises(ValueError):
+        compute_group_metrics(group, k=0, score_key="predicted_quality")
