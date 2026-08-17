@@ -102,4 +102,17 @@ public class CableCatalogueService {
         return unverified + " of " + available.size() + " conductors carry unverified parameters; "
                 + "electrical results are indicative until they are checked against supplier datasheets.";
     }
+
+    /**
+     * Returns all enabled cable types keyed by their ID, for augmenting report models.
+     */
+    public Map<String, CableType> getCableTypeMap() {
+        Map<String, CableType> map = new LinkedHashMap<>();
+        for (CableType cable : cableTypeRepository.findAll()) {
+            if (cable.isEnabled()) {
+                map.put(cable.getCableTypeId(), cable);
+            }
+        }
+        return map;
+    }
 }

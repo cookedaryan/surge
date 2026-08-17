@@ -284,6 +284,8 @@ export interface RouteSegmentDetail {
   conductorCost: number | null;
   electricalLossesKw: number;
   cableTypeId: string;
+  cableParallelCount: number;
+  cableDeratingFactor: number;
   cableUtilisationPct: number;
 }
 

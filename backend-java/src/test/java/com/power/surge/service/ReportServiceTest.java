@@ -540,7 +540,7 @@ class ReportServiceTest {
     private static RouteSegmentDetail segmentDetail(String cableType, String length, String utilisation) {
         return new RouteSegmentDetail(
                 "FDR-001", "S", new BigDecimal(length), 0, BigDecimal.ZERO, BigDecimal.ZERO,
-                cableType, utilisation != null ? new BigDecimal(utilisation) : null,
+                cableType, 1, BigDecimal.ONE, utilisation != null ? new BigDecimal(utilisation) : null,
                 null, null, null, null, 0, null);
     }
 

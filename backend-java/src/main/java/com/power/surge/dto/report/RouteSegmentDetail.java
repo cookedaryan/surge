@@ -26,6 +26,8 @@ public record RouteSegmentDetail(
         BigDecimal electricalLossesKw,
         /** Conductor selected for this segment, and how close it runs to its effective ampacity. */
         String cableTypeId,
+        Integer cableParallelCount,
+        BigDecimal cableDeratingFactor,
         BigDecimal cableUtilisationPct,
         Double startLatitude,
         Double startLongitude,

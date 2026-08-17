@@ -12,7 +12,14 @@ export function BomBoqTable({ bom }: BomBoqTableProps) {
   const conductorTotals = React.useMemo(() => {
     if (!bom.segmentDetails) return [];
     const grouped = bom.segmentDetails.reduce((acc, seg) => {
-      const type = seg.cableTypeId || 'Unknown';
+      let type = seg.cableTypeId || 'Unknown';
+      if (seg.cableTypeId && seg.cableParallelCount > 1) {
+        if (seg.cableParallelCount === 2) {
+          type = `Twin ${seg.cableTypeId} (2×)`;
+        } else {
+          type = `${seg.cableTypeId} (${seg.cableParallelCount}×)`;
+        }
+      }
       acc[type] = (acc[type] || 0) + seg.lengthMeters;
       return acc;
     }, {} as Record<string, number>);

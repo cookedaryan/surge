@@ -51,6 +51,9 @@ class RouteServiceTest {
     private RouteService routeService;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
 
+    @Mock
+    private CableCatalogueService cableCatalogueService;
+
     @BeforeEach
     void setUp() {
         routeService = new RouteService(
@@ -58,7 +61,8 @@ class RouteServiceTest {
                 jobRepository,
                 routeRepository,
                 poleRepository,
-                new ObjectMapper()
+                new ObjectMapper(),
+                cableCatalogueService
         );
     }
 

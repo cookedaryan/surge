@@ -222,7 +222,13 @@ export class SurgeMapEngine {
               asKm
             )}</strong></div>
             <div class="popup-row"><span>Poles Placed:</span> <strong>${shown(props.poleCount)}</strong></div>
-            <div class="popup-row"><span>Conductor:</span> <strong>${shown(props.cableTypeId)}</strong></div>
+            <div class="popup-row"><span>Conductor:</span> <strong>${shown(
+              props.cableTypeId && props.cableParallelCount > 1
+                ? (props.cableParallelCount === 2
+                    ? `Twin ${props.cableTypeId} (2×)`
+                    : `${props.cableTypeId} (${props.cableParallelCount}×)`)
+                : props.cableTypeId
+            )}</strong></div>
             <div class="popup-row"><span>Utilisation:</span> <strong class="${utilisationClass}">${shown(
               utilisation,
               asPercent

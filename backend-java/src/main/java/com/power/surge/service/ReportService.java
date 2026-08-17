@@ -90,6 +90,8 @@ public class ReportService {
         BigDecimal totalLength = BigDecimal.ZERO;
         BigDecimal totalLosses = BigDecimal.ZERO;
 
+        Map<String, com.power.surge.domain.CableType> cableMap = cableCatalogueService.getCableTypeMap();
+
         for (GeneratedRoute r : routes) {
             // GeneratedRoute.poleCount is only ever a /150m fallback estimate (routes are persisted
             // before real pole placement runs, and can predate it entirely for older jobs). Prefer
@@ -97,7 +99,8 @@ public class ReportService {
             Long realCount = r.getSegmentId() != null ? poleCountBySegment.get(r.getSegmentId()) : null;
             int rowPoleCount = realCount != null ? realCount.intValue() : (r.getPoleCount() != null ? r.getPoleCount() : 0);
 
-            segmentDetails.add(toSegmentDetail(r, rowPoleCount));
+            com.power.surge.domain.CableType cable = r.getCableTypeId() != null ? cableMap.get(r.getCableTypeId()) : null;
+            segmentDetails.add(toSegmentDetail(r, rowPoleCount, cable));
 
             if (r.getTotalLengthMeters() != null) {
                 totalLength = totalLength.add(r.getTotalLengthMeters());
@@ -302,7 +305,7 @@ public class ReportService {
         );
     }
 
-    private static RouteSegmentDetail toSegmentDetail(GeneratedRoute route, int poleCount) {
+    private static RouteSegmentDetail toSegmentDetail(GeneratedRoute route, int poleCount, com.power.surge.domain.CableType cable) {
         LineString path = route.getRoutePath();
         Coordinate start = path != null && path.getNumPoints() > 0 ? path.getCoordinateN(0) : null;
         Coordinate end = path != null && path.getNumPoints() > 0
@@ -317,6 +320,8 @@ public class ReportService {
                 route.getConductorCost(),
                 route.getElectricalLossesKw(),
                 route.getCableTypeId(),
+                cable != null ? cable.getParallelCount() : 1,
+                cable != null ? cable.getDeratingFactor() : BigDecimal.ONE,
                 route.getCableUtilisationPct(),
                 start != null ? start.getY() : null,
                 start != null ? start.getX() : null,

@@ -42,6 +42,7 @@ public class RouteService {
     private final GeneratedRouteRepository routeRepository;
     private final GeneratedPoleRepository poleRepository;
     private final ObjectMapper objectMapper;
+    private final CableCatalogueService cableCatalogueService;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
 
     public RouteService(
@@ -49,13 +50,15 @@ public class RouteService {
             OptimizationJobRepository jobRepository,
             GeneratedRouteRepository routeRepository,
             GeneratedPoleRepository poleRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            CableCatalogueService cableCatalogueService
     ) {
         this.projectRepository = projectRepository;
         this.jobRepository = jobRepository;
         this.routeRepository = routeRepository;
         this.poleRepository = poleRepository;
         this.objectMapper = objectMapper;
+        this.cableCatalogueService = cableCatalogueService;
     }
 
     @Transactional
@@ -323,6 +326,8 @@ public class RouteService {
                 ? Map.of()
                 : poleCountBySegmentId(routes.get(0).getJob().getId());
 
+        Map<String, com.power.surge.domain.CableType> cableMap = cableCatalogueService.getCableTypeMap();
+
         for (GeneratedRoute route : routes) {
             Map<String, Object> feature = new LinkedHashMap<>();
             feature.put("type", "Feature");
@@ -364,6 +369,11 @@ public class RouteService {
             properties.put("cableUtilisationPct", route.getCableUtilisationPct());
             properties.put("cableRequiredCurrentA", route.getCableRequiredCurrentA());
             properties.put("cableEffectiveAmpacityA", route.getCableEffectiveAmpacityA());
+
+            com.power.surge.domain.CableType cable = route.getCableTypeId() != null ? cableMap.get(route.getCableTypeId()) : null;
+            properties.put("cableParallelCount", cable != null ? cable.getParallelCount() : 1);
+            properties.put("cableDeratingFactor", cable != null ? cable.getDeratingFactor() : BigDecimal.ONE);
+
             properties.put("segmentId", route.getSegmentId());
             properties.put("jobId", route.getJob().getId());
             feature.put("properties", properties);
