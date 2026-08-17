@@ -3,7 +3,12 @@
 .superpowers/
 .claude/
 .codex/
-.github/
+
+# .github/ is deliberately NOT ignored. Unlike the agent/editor directories above, which are
+# per-developer settings that should not travel, .github/ is configuration GitHub itself reads
+# out of the repository — ignoring it silently switches CI off. It was ignored once, which
+# deleted the workflow and let a broken container build sit on main unnoticed.
+
 # ==========================================
 # 1. JETBRAINS / INTELLIJ IDEA (.idea & modules)
 # ==========================================
