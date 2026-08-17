@@ -60,6 +60,7 @@ public class OptimizationJobService {
     private final SseProgressService sseProgressService;
     private final AuditLogService auditLogService;
     private final CableCatalogueService cableCatalogueService;
+    private final CostCatalogueService costCatalogueService;
 
     public OptimizationJobService(
             ProjectRepository projectRepository,
@@ -76,7 +77,8 @@ public class OptimizationJobService {
             ObjectMapper objectMapper,
             SseProgressService sseProgressService,
             AuditLogService auditLogService,
-            CableCatalogueService cableCatalogueService
+            CableCatalogueService cableCatalogueService,
+            CostCatalogueService costCatalogueService
     ) {
         this.projectRepository = projectRepository;
         this.jobRepository = jobRepository;
@@ -93,6 +95,7 @@ public class OptimizationJobService {
         this.sseProgressService = sseProgressService;
         this.auditLogService = auditLogService;
         this.cableCatalogueService = cableCatalogueService;
+        this.costCatalogueService = costCatalogueService;
     }
 
     /**
@@ -242,7 +245,8 @@ public class OptimizationJobService {
                     profile.scoringWeights(),
                     cableCatalogueService.buildCableConfig(
                             req.voltageKv() != null ? req.voltageKv() : new BigDecimal("33.00"),
-                            req.maxVoltageDropPct())
+                            req.maxVoltageDropPct()),
+                    costCatalogueService.buildCostingConfig()
             );
 
             PythonOptimisationResponse pythonResp = pythonClient.runOptimization(pythonReq);
@@ -557,7 +561,7 @@ public class OptimizationJobService {
      * and electrical/network/pole summaries Python already computes but the old integration
      * silently discarded, so the UI can answer "why this route" instead of showing a bare line.
      */
-    private static Map<String, Object> buildResultSummary(PythonOptimisationResponse pythonResp) {
+    private Map<String, Object> buildResultSummary(PythonOptimisationResponse pythonResp) {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("metrics", pythonResp.metrics() != null ? pythonResp.metrics() : Map.of());
         summary.put("workflowStatus", pythonResp.workflowStatus());
@@ -578,6 +582,9 @@ public class OptimizationJobService {
             putIfPresent(summary, "feeders", recommendedResult.get("feeders"));
             putIfPresent(summary, "violations", recommendedResult.get("violations"));
         }
+        // Stored with the run rather than looked up later, because the catalogue can be re-rated
+        // afterwards and a cost is only interpretable against the rates that produced it.
+        summary.put("costProvenance", costCatalogueService.describeProvenance());
         return summary;
     }
 

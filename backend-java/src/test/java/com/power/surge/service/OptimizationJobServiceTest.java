@@ -98,6 +98,9 @@ class OptimizationJobServiceTest {
     @Mock
     private CableCatalogueService cableCatalogueService;
 
+    @Mock
+    private CostCatalogueService costCatalogueService;
+
     private OptimizationJobService jobService;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
 
@@ -118,7 +121,8 @@ class OptimizationJobServiceTest {
                 new ObjectMapper(),
                 sseProgressService,
                 auditLogService,
-                cableCatalogueService
+                cableCatalogueService,
+                costCatalogueService
         );
     }
 

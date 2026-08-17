@@ -78,6 +78,7 @@ class OptimisationContractTest {
     @Mock private SseProgressService sseProgressService;
     @Mock private AuditLogService auditLogService;
     @Mock private CableCatalogueService cableCatalogueService;
+    @Mock private CostCatalogueService costCatalogueService;
 
     private OptimizationJobService jobService;
     private final GeometryFactory gf = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
@@ -91,7 +92,8 @@ class OptimisationContractTest {
                 projectRepository, jobRepository, routeRepository, wtgLocationRepository,
                 substationRepository, referenceLineRepository, parcelRepository,
                 restrictedAreaRepository, routeService, poleService, pythonClient,
-                new ObjectMapper(), sseProgressService, auditLogService, cableCatalogueService);
+                new ObjectMapper(), sseProgressService, auditLogService, cableCatalogueService,
+                costCatalogueService);
     }
 
     private Polygon squareAt(double lon, double lat) {
@@ -301,6 +303,70 @@ class OptimisationContractTest {
                 .isEqualTo(JobStatus.COMPLETED);
         verify(routeService).saveRoutesFromGeoJson(eq(JOB_ID), any(), any());
         verify(poleService).savePolesFromGeoJson(eq(JOB_ID), any());
+    }
+
+    /**
+     * A run has to record which rates it was costed against.
+     *
+     * <p>The catalogue can be re-rated after the fact, and a cost read against different rates from
+     * the ones that produced it is not a cost at all. Storing the description with the job keeps the
+     * two together.
+     */
+    @Test
+    void theStoredSummaryRecordsWhichRatesTheRunWasCostedAgainst() {
+        when(costCatalogueService.describeProvenance())
+                .thenReturn("Costed against IN-33KV-INDICATIVE v2026.1 in INR, priced as at 2026-01-01. "
+                        + "12 of 12 rates are unverified; these figures are for comparing scenarios, "
+                        + "not for committing money.");
+        givenFullyPopulatedProject(successResponse());
+
+        OptimizationJobResponse response = jobService.createAndRunJob(PROJECT_ID,
+                new CreateOptimizationJobRequest(
+                        "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+        assertThat(response.resultSummaryJson())
+                .contains("costProvenance")
+                .contains("IN-33KV-INDICATIVE")
+                .contains("not for committing money");
+    }
+
+    /**
+     * The run must ask for costs, or Python will not compute any.
+     *
+     * <p>Python calls its cost model only for a request carrying a {@code costing_config}. Java sent
+     * none, so every candidate returned {@code cost: null} while the product displayed money derived
+     * from {@code route length × 80}.
+     */
+    @Test
+    void theRequestCarriesTheCostingConfigWhenACatalogueExists() {
+        Map<String, Object> costingConfig = Map.of(
+                "catalogue", Map.of("catalogue_id", "IN-33KV-INDICATIVE"),
+                "lifecycle", Map.of("currency", "INR"));
+        when(costCatalogueService.buildCostingConfig()).thenReturn(costingConfig);
+        givenFullyPopulatedProject(successResponse());
+
+        jobService.createAndRunJob(PROJECT_ID, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+        ArgumentCaptor<PythonOptimisationRequest> sent =
+                ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(sent.capture());
+        assertThat(sent.getValue().costingConfig()).isEqualTo(costingConfig);
+    }
+
+    /** With no catalogue the field must be absent, not an empty object Python would reject. */
+    @Test
+    void theRequestOmitsTheCostingConfigWhenThereIsNoCatalogue() {
+        when(costCatalogueService.buildCostingConfig()).thenReturn(null);
+        givenFullyPopulatedProject(successResponse());
+
+        jobService.createAndRunJob(PROJECT_ID, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+        ArgumentCaptor<PythonOptimisationRequest> sent =
+                ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(sent.capture());
+        assertThat(sent.getValue().costingConfig()).isNull();
     }
 
     /**
