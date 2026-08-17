@@ -7,6 +7,7 @@ from app.electrical.errors import CandidateElectricalEvaluationError
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.repair import (
     ClosedLoopRepairResult,
+    RepairExhaustionReason,
     RepairStatus,
     repair_electrical_design,
 )
@@ -103,6 +104,14 @@ def _describe_repair_failure(
     return {
         "status": repair_result.status.value,
         "summary": summary,
+        "no_upgrade_reason_code": (
+            repair_result.exhaustion_reason.value
+            if repair_result.exhaustion_reason
+            else None
+        ),
+        "no_upgrade_reason": _describe_exhaustion_reason(
+            repair_result.exhaustion_reason
+        ),
         "unresolved_violations": unresolved,
         "repair_attempts": attempts,
         "largest_cable_available": (
@@ -116,6 +125,59 @@ def _describe_repair_failure(
         ),
         "catalogue_size": len(ordered_cables),
     }
+
+
+_EXHAUSTION_REASONS: dict[RepairExhaustionReason, str] = {
+    RepairExhaustionReason.CABLE_SIZING_FAILED: (
+        "Initial cable sizing failed, so no repair was attempted at all."
+    ),
+    RepairExhaustionReason.NO_LARGER_CONDUCTOR_FOR_OVERLOAD: (
+        "No conductor in the catalogue carries the required current, so the "
+        "overload cannot be cleared by upgrading. The catalogue is the limit."
+    ),
+    RepairExhaustionReason.NO_CONDUCTOR_REDUCES_VOLTAGE_DROP: (
+        "No conductor in the catalogue has lower impedance than the one already "
+        "assigned, so the voltage drop cannot be reduced by upgrading."
+    ),
+    RepairExhaustionReason.NO_CONDUCTOR_REDUCES_VOLTAGE_RISE: (
+        "No conductor upgrade can reduce this voltage rise: the search considers "
+        "only conductors of at least equal ampacity and requires no more "
+        "capacitance, and larger conductors carry more. Voltage rise on a "
+        "lightly loaded feeder is a design question -- reactive compensation, "
+        "tap settings or a wider voltage band -- not a conductor choice."
+    ),
+    RepairExhaustionReason.VIOLATION_HAS_NO_BUS: (
+        "The voltage violation named no bus, so there was no path to upgrade along."
+    ),
+    RepairExhaustionReason.BUS_NOT_IN_ANY_FEEDER: (
+        "The offending bus belongs to no feeder in the network, so no path to it "
+        "could be identified."
+    ),
+    RepairExhaustionReason.NO_PATH_FROM_SUBSTATION_TO_BUS: (
+        "No path connects the substation to the offending bus, so there were no "
+        "segments to upgrade."
+    ),
+    RepairExhaustionReason.UNSUPPORTED_VIOLATION: (
+        "The network is invalid for a reason repair has no strategy for -- "
+        "neither an overload nor a voltage violation."
+    ),
+}
+
+
+def _describe_exhaustion_reason(reason: RepairExhaustionReason | None) -> str | None:
+    """
+    Say why no conductor upgrade was made, where the loop knows and the reader
+    cannot tell.
+
+    An empty ``repair_attempts`` list looks the same whether the catalogue ran
+    out, the violation was one repair cannot address by changing conductors, or
+    the network was malformed -- and those call for opposite responses. The loop
+    distinguishes all of them internally; without this the distinction died at
+    the return statement.
+    """
+    if reason is None:
+        return None
+    return _EXHAUSTION_REASONS.get(reason)
 
 
 def _summarise_repair_failure(

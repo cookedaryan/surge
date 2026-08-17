@@ -15,6 +15,7 @@ from app.electrical.load_flow.models import (
     LoadFlowViolationCode,
 )
 from app.electrical.repair import (
+    RepairExhaustionReason,
     RepairStatus,
     repair_electrical_design,
 )
@@ -572,3 +573,9 @@ def test_voltage_upgrade_skips_worse_impedance(
     assert result.status == RepairStatus.REPAIR_EXHAUSTED
     assert len(result.repair_log) == 0
     assert result.final_electrical_config.segment_cable_type_ids["S1"] == "Cable-L"
+    # An empty repair log is not self-explanatory: it looks the same whether the
+    # catalogue ran out or the loop had no strategy. Say which.
+    assert (
+        result.exhaustion_reason
+        == RepairExhaustionReason.NO_CONDUCTOR_REDUCES_VOLTAGE_DROP
+    )

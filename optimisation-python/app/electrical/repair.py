@@ -34,6 +34,27 @@ class RepairReason(StrEnum):
     UNSUPPORTED_VIOLATION = "UNSUPPORTED_VIOLATION"
 
 
+class RepairExhaustionReason(StrEnum):
+    """
+    Which of the loop's dead ends ended the repair.
+
+    ``REPAIR_EXHAUSTED`` is returned from seven different places, and a consumer
+    given only the status cannot tell an undersized catalogue from a violation
+    the loop has no strategy for -- the remedies are opposite. The distinction
+    is free here and unrecoverable afterwards: the empty ``repair_log`` that
+    reaches the caller looks identical in every case.
+    """
+
+    CABLE_SIZING_FAILED = "CABLE_SIZING_FAILED"
+    NO_LARGER_CONDUCTOR_FOR_OVERLOAD = "NO_LARGER_CONDUCTOR_FOR_OVERLOAD"
+    NO_CONDUCTOR_REDUCES_VOLTAGE_DROP = "NO_CONDUCTOR_REDUCES_VOLTAGE_DROP"
+    NO_CONDUCTOR_REDUCES_VOLTAGE_RISE = "NO_CONDUCTOR_REDUCES_VOLTAGE_RISE"
+    VIOLATION_HAS_NO_BUS = "VIOLATION_HAS_NO_BUS"
+    BUS_NOT_IN_ANY_FEEDER = "BUS_NOT_IN_ANY_FEEDER"
+    NO_PATH_FROM_SUBSTATION_TO_BUS = "NO_PATH_FROM_SUBSTATION_TO_BUS"
+    UNSUPPORTED_VIOLATION = "UNSUPPORTED_VIOLATION"
+
+
 @dataclass(frozen=True)
 class RepairAction:
     segment_id: str
@@ -56,6 +77,8 @@ class ClosedLoopRepairResult:
     load_flow_result: LoadFlowNetworkResult | None
     repair_log: tuple[RepairAction, ...]
     initial_cable_sizing: CableSizingResult | None
+    # Set only when the status is REPAIR_EXHAUSTED; None on every other status.
+    exhaustion_reason: RepairExhaustionReason | None = None
 
 
 def _effective_ampacity(c: LoadFlowCableType) -> float:
@@ -170,6 +193,7 @@ def repair_electrical_design(
         # Fallback for any sizing failures
         return ClosedLoopRepairResult(
             status=RepairStatus.REPAIR_EXHAUSTED,
+            exhaustion_reason=RepairExhaustionReason.CABLE_SIZING_FAILED,
             final_electrical_config=config,
             load_flow_result=None,
             repair_log=(),
@@ -294,6 +318,7 @@ def repair_electrical_design(
             if not made_upgrade:
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
+                    exhaustion_reason=RepairExhaustionReason.NO_LARGER_CONDUCTOR_FOR_OVERLOAD,
                     final_electrical_config=current_config,
                     load_flow_result=lf_result,
                     repair_log=tuple(repair_actions),
@@ -314,6 +339,7 @@ def repair_electrical_design(
             if not target_node_id:
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
+                    exhaustion_reason=RepairExhaustionReason.VIOLATION_HAS_NO_BUS,
                     final_electrical_config=current_config,
                     load_flow_result=lf_result,
                     repair_log=tuple(repair_actions),
@@ -326,6 +352,7 @@ def repair_electrical_design(
             if not target_feeder:
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
+                    exhaustion_reason=RepairExhaustionReason.BUS_NOT_IN_ANY_FEEDER,
                     final_electrical_config=current_config,
                     load_flow_result=lf_result,
                     repair_log=tuple(repair_actions),
@@ -339,6 +366,7 @@ def repair_electrical_design(
             except nx.NetworkXNoPath:
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
+                    exhaustion_reason=RepairExhaustionReason.NO_PATH_FROM_SUBSTATION_TO_BUS,
                     final_electrical_config=current_config,
                     load_flow_result=lf_result,
                     repair_log=tuple(repair_actions),
@@ -347,6 +375,7 @@ def repair_electrical_design(
             except nx.NodeNotFound:
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
+                    exhaustion_reason=RepairExhaustionReason.NO_PATH_FROM_SUBSTATION_TO_BUS,
                     final_electrical_config=current_config,
                     load_flow_result=lf_result,
                     repair_log=tuple(repair_actions),
@@ -408,8 +437,17 @@ def repair_electrical_design(
                     break
 
             if not made_upgrade:
+                # Nothing on the path to the offending bus passed the heuristic.
+                # For a voltage rise that is the common outcome: the search only
+                # looks at conductors of at least equal ampacity, and asks for no
+                # more capacitance -- which larger conductors have.
                 return ClosedLoopRepairResult(
                     status=RepairStatus.REPAIR_EXHAUSTED,
+                    exhaustion_reason=(
+                        RepairExhaustionReason.NO_CONDUCTOR_REDUCES_VOLTAGE_DROP
+                        if is_undervoltage
+                        else RepairExhaustionReason.NO_CONDUCTOR_REDUCES_VOLTAGE_RISE
+                    ),
                     final_electrical_config=current_config,
                     load_flow_result=lf_result,
                     repair_log=tuple(repair_actions),
@@ -420,6 +458,7 @@ def repair_electrical_design(
             # Unsupported violation fallback
             return ClosedLoopRepairResult(
                 status=RepairStatus.REPAIR_EXHAUSTED,
+                exhaustion_reason=RepairExhaustionReason.UNSUPPORTED_VIOLATION,
                 final_electrical_config=current_config,
                 load_flow_result=lf_result,
                 repair_log=tuple(repair_actions),

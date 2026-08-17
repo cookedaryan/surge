@@ -466,7 +466,11 @@ def test_exhausted_repair_reports_what_defeated_it(
         LoadFlowViolation,
         LoadFlowViolationCode,
     )
-    from app.electrical.repair import ClosedLoopRepairResult, RepairStatus
+    from app.electrical.repair import (
+        ClosedLoopRepairResult,
+        RepairExhaustionReason,
+        RepairStatus,
+    )
 
     def exhausted(*args: object, **kwargs: object) -> ClosedLoopRepairResult:
         config = kwargs["config"]
@@ -499,6 +503,9 @@ def test_exhausted_repair_reports_what_defeated_it(
             ),
             repair_log=(),
             initial_cable_sizing=None,
+            exhaustion_reason=(
+                RepairExhaustionReason.NO_LARGER_CONDUCTOR_FOR_OVERLOAD
+            ),
         )
 
     monkeypatch.setattr(
@@ -527,6 +534,12 @@ def test_exhausted_repair_reports_what_defeated_it(
     # the route when nothing in it could have carried the load.
     assert details["largest_cable_available"] is not None
     assert "SEG-UNDER-TEST" in failure["message"]
+
+    # An empty repair log is ambiguous on its own: the catalogue running out and a
+    # violation no conductor can fix produce the identical list.
+    assert details["repair_attempts"] == []
+    assert details["no_upgrade_reason_code"] == "NO_LARGER_CONDUCTOR_FOR_OVERLOAD"
+    assert "catalogue" in details["no_upgrade_reason"]
 
 
 def test_v2_reports_failed_workflow(

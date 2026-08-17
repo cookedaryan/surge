@@ -531,9 +531,12 @@ function RepairDiagnosticsPanel({ details }: { details: RepairDiagnostics }) {
           Conductor upgrades ({attempts.length})
         </p>
         {attempts.length === 0 ? (
-          // Not an empty table: repair upgrades conductors to clear overloads, so no attempts on a
-          // voltage failure is itself the finding — a bigger conductor was never the lever.
-          <p className="text-[11px] text-textFaint m-0">None attempted.</p>
+          // Not an empty table. Zero attempts is ambiguous on its own — the catalogue running out
+          // and a violation no conductor choice can fix produce the identical empty list — so the
+          // engine's own reason is what makes it a finding rather than a gap.
+          <p className="text-[11px] text-textFaint m-0">
+            {details.no_upgrade_reason || 'None attempted.'}
+          </p>
         ) : (
           <ul className="m-0 list-none p-0">
             {attempts.map((a, i) => (

@@ -86,6 +86,14 @@ export interface LargestCableAvailable {
 export interface RepairDiagnostics {
   status?: string;
   summary?: string;
+  /**
+   * Why no conductor upgrade was made, when none was.
+   *
+   * <p>An empty `repair_attempts` reads the same whether the catalogue ran out of current or the
+   * violation was one no conductor choice can address — and those want opposite responses.
+   */
+  no_upgrade_reason?: string | null;
+  no_upgrade_reason_code?: string | null;
   unresolved_violations?: ElectricalViolation[];
   repair_attempts?: RepairAttempt[];
   largest_cable_available?: LargestCableAvailable | null;

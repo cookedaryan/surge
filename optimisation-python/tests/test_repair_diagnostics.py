@@ -9,6 +9,7 @@ from app.electrical.load_flow.models import (
 from app.electrical.repair import (
     ClosedLoopRepairResult,
     RepairAction,
+    RepairExhaustionReason,
     RepairReason,
     RepairStatus,
 )
@@ -194,3 +195,90 @@ def test_survives_a_run_with_no_load_flow_result() -> None:
 
     assert details["status"] == "REPAIR_EXHAUSTED"
     assert details["unresolved_violations"] == []
+
+
+def test_reports_why_no_conductor_upgrade_was_made() -> None:
+    """
+    An empty ``repair_attempts`` list is not self-explanatory.
+
+    It looks the same whether the catalogue ran out of current or the violation
+    was one no conductor choice can address, and those want opposite responses.
+    The loop distinguishes them; the diagnostics have to carry the distinction or
+    it dies at the return statement.
+    """
+    result = ClosedLoopRepairResult(
+        status=RepairStatus.REPAIR_EXHAUSTED,
+        final_electrical_config=_config(),
+        load_flow_result=None,
+        repair_log=(),
+        initial_cable_sizing=None,
+        exhaustion_reason=RepairExhaustionReason.NO_CONDUCTOR_REDUCES_VOLTAGE_RISE,
+    )
+
+    details = _describe_repair_failure(result, _config())
+
+    assert details["no_upgrade_reason_code"] == "NO_CONDUCTOR_REDUCES_VOLTAGE_RISE"
+    reason = details["no_upgrade_reason"]
+    # The sentence has to explain, not restate the code: a reader who does not
+    # know the heuristic learns nothing from "NO_CONDUCTOR_REDUCES_VOLTAGE_RISE".
+    assert "capacitance" in reason
+    assert "NO_CONDUCTOR" not in reason
+
+
+def test_distinguishes_an_exhausted_catalogue_from_an_unfixable_design() -> None:
+    """The two findings point at different remedies, so they must not read alike."""
+    voltage = _describe_repair_failure(
+        ClosedLoopRepairResult(
+            status=RepairStatus.REPAIR_EXHAUSTED,
+            final_electrical_config=_config(),
+            load_flow_result=None,
+            repair_log=(),
+            initial_cable_sizing=None,
+            exhaustion_reason=(
+                RepairExhaustionReason.NO_CONDUCTOR_REDUCES_VOLTAGE_RISE
+            ),
+        ),
+        _config(),
+    )["no_upgrade_reason"]
+    overload = _describe_repair_failure(
+        ClosedLoopRepairResult(
+            status=RepairStatus.REPAIR_EXHAUSTED,
+            final_electrical_config=_config(),
+            load_flow_result=None,
+            repair_log=(),
+            initial_cable_sizing=None,
+            exhaustion_reason=(
+                RepairExhaustionReason.NO_LARGER_CONDUCTOR_FOR_OVERLOAD
+            ),
+        ),
+        _config(),
+    )["no_upgrade_reason"]
+
+    assert voltage != overload
+    assert "catalogue" in overload
+
+
+def test_says_nothing_when_there_is_no_reason_to_give() -> None:
+    """A result carrying no reason must report none rather than guess one."""
+    details = _describe_repair_failure(_result(()), _config())
+
+    assert details["no_upgrade_reason_code"] is None
+    assert details["no_upgrade_reason"] is None
+
+
+def test_every_exhaustion_reason_has_a_sentence() -> None:
+    """
+    A new enum member with no entry in the table would silently surface as null,
+    which is the exact failure this ticket exists to remove.
+    """
+    for reason in RepairExhaustionReason:
+        result = ClosedLoopRepairResult(
+            status=RepairStatus.REPAIR_EXHAUSTED,
+            final_electrical_config=_config(),
+            load_flow_result=None,
+            repair_log=(),
+            initial_cable_sizing=None,
+            exhaustion_reason=reason,
+        )
+        details = _describe_repair_failure(result, _config())
+        assert details["no_upgrade_reason"], f"{reason.value} has no sentence"

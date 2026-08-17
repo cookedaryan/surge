@@ -38,6 +38,9 @@ const DETAILS = {
     }
   ],
   repair_attempts: [],
+  no_upgrade_reason_code: 'NO_CONDUCTOR_REDUCES_VOLTAGE_RISE',
+  no_upgrade_reason:
+    'No conductor upgrade can reduce this voltage rise: the search considers only conductors of at least equal ampacity and requires no more capacitance, and larger conductors carry more. Voltage rise on a lightly loaded feeder is a design question -- reactive compensation, tap settings or a wider voltage band -- not a conductor choice.',
   largest_cable_available: {
     cable_type_id: 'ACSR-QUAD-PANTHER',
     effective_ampacity_a: 1880.0,
@@ -131,12 +134,31 @@ describe('repair diagnostics on a failed run', () => {
     expect(screen.queryByText(/1\.0599745/)).toBeNull();
   });
 
-  it('says no upgrades were attempted rather than showing an empty list', () => {
-    // Repair only upgrades conductors to clear overloads, so zero attempts on a voltage failure is
-    // the finding: a bigger conductor was never the lever.
+  it("gives the engine's reason for attempting no upgrades", () => {
+    // Zero attempts is ambiguous on its own: an exhausted catalogue and a violation no conductor
+    // can fix produce the identical empty list, and they want opposite responses.
     render(<OptimizationPane />, { wrapper });
 
     expect(screen.getByText('Conductor upgrades (0)')).toBeTruthy();
+    expect(screen.getByText(/larger conductors carry more/)).toBeTruthy();
+  });
+
+  it('falls back to stating the absence when no reason was supplied', () => {
+    // Runs recorded before the engine reported a reason still have to render.
+    jobData = failedJob({
+      candidates: [
+        {
+          scenario_id: 'SCN-001',
+          execution_failure: {
+            code: 'ELECTRICAL_VALIDATION_FAILED',
+            details: { ...DETAILS, no_upgrade_reason: null, no_upgrade_reason_code: null }
+          }
+        }
+      ],
+      failures: []
+    });
+    render(<OptimizationPane />, { wrapper });
+
     expect(screen.getByText('None attempted.')).toBeTruthy();
   });
 
