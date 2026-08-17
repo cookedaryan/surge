@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -94,10 +95,10 @@ public class CostCatalogue {
     private Instant updatedAt = Instant.now();
 
     @OneToMany(mappedBy = "catalogue", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ConductorCostItem> conductorItems = new ArrayList<>();
+    private Set<ConductorCostItem> conductorItems = new java.util.LinkedHashSet<>();
 
     @OneToMany(mappedBy = "catalogue", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<PoleCostItem> poleItems = new ArrayList<>();
+    private Set<PoleCostItem> poleItems = new java.util.LinkedHashSet<>();
 
     public UUID getId() {
         return id;
@@ -167,11 +168,11 @@ public class CostCatalogue {
         return enabled;
     }
 
-    public List<ConductorCostItem> getConductorItems() {
+    public Set<ConductorCostItem> getConductorItems() {
         return conductorItems;
     }
 
-    public List<PoleCostItem> getPoleItems() {
+    public Set<PoleCostItem> getPoleItems() {
         return poleItems;
     }
 }
