@@ -273,6 +273,10 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
   const sc = summary.spatialConstraintSummary;
   const reasons = summary.recommendation?.reasons;
 
+  const recommendedMetrics = summary.candidates?.find(
+    (c) => c.scenario_id === summary.recommendation?.recommended_scenario_id
+  )?.engineering_metrics;
+
   return (
     <Card>
       <CardTitle>Why This Route</CardTitle>
@@ -297,7 +301,10 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
               ['Feeders', ns.feeder_count],
               ['WTGs', ns.wtg_count],
               ['Segments', ns.segment_count],
-              ['Length', `${(ns.total_route_length_m / 1000).toFixed(2)} km`]
+              ['Length', `${(ns.total_route_length_m / 1000).toFixed(2)} km`],
+              ...(recommendedMetrics?.total_traversal_cost != null
+                ? ([['Traversal cost', recommendedMetrics.total_traversal_cost.toFixed(0)]] as [string, string | number][])
+                : [])
             ]}
           />
         )}
@@ -341,7 +348,10 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
               ['Hard exclusion violations', sc.hard_exclusion_violation_count],
               ['Road/HT-line crossings', sc.road_crossing_count],
               ['Affected parcels', sc.affected_parcel_count],
-              ['Soft crossing length', `${sc.soft_constraint_overlap_length_m.toFixed(0)} m`]
+              ['Soft crossing length', `${sc.soft_constraint_overlap_length_m.toFixed(0)} m`],
+              ...(recommendedMetrics?.environmental_overlap_m2 != null
+                ? ([['Environmental overlap', `${recommendedMetrics.environmental_overlap_m2.toFixed(0)} m²`]] as [string, string | number][])
+                : [])
             ]}
             warn={sc.hard_exclusion_violation_count > 0}
           />
