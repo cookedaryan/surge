@@ -1,6 +1,6 @@
 """Builder for the canonical PY-036 Decision Report."""
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from decimal import Decimal
 
 from app.optimisation.workflow_models import (
@@ -33,6 +33,44 @@ from app.reporting.decision_models import (
     ScoreSummary,
     SpatialSummary,
 )
+
+
+def _classify_rejected(
+    c: CandidateWorkflowResult,
+    *,
+    unknown_fallback: bool = False,
+) -> RejectedCandidate:
+    ref = _build_reference(c)
+    fail = c.execution_failure or c.pole_failure or c.packaging_failure
+    if fail:
+        return RejectedCandidate(
+            reference=ref,
+            failure_code=fail.code,
+            failure_stage=fail.stage,
+            message=fail.message,
+        )
+    if not c.evaluation or not c.evaluation.assessment.eligible:
+        msg = "Disqualified"
+        codes: tuple[str, ...] = ()
+        if c.evaluation and c.evaluation.assessment.disqualifications:
+            disqualifications = c.evaluation.assessment.disqualifications
+            codes = tuple(item.code.value for item in disqualifications)
+            msg = "; ".join(item.message for item in disqualifications)
+        return RejectedCandidate(
+            reference=ref,
+            failure_code=codes[0] if codes else "DISQUALIFIED",
+            failure_stage=WorkflowStage.SCORING,
+            message=msg,
+            disqualification_codes=codes,
+        )
+    if unknown_fallback:
+        return RejectedCandidate(
+            reference=ref,
+            failure_code="UNKNOWN",
+            failure_stage="UNKNOWN",
+            message="Candidate rejected without explicit failure",
+        )
+    raise AssertionError("candidate reached rejection path without a failure reason")
 
 
 def _build_reference(candidate: CandidateWorkflowResult) -> CandidateReference:
@@ -218,90 +256,59 @@ def _calculate_delta(
     )
 
 
+def _route_length(c: CandidateWorkflowResult) -> float | None:
+    if c.engineering_assessment and c.engineering_assessment.metrics:
+        return c.engineering_assessment.metrics.total_route_length_m
+    return None
+
+
+def _lifecycle_cost(c: CandidateWorkflowResult) -> Decimal | None:
+    if c.cost_assessment and c.cost_assessment.cost:
+        return c.cost_assessment.cost.lifecycle_cost
+    return None
+
+
+def _parcel_count(c: CandidateWorkflowResult) -> int | None:
+    if c.engineering_assessment and c.engineering_assessment.metrics:
+        return c.engineering_assessment.metrics.affected_parcel_count
+    return None
+
+
+def _active_loss(c: CandidateWorkflowResult) -> float | None:
+    return c.load_flow_result.total_active_loss_mw if c.load_flow_result else None
+
+
+def _max_loading(c: CandidateWorkflowResult) -> float | None:
+    return c.load_flow_result.maximum_loading_percent if c.load_flow_result else None
+
+
+_ComparisonExtractor = Callable[[CandidateWorkflowResult], float | int | Decimal | None]
+
+_COMPARISON_METRICS: tuple[
+    tuple[str, _ComparisonExtractor, MetricDirection, str | None], ...
+] = (
+    ("total_route_length_m", _route_length, MetricDirection.LOWER_IS_BETTER, "m"),
+    ("lifecycle_cost", _lifecycle_cost, MetricDirection.LOWER_IS_BETTER, None),
+    ("affected_parcels", _parcel_count, MetricDirection.LOWER_IS_BETTER, None),
+    ("total_active_loss_mw", _active_loss, MetricDirection.LOWER_IS_BETTER, "MW"),
+    ("maximum_loading_percent", _max_loading, MetricDirection.LOWER_IS_BETTER, "%"),
+)
+
+
 def _build_comparisons(
     winner: CandidateWorkflowResult, alt: CandidateWorkflowResult
 ) -> tuple[MetricDelta, ...]:
-    comparisons = []
-
-    # 1. Total Route Length
-    w_len = None
-    a_len = None
-    if winner.engineering_assessment and winner.engineering_assessment.metrics:
-        w_len = winner.engineering_assessment.metrics.total_route_length_m
-    if alt.engineering_assessment and alt.engineering_assessment.metrics:
-        a_len = alt.engineering_assessment.metrics.total_route_length_m
-
-    comparisons.append(
-        _calculate_delta(
-            "total_route_length_m", w_len, a_len, MetricDirection.LOWER_IS_BETTER, "m"
-        )
+    return tuple(
+        _calculate_delta(name, extractor(winner), extractor(alt), direction, unit)
+        for name, extractor, direction, unit in _COMPARISON_METRICS
     )
 
-    # 2. Lifecycle Cost
-    w_cost = None
-    a_cost = None
-    if winner.cost_assessment and winner.cost_assessment.cost:
-        w_cost = winner.cost_assessment.cost.lifecycle_cost
-    if alt.cost_assessment and alt.cost_assessment.cost:
-        a_cost = alt.cost_assessment.cost.lifecycle_cost
 
-    comparisons.append(
-        _calculate_delta(
-            "lifecycle_cost", w_cost, a_cost, MetricDirection.LOWER_IS_BETTER
-        )
-    )
+_PRIMARY_METRICS = frozenset({"lifecycle_cost", "total_route_length_m"})
 
-    # 3. Parcel Count
-    w_parcels = None
-    a_parcels = None
-    if winner.engineering_assessment and winner.engineering_assessment.metrics:
-        w_parcels = winner.engineering_assessment.metrics.affected_parcel_count
-    if alt.engineering_assessment and alt.engineering_assessment.metrics:
-        a_parcels = alt.engineering_assessment.metrics.affected_parcel_count
 
-    comparisons.append(
-        _calculate_delta(
-            "affected_parcels", w_parcels, a_parcels, MetricDirection.LOWER_IS_BETTER
-        )
-    )
-
-    # 4. Total Active Loss
-    w_loss = None
-    a_loss = None
-    if winner.load_flow_result:
-        w_loss = winner.load_flow_result.total_active_loss_mw
-    if alt.load_flow_result:
-        a_loss = alt.load_flow_result.total_active_loss_mw
-
-    comparisons.append(
-        _calculate_delta(
-            "total_active_loss_mw",
-            w_loss,
-            a_loss,
-            MetricDirection.LOWER_IS_BETTER,
-            "MW",
-        )
-    )
-
-    # 5. Maximum Loading Percent
-    w_load = None
-    a_load = None
-    if winner.load_flow_result:
-        w_load = winner.load_flow_result.maximum_loading_percent
-    if alt.load_flow_result:
-        a_load = alt.load_flow_result.maximum_loading_percent
-
-    comparisons.append(
-        _calculate_delta(
-            "maximum_loading_percent",
-            w_load,
-            a_load,
-            MetricDirection.LOWER_IS_BETTER,
-            "%",
-        )
-    )
-
-    return tuple(comparisons)
+def _classify_significance(metric: str) -> str:
+    return "primary" if metric in _PRIMARY_METRICS else "secondary"
 
 
 def _build_reasoning(
@@ -326,31 +333,21 @@ def _build_reasoning(
         runner_up = feasible_alts[0]
         for delta in runner_up.comparisons:
             if delta.outcome == ComparisonOutcome.BETTER:
-                sig = (
-                    "primary"
-                    if delta.metric in ("lifecycle_cost", "total_route_length_m")
-                    else "secondary"
-                )
                 advantages.append(
                     DecisionFactor(
                         factor=delta.metric,
                         category="comparison",
                         comparison=delta,
-                        significance=sig,
+                        significance=_classify_significance(delta.metric),
                     )
                 )
             elif delta.outcome == ComparisonOutcome.WORSE:
-                sig = (
-                    "primary"
-                    if delta.metric in ("lifecycle_cost", "total_route_length_m")
-                    else "secondary"
-                )
                 disadvantages.append(
                     DecisionFactor(
                         factor=delta.metric,
                         category="comparison",
                         comparison=delta,
-                        significance=sig,
+                        significance=_classify_significance(delta.metric),
                     )
                 )
 
@@ -414,43 +411,7 @@ def build_decision_report(
         rejected: list[RejectedCandidate] = []
 
         for c in result.candidates:
-            ref = _build_reference(c)
-            fail = c.execution_failure or c.pole_failure or c.packaging_failure
-            if fail:
-                rejected.append(
-                    RejectedCandidate(
-                        reference=ref,
-                        failure_code=fail.code,
-                        failure_stage=fail.stage,
-                        message=fail.message,
-                    )
-                )
-            elif not c.evaluation or not c.evaluation.assessment.eligible:
-                msg = "Disqualified"
-                codes: tuple[str, ...] = ()
-                if c.evaluation and c.evaluation.assessment.disqualifications:
-                    disqualifications = c.evaluation.assessment.disqualifications
-                    codes = tuple(item.code.value for item in disqualifications)
-                    msg = "; ".join(item.message for item in disqualifications)
-
-                rejected.append(
-                    RejectedCandidate(
-                        reference=ref,
-                        failure_code=codes[0] if codes else "DISQUALIFIED",
-                        failure_stage=WorkflowStage.SCORING,
-                        message=msg,
-                        disqualification_codes=codes,
-                    )
-                )
-            else:
-                rejected.append(
-                    RejectedCandidate(
-                        reference=ref,
-                        failure_code="UNKNOWN",
-                        failure_stage="UNKNOWN",
-                        message="Candidate rejected without explicit failure",
-                    )
-                )
+            rejected.append(_classify_rejected(c, unknown_fallback=True))
 
         return DecisionReport(
             schema_version="1.0.0",
@@ -498,34 +459,8 @@ def build_decision_report(
         ref = _build_reference(c)
         fail = c.execution_failure or c.pole_failure or c.packaging_failure
 
-        if fail:
-            rejected.append(
-                RejectedCandidate(
-                    reference=ref,
-                    failure_code=fail.code,
-                    failure_stage=fail.stage,
-                    message=fail.message,
-                )
-            )
-        elif not c.evaluation or not c.evaluation.assessment.eligible:
-            # Technically failed evaluation, though maybe no execution failure
-            # Distinguish based on disqualifications
-            msg = "Disqualified"
-            codes = ()
-            if c.evaluation and c.evaluation.assessment.disqualifications:
-                disqualifications = c.evaluation.assessment.disqualifications
-                codes = tuple(item.code.value for item in disqualifications)
-                msg = "; ".join(item.message for item in disqualifications)
-
-            rejected.append(
-                RejectedCandidate(
-                    reference=ref,
-                    failure_code=codes[0] if codes else "DISQUALIFIED",
-                    failure_stage=WorkflowStage.SCORING,
-                    message=msg,
-                    disqualification_codes=codes,
-                )
-            )
+        if fail or not c.evaluation or not c.evaluation.assessment.eligible:
+            rejected.append(_classify_rejected(c))
         else:
             # Feasible alternative
             comparisons = _build_comparisons(winner, c)
