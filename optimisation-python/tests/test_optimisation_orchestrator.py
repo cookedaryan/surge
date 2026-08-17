@@ -1,4 +1,6 @@
 import datetime
+import os
+import tempfile
 from dataclasses import replace
 from typing import Any, NoReturn
 
@@ -697,3 +699,43 @@ def test_deterministic_runs(
     assert c1.scenario.topology_fingerprint == c2.scenario.topology_fingerprint
     assert c1.evaluation.total_benefit_score == c2.evaluation.total_benefit_score
     assert result1.pole_network == result2.pole_network
+
+
+def test_corpus_generation_regression_safety(
+    project_input: ProjectInput,
+    base_config: OptimisationConfig,
+    pole_config: PolePlacementConfig,
+) -> None:
+    # Ensure zero I/O and zero behavior change when emit_training_corpus=False
+    with tempfile.TemporaryDirectory() as tmpdir:
+        test_path = os.path.join(tmpdir, "corpus.csv")
+        search_config = replace(
+            base_config.search,
+            enabled=True,
+            emit_training_corpus=False,
+        )
+        config = replace(base_config, search=search_config, pole=pole_config)
+
+        result = optimise_project(project_input, config)
+
+        assert result.status == OptimisationStatus.SUCCESS
+        assert not os.path.exists(test_path)
+
+
+def test_corpus_neighbor_override_misuse_guard() -> None:
+    # Should raise if corpus_neighbor_override is set but emit_training_corpus=False
+    with pytest.raises(
+        ValueError, match="corpus_neighbor_override requires emit_training_corpus=True"
+    ):
+        CandidateSearchConfig(
+            emit_training_corpus=False,
+            corpus_neighbor_override=50,
+        )
+
+
+def test_corpus_emission_requires_sink_path() -> None:
+    with pytest.raises(
+        ValueError,
+        match="training_corpus_path is required when emit_training_corpus=True",
+    ):
+        CandidateSearchConfig(emit_training_corpus=True)

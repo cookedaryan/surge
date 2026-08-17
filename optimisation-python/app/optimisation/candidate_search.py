@@ -1,4 +1,5 @@
-from collections.abc import Mapping
+import statistics
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from heapq import nsmallest
 from itertools import chain
@@ -402,6 +403,62 @@ def _score_archive(
     return scored_archive, recommendation
 
 
+def _compute_mutation_features(
+    mutation: EdgeReconnectMutation | FeederReassignmentMutation | FeederSwapMutation,
+    mutation_weight: float,
+    parent_rank: float,
+    grouping: FeederGroupingResult,
+    turbines_by_id: Mapping[str, WindTurbine],
+    base_graph: nx.Graph,
+) -> dict[str, object]:
+    cap_delta = 0.0
+    affected_feeders: set[str] = set()
+
+    if isinstance(mutation, FeederReassignmentMutation):
+        cap_delta = _get_turbine(turbines_by_id, mutation.wtg_id).capacity_mw or 0.0
+        affected_feeders.add(mutation.source_feeder_id)
+        affected_feeders.add(mutation.target_feeder_id)
+    elif isinstance(mutation, FeederSwapMutation):
+        u_cap = _get_turbine(turbines_by_id, mutation.wtg_id_1).capacity_mw or 0.0
+        v_cap = _get_turbine(turbines_by_id, mutation.wtg_id_2).capacity_mw or 0.0
+        cap_delta = abs(u_cap - v_cap)
+        affected_feeders.add(mutation.feeder_id_1)
+        affected_feeders.add(mutation.feeder_id_2)
+    elif isinstance(mutation, EdgeReconnectMutation):
+        affected_feeders.add(mutation.feeder_id)
+        cap_delta = 0.0
+
+    dispersions = []
+    for assignment in grouping.assignments:
+        if assignment.feeder_id in affected_feeders:
+            pts = [
+                _get_turbine(turbines_by_id, tid).location
+                for tid in assignment.turbine_ids
+            ]
+            if len(pts) > 1:
+                cx = assignment.centroid.x
+                cy = assignment.centroid.y
+                dists = [((p.x - cx)**2 + (p.y - cy)**2)**0.5 for p in pts]
+                dispersions.append(statistics.stdev(dists))
+            else:
+                dispersions.append(0.0)
+
+    mean_dispersion = statistics.mean(dispersions) if dispersions else 0.0
+
+    edge_weight = mutation_weight
+    if isinstance(mutation, EdgeReconnectMutation):
+        added_u, added_v = mutation.added_edge
+        edge_weight = float(base_graph[added_u][added_v].get("weight", 0.0))
+
+    return {
+        "mutation_type": mutation.operator,
+        "edge_weight": edge_weight,
+        "capacity_delta_mw": cap_delta,
+        "turbine_dispersion_stddev": mean_dispersion,
+        "parent_rank": parent_rank,
+    }
+
+
 def run_candidate_beam_search(
     seeds: tuple[CandidateWorkflowResult, ...],
     project_input: ProjectInput,
@@ -412,6 +469,7 @@ def run_candidate_beam_search(
     electrical_context_id: str,
     evaluation_context_id: str,
     evaluation_cache: CandidateEvaluationCache,
+    corpus_sink: Callable[[Mapping[str, object]], None] | None = None,
 ) -> tuple[
     tuple[CandidateWorkflowResult, ...],
     OptimizationRecommendation | None,
@@ -429,6 +487,7 @@ def run_candidate_beam_search(
     stats_evaluations_used = 0
     stats_feasible = 0
     stats_failure = 0
+    corpus_rows: list[tuple[str, dict[str, object]]] = []
     if (
         not search_config.enabled
         or search_config.max_search_evaluations == 0
@@ -521,9 +580,13 @@ def run_candidate_beam_search(
         unique_before_round = stats_unique
         budget_reason: SearchTerminationReason | None = None
 
-        for _, parent_id, grouping, topology in frontier_pool:
+        for parent_rank, parent_id, grouping, topology in frontier_pool:
+            limit = (
+                search_config.corpus_neighbor_override
+                or search_config.max_neighbors_per_parent
+            )
             top_mutations = nsmallest(
-                search_config.max_neighbors_per_parent,
+                limit,
                 chain(
                     _generate_reassignment_mutations(
                         base_graph,
@@ -541,10 +604,34 @@ def run_candidate_beam_search(
                 ),
                 key=lambda item: (item[0], repr(item[1])),
             )
-            for _, mutation in top_mutations:
+            for mutation_weight, mutation in top_mutations:
                 if stats_proposed >= search_config.max_candidate_proposals:
                     budget_reason = SearchTerminationReason.PROPOSAL_BUDGET_EXHAUSTED
                     break
+
+                if search_config.emit_training_corpus:
+                    if not isinstance(
+                        mutation,
+                        (
+                            EdgeReconnectMutation,
+                            FeederReassignmentMutation,
+                            FeederSwapMutation,
+                        )
+                    ):
+                        raise AssertionError(
+                            f"Unexpected mutation type: {type(mutation)}"
+                        )
+                    features = _compute_mutation_features(
+                        mutation,
+                        mutation_weight,
+                        parent_rank,
+                        grouping,
+                        turbines_by_id,
+                        base_graph,
+                    )
+                    features["round_idx"] = round_idx + 1
+                else:
+                    features = {}
 
                 stats_proposed += 1
                 if isinstance(mutation, EdgeReconnectMutation):
@@ -582,6 +669,8 @@ def run_candidate_beam_search(
 
                 candidate_sequence += 1
                 child_id = f"SCN-S{round_idx + 1}-{candidate_sequence:03d}"
+                if search_config.emit_training_corpus:
+                    corpus_rows.append((child_id, features))
                 lineage = CandidateLineage(parent_id, round_idx + 1, mutation)
                 parent_parameters = archive[parent_id].scenario.parameters
 
@@ -673,7 +762,7 @@ def run_candidate_beam_search(
             termination_reason = SearchTerminationReason.NO_FEASIBLE_SEARCH_CANDIDATES
             break
 
-    final_rec = current_rec
+    final_rec: OptimizationRecommendation | None = current_rec
 
     final_best_scenario_id = None
     final_route_length = None
@@ -709,5 +798,37 @@ def run_candidate_beam_search(
         initial_lifecycle_cost=initial_lifecycle_cost,
         final_lifecycle_cost=final_lifecycle_cost,
     )
+
+    if search_config.emit_training_corpus and corpus_sink:
+        for child_id, features in corpus_rows:
+            corpus_candidate = archive.get(child_id)
+            if not corpus_candidate:
+                continue
+
+            row = dict(features)
+            row["project_id"] = project_input.project_id
+            row["scenario_id"] = child_id
+            eval_data = corpus_candidate.evaluation
+            if eval_data and eval_data.assessment:
+                row["feasible"] = eval_data.assessment.eligible
+            else:
+                row["feasible"] = False
+
+            row["total_route_length_m"] = corpus_candidate.scenario.total_route_length_m
+
+            if eval_data and eval_data.rank is not None:
+                row["evaluation.rank"] = eval_data.rank
+            else:
+                row["evaluation.rank"] = None
+
+            cost_assessment = corpus_candidate.cost_assessment
+            if cost_assessment and cost_assessment.cost:
+                row["evaluation.lifecycle_cost"] = float(
+                    cost_assessment.cost.lifecycle_cost
+                )
+            else:
+                row["evaluation.lifecycle_cost"] = None
+
+            corpus_sink(row)
 
     return tuple(archive.values()), final_rec, search_result
