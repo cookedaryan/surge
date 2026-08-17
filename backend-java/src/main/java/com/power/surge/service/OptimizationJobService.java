@@ -59,6 +59,7 @@ public class OptimizationJobService {
     private final ObjectMapper objectMapper;
     private final SseProgressService sseProgressService;
     private final AuditLogService auditLogService;
+    private final CableCatalogueService cableCatalogueService;
 
     public OptimizationJobService(
             ProjectRepository projectRepository,
@@ -74,7 +75,8 @@ public class OptimizationJobService {
             PythonOptimizationClient pythonClient,
             ObjectMapper objectMapper,
             SseProgressService sseProgressService,
-            AuditLogService auditLogService
+            AuditLogService auditLogService,
+            CableCatalogueService cableCatalogueService
     ) {
         this.projectRepository = projectRepository;
         this.jobRepository = jobRepository;
@@ -90,6 +92,7 @@ public class OptimizationJobService {
         this.objectMapper = objectMapper;
         this.sseProgressService = sseProgressService;
         this.auditLogService = auditLogService;
+        this.cableCatalogueService = cableCatalogueService;
     }
 
     /**
@@ -236,7 +239,10 @@ public class OptimizationJobService {
                     electricalParams,
                     poleConfig,
                     avoidanceGeoJson,
-                    profile.scoringWeights()
+                    profile.scoringWeights(),
+                    cableCatalogueService.buildCableConfig(
+                            req.voltageKv() != null ? req.voltageKv() : new BigDecimal("33.00"),
+                            req.maxVoltageDropPct())
             );
 
             PythonOptimisationResponse pythonResp = pythonClient.runOptimization(pythonReq);

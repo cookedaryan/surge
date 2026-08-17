@@ -56,6 +56,7 @@ public class ReportService {
 
     private final CadastralParcelRepository parcelRepository;
     private final AuditLogService auditLogService;
+    private final CableCatalogueService cableCatalogueService;
 
     public ReportService(
             ProjectRepository projectRepository,
@@ -63,7 +64,8 @@ public class ReportService {
             GeneratedRouteRepository routeRepository,
             GeneratedPoleRepository poleRepository,
             CadastralParcelRepository parcelRepository,
-            AuditLogService auditLogService
+            AuditLogService auditLogService,
+            CableCatalogueService cableCatalogueService
     ) {
         this.projectRepository = projectRepository;
         this.jobRepository = jobRepository;
@@ -71,6 +73,7 @@ public class ReportService {
         this.poleRepository = poleRepository;
         this.parcelRepository = parcelRepository;
         this.auditLogService = auditLogService;
+        this.cableCatalogueService = cableCatalogueService;
     }
 
     public EngineeringBomReportResponse generateBomReport(UUID projectId, UUID jobId) {
@@ -393,6 +396,12 @@ public class ReportService {
         // Conductor length by type is what a procurement team orders against, so it is totalled
         // here rather than left to be summed out of the segment schedule by hand.
         csv.append("--- CONDUCTOR SCHEDULE ---\n");
+        // Stated before the numbers rather than after them: unverified conductor parameters
+        // produce losses, voltage drops and utilisations that look exactly as authoritative as
+        // verified ones, and a reader who has already accepted the table will not revisit it.
+        csv.append("Catalogue basis,").append(escapeCsv(
+                cableCatalogueService.describeProvenance(
+                        run.voltageKv() != null ? run.voltageKv() : new BigDecimal("33.00")))).append("\n");
         csv.append("Cable Type,Segments,Length (m),Peak Utilisation (%)\n");
         for (Map.Entry<String, ConductorTotals> e : conductorTotals(report.segmentDetails()).entrySet()) {
             csv.append(escapeCsv(e.getKey())).append(",")

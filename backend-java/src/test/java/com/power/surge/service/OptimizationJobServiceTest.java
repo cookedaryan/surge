@@ -95,6 +95,9 @@ class OptimizationJobServiceTest {
     @Mock
     private AuditLogService auditLogService;
 
+    @Mock
+    private CableCatalogueService cableCatalogueService;
+
     private OptimizationJobService jobService;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
 
@@ -114,7 +117,8 @@ class OptimizationJobServiceTest {
                 pythonClient,
                 new ObjectMapper(),
                 sseProgressService,
-                auditLogService
+                auditLogService,
+                cableCatalogueService
         );
     }
 

@@ -59,12 +59,15 @@ class ReportServiceTest {
     @Mock
     private AuditLogService auditLogService;
 
+    @Mock
+    private CableCatalogueService cableCatalogueService;
+
     private ReportService reportService;
     private final GeometryFactory geometryFactory = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
 
     @BeforeEach
     void setUp() {
-        reportService = new ReportService(projectRepository, jobRepository, routeRepository, poleRepository, parcelRepository, auditLogService);
+        reportService = new ReportService(projectRepository, jobRepository, routeRepository, poleRepository, parcelRepository, auditLogService, cableCatalogueService);
     }
 
     @Test

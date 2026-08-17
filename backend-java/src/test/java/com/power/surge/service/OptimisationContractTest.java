@@ -77,6 +77,7 @@ class OptimisationContractTest {
     @Mock private PythonOptimizationClient pythonClient;
     @Mock private SseProgressService sseProgressService;
     @Mock private AuditLogService auditLogService;
+    @Mock private CableCatalogueService cableCatalogueService;
 
     private OptimizationJobService jobService;
     private final GeometryFactory gf = new GeometryFactory(new PrecisionModel(), Project.WGS84_SRID);
@@ -90,7 +91,7 @@ class OptimisationContractTest {
                 projectRepository, jobRepository, routeRepository, wtgLocationRepository,
                 substationRepository, referenceLineRepository, parcelRepository,
                 restrictedAreaRepository, routeService, poleService, pythonClient,
-                new ObjectMapper(), sseProgressService, auditLogService);
+                new ObjectMapper(), sseProgressService, auditLogService, cableCatalogueService);
     }
 
     private Polygon squareAt(double lon, double lat) {
