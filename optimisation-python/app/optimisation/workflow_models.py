@@ -1,6 +1,7 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from app.electrical.repair import RepairAction
@@ -111,6 +112,12 @@ class CandidateFailure:
     message: str
     scenario_id: str | None = None
     parameter_set_id: str | None = None
+    # Structured evidence for why the stage failed, surfaced alongside the
+    # message. Electrical repair in particular knows precisely which segment
+    # and which violation defeated it; without somewhere to put that, the
+    # caller received only a status code and had to read server logs to learn
+    # anything at all.
+    details: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)

@@ -1,9 +1,15 @@
 import logging
+from typing import Any
 
 from app.algorithms.pole_micro_siting import PoleMicroSitingContext, optimize_poles
 from app.costing.lifecycle import evaluate_candidate_cost
 from app.electrical.errors import CandidateElectricalEvaluationError
-from app.electrical.repair import RepairStatus, repair_electrical_design
+from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
+from app.electrical.repair import (
+    ClosedLoopRepairResult,
+    RepairStatus,
+    repair_electrical_design,
+)
 from app.land.decision import assess_candidate_land
 from app.optimisation import engineering_metrics as _engineering_metrics
 from app.optimisation.engineering_metric_models import (
@@ -26,6 +32,129 @@ from app.optimisation.workflow_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _effective_ampacity_a(cable: LoadFlowCableType) -> float:
+    return cable.max_current_a * cable.derating_factor * cable.parallel_count
+
+
+def _describe_repair_failure(
+    repair_result: ClosedLoopRepairResult,
+    electrical: LoadFlowConfig,
+) -> dict[str, Any]:
+    """
+    Explain why electrical repair gave up, in terms a reader can act on.
+
+    The caller used to receive only ``Electrical repair failed:
+    REPAIR_EXHAUSTED``, which says something was wrong without saying what,
+    where, or by how much -- so diagnosing it meant reading server logs.
+    Everything needed is already on the repair result: the violations still
+    outstanding when it stopped, every upgrade it tried on the way, and the
+    catalogue it had to work with.
+
+    The headline names the binding violation with its measured value against
+    its limit, because "voltage 0.912 pu against a 0.950 limit" tells an
+    engineer what to change and a status code does not. Where the largest
+    conductor available was still not enough, that is said explicitly: it is
+    usually the actual finding, and it points at the catalogue rather than the
+    route.
+    """
+    violations = (
+        list(repair_result.load_flow_result.violations)
+        if repair_result.load_flow_result
+        else []
+    )
+    ordered_cables = sorted(electrical.cable_types, key=_effective_ampacity_a)
+    largest = ordered_cables[-1] if ordered_cables else None
+
+    unresolved = [
+        {
+            "code": v.code.value,
+            "message": v.message,
+            "segment_id": v.segment_id,
+            "node_id": v.node_id,
+            "feeder_id": v.feeder_id,
+            "measured_value": v.measured_value,
+            "limit_value": v.limit_value,
+        }
+        for v in violations
+    ]
+
+    attempts = [
+        {
+            "segment_id": a.segment_id,
+            "iteration": a.repair_iteration,
+            "from_cable_type_id": a.original_cable_type_id,
+            "to_cable_type_id": a.upgraded_cable_type_id,
+            "trigger_violation_type": a.trigger_violation_type,
+            "reason_code": a.reason_code.value,
+            "pre_repair_loading_pct": a.pre_repair_loading_pct,
+            "post_repair_loading_pct": a.post_repair_loading_pct,
+            "pre_repair_voltage_pu": a.pre_repair_voltage_pu,
+            "post_repair_voltage_pu": a.post_repair_voltage_pu,
+        }
+        for a in repair_result.repair_log
+    ]
+
+    summary = _summarise_repair_failure(
+        repair_result.status.value, unresolved, attempts, largest
+    )
+
+    return {
+        "status": repair_result.status.value,
+        "summary": summary,
+        "unresolved_violations": unresolved,
+        "repair_attempts": attempts,
+        "largest_cable_available": (
+            {
+                "cable_type_id": largest.cable_type_id,
+                "effective_ampacity_a": round(_effective_ampacity_a(largest), 2),
+                "parallel_count": largest.parallel_count,
+            }
+            if largest
+            else None
+        ),
+        "catalogue_size": len(ordered_cables),
+    }
+
+
+def _summarise_repair_failure(
+    status: str,
+    unresolved: list[dict[str, Any]],
+    attempts: list[dict[str, Any]],
+    largest: LoadFlowCableType | None,
+) -> str:
+    """One sentence naming the binding constraint, not the status code."""
+    if not unresolved:
+        return f"Electrical repair failed ({status}) with no violation reported."
+
+    # Overloads first: an overload has a definite fix (a bigger conductor)
+    # whereas a voltage violation may need a different design entirely, so it
+    # is the more actionable headline.
+    binding = next(
+        (v for v in unresolved if v["code"] == "CABLE_OVERLOAD"),
+        unresolved[0],
+    )
+    where = (
+        binding["segment_id"]
+        or binding["node_id"]
+        or binding["feeder_id"]
+        or "the network"
+    )
+    measured = binding["measured_value"]
+    limit = binding["limit_value"]
+
+    parts = [f"Electrical repair exhausted: {binding['code']} at {where}"]
+    if measured is not None and limit is not None:
+        parts.append(f"measured {measured:.3g} against a limit of {limit:.3g}")
+    if attempts:
+        parts.append(f"after {len(attempts)} conductor upgrade(s)")
+    if largest is not None:
+        parts.append(
+            f"the largest conductor available was {largest.cable_type_id} "
+            f"at {_effective_ampacity_a(largest):.0f} A effective"
+        )
+    return "; ".join(parts) + "."
 
 
 def evaluate_candidate(
@@ -57,11 +186,13 @@ def evaluate_candidate(
                 scenario.scenario_id,
                 repair_result.status.value,
             )
+            diagnostics = _describe_repair_failure(repair_result, config.electrical)
             failure = CandidateFailure(
                 stage=WorkflowStage.ELECTRICAL_VALIDATION,
                 code=WorkflowFailureCode.ELECTRICAL_VALIDATION_FAILED,
-                message=f"Electrical repair failed: {repair_result.status.value}",
+                message=diagnostics["summary"],
                 scenario_id=scenario.scenario_id,
+                details=diagnostics,
             )
             return CandidateWorkflowResult(
                 scenario=scenario,

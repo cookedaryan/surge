@@ -635,6 +635,14 @@ def to_api_response(
                 execution_failure={
                     "code": c.execution_failure.code,
                     "message": c.execution_failure.message,
+                    # Structured evidence, so a caller can say which segment
+                    # and which limit defeated the run instead of relaying a
+                    # status code and sending someone to the server logs.
+                    **(
+                        {"details": dict(c.execution_failure.details)}
+                        if c.execution_failure.details
+                        else {}
+                    ),
                 }
                 if c.execution_failure
                 else None,

@@ -450,6 +450,85 @@ def test_v2_reports_no_feasible_candidate(mvp_v2_payload: JsonObject) -> None:
     assert "recommended_result" not in body
 
 
+def test_exhausted_repair_reports_what_defeated_it(
+    mvp_v2_payload: JsonObject,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    A caller must be able to diagnose REPAIR_EXHAUSTED from the response alone.
+
+    It used to return ``Electrical repair failed: REPAIR_EXHAUSTED`` and nothing
+    else, so working out which segment and which limit had defeated the run meant
+    reading server logs on the machine that produced it.
+    """
+    from app.electrical.load_flow.models import (
+        LoadFlowNetworkResult,
+        LoadFlowViolation,
+        LoadFlowViolationCode,
+    )
+    from app.electrical.repair import ClosedLoopRepairResult, RepairStatus
+
+    def exhausted(*args: object, **kwargs: object) -> ClosedLoopRepairResult:
+        config = kwargs["config"]
+        return ClosedLoopRepairResult(
+            status=RepairStatus.REPAIR_EXHAUSTED,
+            final_electrical_config=config,  # type: ignore[arg-type]
+            load_flow_result=LoadFlowNetworkResult(
+                converged=True,
+                is_valid=False,
+                solver_algorithm="nr",
+                total_generation_mw=10.0,
+                slack_power_mw=-10.0,
+                total_active_loss_mw=0.1,
+                total_reactive_loss_mvar=0.1,
+                minimum_voltage_pu=0.91,
+                maximum_voltage_pu=1.0,
+                maximum_loading_percent=140.0,
+                buses=(),
+                segments=(),
+                feeders=(),
+                violations=(
+                    LoadFlowViolation(
+                        code=LoadFlowViolationCode.CABLE_OVERLOAD,
+                        message="segment overloaded",
+                        segment_id="SEG-UNDER-TEST",
+                        measured_value=700.0,
+                        limit_value=500.0,
+                    ),
+                ),
+            ),
+            repair_log=(),
+            initial_cable_sizing=None,
+        )
+
+    monkeypatch.setattr(
+        "app.optimisation.candidate_evaluation.repair_electrical_design", exhausted
+    )
+
+    response = client.post("/api/v2/optimise", json=mvp_v2_payload)
+    assert response.status_code == 200
+
+    failed = [
+        c
+        for c in response.json()["candidates"]
+        if c.get("execution_failure") is not None
+    ]
+    assert failed, "an exhausted repair must be reported on the candidate"
+
+    failure = failed[0]["execution_failure"]
+    assert "details" in failure, "the diagnostics must survive to the response"
+
+    details = failure["details"]
+    assert details["status"] == "REPAIR_EXHAUSTED"
+    assert details["unresolved_violations"][0]["segment_id"] == "SEG-UNDER-TEST"
+    assert details["unresolved_violations"][0]["measured_value"] == 700.0
+    assert details["unresolved_violations"][0]["limit_value"] == 500.0
+    # Naming the biggest conductor available points at the catalogue rather than
+    # the route when nothing in it could have carried the load.
+    assert details["largest_cable_available"] is not None
+    assert "SEG-UNDER-TEST" in failure["message"]
+
+
 def test_v2_reports_failed_workflow(
     mvp_v2_payload: JsonObject,
     monkeypatch: pytest.MonkeyPatch,
