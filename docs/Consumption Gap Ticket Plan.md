@@ -72,16 +72,33 @@ rows with verified values is a data edit, no code.
 
 ## Phase 1 — Finish repair diagnostics end to end
 
-### E-1b · Persist repair diagnostics on the job *(needs nothing)*
-Java receives `execution_failure.details` and drops it. Persist it against the job so a failed run
-remains diagnosable after the fact, rather than only in the response nobody kept.
-**Effort:** 0.5 day · **Layer:** Java
+### E-1b · Persist repair diagnostics on the job — **already done, no code written**
+The premise was wrong. Java does not drop `execution_failure.details`: it stores the candidate list
+raw, so the diagnostics have been landing complete in `result_summary_json` since the Python change.
+Verified against job `b52bc643` — all six keys present on all three candidates, unresolved
+violations and conductor ceiling included.
+**Actual:** 0 days.
 
-### E-4 · Diagnostics panel for failed runs *(needs E-1b)*
-Show the unresolved violations with their measured value against limit, the upgrades attempted, and
-the largest conductor available. The failure card already exists; this fills it with the evidence
-that now arrives.
-**Effort:** 1 day · **Layer:** Frontend
+### E-4 · Diagnostics panel for failed runs — **done** at `0d6cfc2`
+Per candidate: the buses that stayed over limit with measured against limit, the conductor upgrades
+attempted with the loading each moved, and the catalogue ceiling. Zero attempts reads "None
+attempted" rather than an empty list — repair upgrades conductors to clear overloads, so no attempt
+on a voltage failure is itself the finding.
+
+Also fixed a defect in E-3's violation list: it printed `measured_value` raw, and real values arrive
+as `1.0599745548368775`. That path had never rendered a real value, because the only successful run
+had no violations — worth remembering as a shape of bug this codebase produces.
+**Actual:** 0.5 day · **Layer:** Frontend
+
+### E-6 · Say why repair attempted no upgrades *(new — found while doing E-4)*
+`repair_attempts` comes back empty on every voltage failure, and the diagnostics do not say why.
+The reason is real and known to the code — `_summarise_repair_failure` already comments that an
+overload has a definite fix in a bigger conductor whereas a voltage violation may need a different
+design — but it is a comment, so the UI can only report the absence, not the cause. Python should
+state it: a `no_upgrade_reason` on the diagnostics, set when every unresolved violation is a voltage
+code. The frontend deliberately does not infer this, because inferring it would mean asserting
+engineering reasoning the panel cannot see.
+**Effort:** 0.5 day · **Layer:** Python (+ small frontend)
 
 ---
 
@@ -172,8 +189,11 @@ The per-parcel decisions have been in the response since `491ae64`.
 
 1. ~~**E-2, F-2**~~ — done at `1095ddf`.
 2. ~~**E-3, R-1**~~ — done at `71a0e36` and `4032805`.
-3. **E-1b, E-4** — completes the diagnostics work already half-done. Now the only unblocked
-   engineering ticket left outside Phase 5.
+3. ~~**E-1b, E-4**~~ — done at `0d6cfc2`; E-1b needed no code.
+
+**Phase 1 and 2 are complete.** Everything remaining needs either a business input (P-1's rates,
+P-2's datasheets) or a schema change (`owner_id`), except **E-6** and Phase 5.
+
 4. **P-1** — start collecting rates now; it gates all of Phase 3.
 5. **Phase 3** in strict order: C-1 → F-1 → C-2 → C-3.
 6. **`owner_id` migration**, then Phase 4.
