@@ -7,6 +7,7 @@ import { useJobProgress } from './useJobProgress';
 import { useProjectData } from '../map/useProjectData';
 import { api } from '../../lib/api';
 import type {
+  CandidateSummary,
   ElectricalViolation,
   FeederElectricalResult,
   Job,
@@ -349,8 +350,111 @@ function JobResultCard({ job, summary }: { job: Job; summary: JobDecisionSummary
         {summary.feeders && summary.feeders.length > 0 && (
           <FeederBreakdown feeders={summary.feeders} />
         )}
+
+        {summary.candidates && summary.candidates.length > 1 && (
+          <CandidateComparison
+            candidates={summary.candidates}
+            recommendedId={summary.recommendation?.recommended_scenario_id}
+          />
+        )}
       </div>
     </Card>
+  );
+}
+
+/**
+ * What the recommendation beat, and on what figures.
+ *
+ * <p>The alternatives used to appear only when a run failed — precisely the wrong way round. A
+ * successful run is when an engineer asks what else was on the table: the reference project's
+ * third candidate routes 136 km against the winner's 70 km, and a recommendation you cannot
+ * see the competition for is a recommendation you have to take on trust.
+ *
+ * <p>Absolute values, not deltas. The engine's own signed comparisons need per-metric knowledge of
+ * which direction is better (shorter route: good; more poles: usually worse), and presenting them
+ * as improvements would mean asserting a direction this component does not know.
+ */
+function CandidateComparison({
+  candidates,
+  recommendedId
+}: {
+  candidates: CandidateSummary[];
+  recommendedId?: string | null;
+}) {
+  const [open, setOpen] = useState(false);
+  const ordered = [...candidates].sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
+  const rejected = candidates.filter((c) => c.eligible === false).length;
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 text-[11.5px] uppercase tracking-wide font-bold mb-1 text-textMuted"
+      >
+        <span>
+          Alternatives considered ({candidates.length})
+          {rejected > 0 && ` — ${rejected} ineligible`}
+        </span>
+        <span aria-hidden="true">{open ? '−' : '+'}</span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-1">
+          <div className="grid grid-cols-6 gap-x-2 text-[11px] uppercase tracking-wide text-textFaint">
+            <span>Scenario</span>
+            <span className="text-right">Score</span>
+            <span className="text-right">Length</span>
+            <span className="text-right">Losses</span>
+            <span className="text-right">Poles</span>
+            <span className="text-right">Load</span>
+          </div>
+          {ordered.map((c) => {
+            const m = c.engineering_metrics;
+            const isRecommended = recommendedId != null && c.scenario_id === recommendedId;
+            return (
+              <div key={c.scenario_id} className="border-b border-border last:border-b-0 pb-1 last:pb-0">
+                <div
+                  className={`grid grid-cols-6 gap-x-2 text-[11.5px] font-mono tabular ${
+                    isRecommended ? 'text-accent font-semibold' : 'text-text'
+                  }`}
+                >
+                  <span className="font-ui">
+                    {c.scenario_id}
+                    {isRecommended && <span title="Recommended"> ★</span>}
+                  </span>
+                  <span className="text-right">
+                    {c.total_benefit_score != null ? c.total_benefit_score.toFixed(3) : '—'}
+                  </span>
+                  <span className="text-right">
+                    {m?.total_route_length_m != null ? `${(m.total_route_length_m / 1000).toFixed(1)} km` : '—'}
+                  </span>
+                  <span className="text-right">
+                    {m?.total_active_loss_mw != null ? `${(m.total_active_loss_mw * 1000).toFixed(0)} kW` : '—'}
+                  </span>
+                  <span className="text-right">{m?.physical_pole_count ?? '—'}</span>
+                  <span className="text-right">
+                    {m?.maximum_loading_percent != null ? `${m.maximum_loading_percent.toFixed(1)}%` : '—'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-textFaint m-0 mt-0.5">
+                  {c.strategy ? c.strategy.replace(/_/g, ' ') : 'unnamed strategy'}
+                  {c.electrical_status === 'INVALID' && (
+                    <span className="text-danger"> · electrically invalid</span>
+                  )}
+                </p>
+                {c.disqualifications && c.disqualifications.length > 0 && (
+                  <ul className="list-disc list-inside text-[11px] text-danger m-0 mt-0.5">
+                    {c.disqualifications.map((reason, i) => (
+                      <li key={i}>{reason}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -141,6 +141,156 @@ describe('per-feeder electrical breakdown', () => {
   });
 });
 
+/**
+ * The alternatives a run considered. Figures below are from the reference project: SCN-002 wins on
+ * score, and SCN-003 routes 136 km against the winner's 70 km — the kind of gap that only shows up
+ * when the losing candidates are visible.
+ */
+const CANDIDATES = [
+  {
+    scenario_id: 'SCN-001',
+    strategy: 'baseline',
+    rank: 2,
+    electrical_status: 'VALID' as const,
+    eligible: true,
+    total_benefit_score: 0.738312454211743,
+    engineering_metrics: {
+      total_route_length_m: 70008.53,
+      total_active_loss_mw: 2.657732895428045,
+      physical_pole_count: 597,
+      maximum_loading_percent: 93.15750540268613
+    }
+  },
+  {
+    scenario_id: 'SCN-002',
+    strategy: 'alternative_grouping',
+    rank: 1,
+    electrical_status: 'VALID' as const,
+    eligible: true,
+    total_benefit_score: 0.855600813872776,
+    engineering_metrics: {
+      total_route_length_m: 69991.43,
+      total_active_loss_mw: 2.6373902010118813,
+      physical_pole_count: 606,
+      maximum_loading_percent: 92.70890877048998
+    }
+  },
+  {
+    scenario_id: 'SCN-003',
+    strategy: 'balanced_feeders',
+    rank: 3,
+    electrical_status: 'VALID' as const,
+    eligible: true,
+    total_benefit_score: 0.2,
+    engineering_metrics: {
+      total_route_length_m: 135821.37,
+      total_active_loss_mw: 3.3608861460087978,
+      physical_pole_count: 1145,
+      maximum_loading_percent: 91.54387207270427
+    }
+  }
+];
+
+describe('candidate comparison on a successful run', () => {
+  beforeEach(() => {
+    useUiStore.setState({ currentProjectId: 'p1', currentJobId: 'j1' });
+    jobData = {
+      id: 'j1',
+      status: 'COMPLETED',
+      scenario: 'Balanced',
+      resultSummaryJson: JSON.stringify({
+        workflowStatus: 'SUCCESS',
+        recommendation: { recommended_scenario_id: 'SCN-002', reasons: [] },
+        candidates: CANDIDATES
+      })
+    };
+  });
+
+  it('offers the alternatives on success, not only on failure', () => {
+    render(<OptimizationPane />, { wrapper });
+
+    expect(screen.getByRole('button', { name: /alternatives considered \(3\)/i })).toBeTruthy();
+  });
+
+  it('lists every candidate in rank order with its comparable figures', async () => {
+    render(<OptimizationPane />, { wrapper });
+    await userEvent.click(screen.getByRole('button', { name: /alternatives considered/i }));
+
+    const ids = screen.getAllByText(/^SCN-00\d/).map((el) => el.textContent?.trim().slice(0, 7));
+    expect(ids).toEqual(['SCN-002', 'SCN-001', 'SCN-003']);
+
+    // The losing candidate's 136 km against the winner's 70 km is the whole point of showing them.
+    expect(screen.getByText('135.8 km')).toBeTruthy();
+    // The top two are 17 m apart over 70 km, so they legitimately print the same length — the score
+    // column is what separates them.
+    expect(screen.getAllByText('70.0 km')).toHaveLength(2);
+    expect(screen.getByText('0.856')).toBeTruthy();
+    expect(screen.getByText('0.738')).toBeTruthy();
+    expect(screen.getByText('1145')).toBeTruthy();
+    expect(screen.getByText('2637 kW')).toBeTruthy();
+  });
+
+  it('marks which candidate was recommended', async () => {
+    render(<OptimizationPane />, { wrapper });
+    await userEvent.click(screen.getByRole('button', { name: /alternatives considered/i }));
+
+    const marks = screen.getAllByTitle('Recommended');
+    expect(marks).toHaveLength(1);
+    expect(marks[0].parentElement?.textContent).toContain('SCN-002');
+  });
+
+  it('names each candidate strategy, so the rows are more than ids', async () => {
+    render(<OptimizationPane />, { wrapper });
+    await userEvent.click(screen.getByRole('button', { name: /alternatives considered/i }));
+
+    expect(screen.getByText(/alternative grouping/)).toBeTruthy();
+    expect(screen.getByText(/balanced feeders/)).toBeTruthy();
+  });
+
+  it('flags ineligible candidates in the collapsed header and their reasons when open', async () => {
+    jobData = {
+      id: 'j1',
+      status: 'COMPLETED',
+      scenario: 'Balanced',
+      resultSummaryJson: JSON.stringify({
+        workflowStatus: 'SUCCESS',
+        recommendation: { recommended_scenario_id: 'SCN-002', reasons: [] },
+        candidates: [
+          CANDIDATES[1],
+          {
+            ...CANDIDATES[2],
+            eligible: false,
+            electrical_status: 'INVALID' as const,
+            disqualifications: ['exceeded voltage limit']
+          }
+        ]
+      })
+    };
+    render(<OptimizationPane />, { wrapper });
+
+    const toggle = screen.getByRole('button', { name: /1 ineligible/i });
+    await userEvent.click(toggle);
+    expect(screen.getByText(/exceeded voltage limit/)).toBeTruthy();
+    expect(screen.getByText(/electrically invalid/)).toBeTruthy();
+  });
+
+  it('stays hidden when there was nothing to compare against', () => {
+    jobData = {
+      id: 'j1',
+      status: 'COMPLETED',
+      scenario: 'Balanced',
+      resultSummaryJson: JSON.stringify({
+        workflowStatus: 'SUCCESS',
+        recommendation: { recommended_scenario_id: 'SCN-002', reasons: [] },
+        candidates: [CANDIDATES[1]]
+      })
+    };
+    render(<OptimizationPane />, { wrapper });
+
+    expect(screen.queryByRole('button', { name: /alternatives considered/i })).toBeNull();
+  });
+});
+
 describe('violation details', () => {
   beforeEach(() => {
     useUiStore.setState({ currentProjectId: 'p1', currentJobId: 'j1' });

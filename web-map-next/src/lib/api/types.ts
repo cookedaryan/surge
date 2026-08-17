@@ -35,12 +35,35 @@ export interface Job {
   resultSummaryJson?: string;
 }
 
+/**
+ * What the engine measured on one candidate network.
+ *
+ * <p>These are the figures the ranking is computed from, so they are also the only honest way to
+ * show what the recommendation beat: absolute values an engineer can compare directly, rather than
+ * a claim about which direction is "better" on each metric.
+ */
+export interface CandidateEngineeringMetrics {
+  total_route_length_m?: number;
+  total_traversal_cost?: number;
+  physical_pole_count?: number;
+  total_active_loss_mw?: number;
+  maximum_loading_percent?: number;
+  voltage_margin_pu?: number;
+  road_crossing_count?: number;
+  affected_parcel_count?: number;
+  owner_interaction_count?: number;
+  soft_constraint_overlap_length_m?: number;
+  environmental_overlap_m2?: number;
+}
+
 export interface CandidateSummary {
   scenario_id: string;
   strategy?: string;
   electrical_status?: 'VALID' | 'INVALID';
   eligible?: boolean;
   rank?: number;
+  total_benefit_score?: number | null;
+  engineering_metrics?: CandidateEngineeringMetrics | null;
   disqualifications?: string[];
 }
 
