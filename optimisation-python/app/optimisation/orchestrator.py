@@ -1,7 +1,10 @@
+import csv
 import hashlib
 import json
 import logging
 import math
+import os
+from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any
 
@@ -438,6 +441,20 @@ def optimise_project(
         raise ValueError("Project graph contains no substation node")
     substation_node_id = substations[0]
 
+    corpus_sink = None
+    if config.search.emit_training_corpus and config.search.training_corpus_path:
+        path = config.search.training_corpus_path
+
+        def _corpus_sink(row: Mapping[str, object]) -> None:
+            file_exists = os.path.exists(path)
+            with open(path, mode="a", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+                if not file_exists:
+                    writer.writeheader()
+                writer.writerow(row)
+
+        corpus_sink = _corpus_sink
+
     try:
         all_candidates, recommendation, search_result = run_candidate_beam_search(
             seeds=tuple(seeds),
@@ -449,6 +466,7 @@ def optimise_project(
             electrical_context_id=electrical_context_id,
             evaluation_context_id=evaluation_context_id,
             evaluation_cache=evaluation_cache,
+            corpus_sink=corpus_sink,
         )
     except Exception as exc:
         logger.exception("Candidate evaluation/search failed")

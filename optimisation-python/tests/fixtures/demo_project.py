@@ -7,23 +7,43 @@ from app.gis.cost_surface import CostSurface
 from app.models.spatial import ProjectSpatialData, Substation, WindTurbine
 
 
-def build_demo_project_data() -> ProjectSpatialData:
-    crs = CRS.from_epsg(32630)
-    turbines = [
-        WindTurbine("T01", Point(50.0, 700.0), 5.0),
-        WindTurbine("T02", Point(100.0, 720.0), 5.0),
-        WindTurbine("T03", Point(80.0, 660.0), 5.0),
-        WindTurbine("T04", Point(150.0, 710.0), 5.0),
-        WindTurbine("T05", Point(500.0, 700.0), 5.0),
-        WindTurbine("T06", Point(550.0, 720.0), 5.0),
-        WindTurbine("T07", Point(520.0, 660.0), 5.0),
-        WindTurbine("T08", Point(580.0, 710.0), 5.0),
-    ]
-    substation = Substation("SUB1", Point(300.0, 100.0))
+def build_project_data(
+    turbine_coordinates: tuple[tuple[float, float], ...],
+    substation_coordinate: tuple[float, float],
+    *,
+    turbine_capacity_mw: float = 5.0,
+    crs: CRS | None = None,
+) -> ProjectSpatialData:
+    """Construct spatial project data from canonical coordinate tuples."""
+    project_crs = crs or CRS.from_epsg(32630)
+    turbines = tuple(
+        WindTurbine(
+            turbine_id=f"T{index:02d}",
+            location=Point(x, y),
+            capacity_mw=turbine_capacity_mw,
+        )
+        for index, (x, y) in enumerate(turbine_coordinates, start=1)
+    )
     return ProjectSpatialData(
-        turbines=tuple(turbines),
-        substation=substation,
-        projected_crs=crs,
+        turbines=turbines,
+        substation=Substation("SUB1", Point(*substation_coordinate)),
+        projected_crs=project_crs,
+    )
+
+
+def build_demo_project_data() -> ProjectSpatialData:
+    return build_project_data(
+        (
+            (50.0, 700.0),
+            (100.0, 720.0),
+            (80.0, 660.0),
+            (150.0, 710.0),
+            (500.0, 700.0),
+            (550.0, 720.0),
+            (520.0, 660.0),
+            (580.0, 710.0),
+        ),
+        (300.0, 100.0),
     )
 
 

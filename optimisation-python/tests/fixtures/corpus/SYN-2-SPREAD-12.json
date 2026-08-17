@@ -1,0 +1,288 @@
+{
+  "request_id": "REQ-SYN-2-SPREAD-12",
+  "project_id": "SYN-2-SPREAD-12",
+  "wtg_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -1.0111823751183722,
+            52.00357062735504
+          ]
+        },
+        "properties": {
+          "turbine_id": "T01",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.987622781732887,
+            51.98025995038712
+          ]
+        },
+        "properties": {
+          "turbine_id": "T02",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.9877672299266876,
+            52.007925575799526
+          ]
+        },
+        "properties": {
+          "turbine_id": "T03",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -1.0063899793392803,
+            51.986219179992474
+          ]
+        },
+        "properties": {
+          "turbine_id": "T04",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.9817114771117288,
+            51.99346378180451
+          ]
+        },
+        "properties": {
+          "turbine_id": "T05",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -1.016290166264794,
+            51.98386865507334
+          ]
+        },
+        "properties": {
+          "turbine_id": "T06",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.9861002253461016,
+            52.00414904125468
+          ]
+        },
+        "properties": {
+          "turbine_id": "T07",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.9877148690690248,
+            52.009189271467754
+          ]
+        },
+        "properties": {
+          "turbine_id": "T08",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.9985508763418119,
+            52.01892463055918
+          ]
+        },
+        "properties": {
+          "turbine_id": "T09",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -1.0048586249116658,
+            52.00208162525093
+          ]
+        },
+        "properties": {
+          "turbine_id": "T10",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.9868238134298802,
+            52.00474079009457
+          ]
+        },
+        "properties": {
+          "turbine_id": "T11",
+          "capacity_mw": 5.0
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.9855317239875689,
+            52.00309408581027
+          ]
+        },
+        "properties": {
+          "turbine_id": "T12",
+          "capacity_mw": 5.0
+        }
+      }
+    ]
+  },
+  "substation_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -1.012,
+            52.0
+          ]
+        },
+        "properties": {
+          "substation_id": "SUB1"
+        }
+      }
+    ]
+  },
+  "routing_config": {
+    "resolution_m": 20.0,
+    "padding_m": 200.0
+  },
+  "operating_point_config": {
+    "operating_factor": 1.0,
+    "power_factor": 0.95,
+    "power_factor_mode": "lagging"
+  },
+  "cable_config": {
+    "nominal_voltage_kv": 33.0,
+    "slack_voltage_pu": 1.0,
+    "min_voltage_pu": 0.95,
+    "max_voltage_pu": 1.05,
+    "system_base_mva": 100.0,
+    "cable_types": [
+      {
+        "cable_type_id": "66kV_800mm2",
+        "resistance_ohm_per_km": 0.03,
+        "reactance_ohm_per_km": 0.1,
+        "capacitance_nf_per_km": 200.0,
+        "max_current_a": 322.0,
+        "parallel_count": 1,
+        "derating_factor": 1.0
+      }
+    ],
+    "default_cable_type_id": "66kV_800mm2"
+  },
+  "scenario_config": {
+    "candidate_count": 2
+  },
+  "scoring_weights": {
+    "route_length_weight": 0.4,
+    "electrical_loss_weight": 0.25,
+    "cable_loading_weight": 0.2,
+    "voltage_margin_weight": 0.15
+  },
+  "pole_config": {
+    "target_span_m": 80.0,
+    "min_span_m": 30.0,
+    "max_span_m": 100.0,
+    "angle_pole_threshold_deg": 10.0
+  },
+  "costing_config": {
+    "catalogue": {
+      "catalogue_id": "CAT-SYNTHETIC-2026",
+      "version": "1.0",
+      "currency": "USD",
+      "price_basis_date": "2026-01-01",
+      "conductor_items": [
+        {
+          "cable_type_id": "66kV_800mm2",
+          "installed_cost_per_km_per_parallel_circuit": 100000.0
+        }
+      ],
+      "pole_items": [
+        {
+          "pole_type": "terminal",
+          "installed_cost_each": 5000.0
+        },
+        {
+          "pole_type": "angle",
+          "installed_cost_each": 6000.0
+        },
+        {
+          "pole_type": "intermediate",
+          "installed_cost_each": 3000.0
+        },
+        {
+          "pole_type": "junction",
+          "installed_cost_each": 7000.0
+        }
+      ],
+      "land_policy": {
+        "fixed_cost_per_affected_parcel": 0.0,
+        "variable_basis": "NONE",
+        "variable_rate": 0.0
+      }
+    },
+    "lifecycle": {
+      "currency": "USD",
+      "energy_price_basis_date": "2026-01-01",
+      "analysis_period_years": 25,
+      "discount_rate": 0.08,
+      "annual_operating_hours": 8760,
+      "loss_load_factor": 0.3,
+      "energy_price_per_mwh": 50.0
+    }
+  },
+  "cost_aware_config": {
+    "engineering_weight": 0.7,
+    "lifecycle_cost_weight": 0.3
+  }
+}
