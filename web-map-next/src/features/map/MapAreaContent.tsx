@@ -4,6 +4,8 @@ import { useUiStore } from '../../lib/store';
 import { useProjectData } from './useProjectData';
 import { MapCanvas, type MapCanvasHandle } from './MapCanvas';
 import { BomStrip } from '../bom/BomStrip';
+import { MapLegendToggle } from './MapLegend';
+import { Tooltip } from '../../components/ui';
 
 interface MapAreaContentProps {
   mapRef: RefObject<MapCanvasHandle>;
@@ -60,6 +62,23 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
           {data.loadError}
         </div>
       )}
+      {/* Sits above the BOM strip and clear of Leaflet's own controls on the right. */}
+      <div className="absolute bottom-[86px] left-3.5 z-[1010] flex flex-col items-start gap-2">
+        <MapLegendToggle />
+        <Tooltip label="Zoom to fit all assets" side="top">
+          <button
+            onClick={() => mapRef.current?.fitAllBounds()}
+            aria-label="Zoom to fit all assets"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-borderStrong bg-panel/95
+                       text-textMuted shadow-2 backdrop-blur-sm transition-colors duration-fast ease-out
+                       hover:text-text hover:border-textFaint"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+            </svg>
+          </button>
+        </Tooltip>
+      </div>
       <BomStrip />
     </>
   );

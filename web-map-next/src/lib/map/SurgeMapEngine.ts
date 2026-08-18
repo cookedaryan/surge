@@ -44,6 +44,11 @@ export class SurgeMapEngine {
     darkCarto.addTo(this.map);
     L.control.layers({ 'Dark Grid': darkCarto, Satellite: esriSatellite }, undefined, { position: 'topright' }).addTo(this.map);
 
+    // Metric only. This is a site-engineering map measured in metres and kilometres throughout —
+    // route lengths, spans, clearances — and offering a miles reading beside them invites reading
+    // a distance off the map in a unit no other figure in the app uses.
+    L.control.scale({ position: 'bottomright', metric: true, imperial: false }).addTo(this.map);
+
     this.layers = {
       wtgs: L.featureGroup().addTo(this.map),
       substations: L.featureGroup().addTo(this.map),

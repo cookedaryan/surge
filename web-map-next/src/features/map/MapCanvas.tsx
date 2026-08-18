@@ -32,12 +32,30 @@ const MAP_CONTAINER_ID = 'surge-leaflet-container';
 export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function MapCanvas(props, ref) {
   const engineRef = useRef<SurgeMapEngine | null>(null);
 
+  const containerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     engineRef.current = new SurgeMapEngine(MAP_CONTAINER_ID);
     return () => {
       engineRef.current?.map.remove();
       engineRef.current = null;
     };
+  }, []);
+
+  // Leaflet caches its container's size and recomputes it only when asked. The side panel is now
+  // resizable and collapsible, so the map's box changes without the window ever resizing — and
+  // stale, the map draws tiles short of its edge and converts clicks to the wrong coordinates.
+  //
+  // Observed rather than driven from the panel's width: the width animates, so a single
+  // notification when the value changes would resize the map to a box it is still travelling
+  // through. The observer fires for every frame the element actually occupies, and covers window
+  // resizes and devtools docking at the same time.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => engineRef.current?.invalidateSize());
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => { engineRef.current?.renderWtgs(props.wtgs); }, [props.wtgs]);
@@ -77,5 +95,5 @@ export const MapCanvas = forwardRef<MapCanvasHandle, MapCanvasProps>(function Ma
     []
   );
 
-  return <div id={MAP_CONTAINER_ID} className="absolute inset-0" />;
+  return <div ref={containerRef} id={MAP_CONTAINER_ID} className="absolute inset-0" />;
 });

@@ -51,7 +51,10 @@ export default {
       },
       transitionDuration: {
         fast: 'var(--dur-fast)',
+        // DEFAULT backs the bare `transition-*` utilities; `base` is the same value as an explicit
+        // class, since Tailwind emits no `duration-DEFAULT`.
         DEFAULT: 'var(--dur)',
+        base: 'var(--dur)',
         slow: 'var(--dur-slow)'
       },
       transitionTimingFunction: {

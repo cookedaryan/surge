@@ -40,8 +40,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       {...props}
     >
       {/* The label keeps its space while loading rather than being swapped out, so the button does
-          not resize mid-click and shift whatever sits beside it. */}
-      <span className={clsx('inline-flex items-center gap-1.5', loading && 'invisible')}>{children}</span>
+          not resize mid-click and shift whatever sits beside it.
+          Hidden with opacity rather than `visibility`, which would take the label out of the
+          accessibility tree and leave the button with no accessible name for the whole request. */}
+      <span className={clsx('inline-flex items-center gap-1.5', loading && 'opacity-0')}>{children}</span>
       {loading && (
         <span className="absolute inset-0 inline-flex items-center justify-center">
           <Spinner className="w-3.5 h-3.5" />

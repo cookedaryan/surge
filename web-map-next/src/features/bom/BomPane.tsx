@@ -64,7 +64,7 @@ export function BomPane() {
 
       {bom && (
         <div className="mb-4 space-y-1.5 text-sm bg-surface2 p-3 rounded-md border border-border">
-          <div className="text-xs font-semibold uppercase text-textFaint mb-2">Lifecycle Cost Breakdown</div>
+          <div className="text-sm font-semibold uppercase text-textFaint mb-2">Lifecycle Cost Breakdown</div>
           <div className="flex justify-between">
             <span className="text-textFaint">Conductor CapEx</span>
             <span className="font-mono tabular">{formatMoney(bom.conductorCapex, bom.costCurrency)}</span>

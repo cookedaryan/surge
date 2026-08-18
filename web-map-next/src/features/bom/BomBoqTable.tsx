@@ -49,7 +49,7 @@ export function BomBoqTable({ bom }: BomBoqTableProps) {
       <div className="space-y-4 text-sm mt-3">
         {/* Conductor Schedule */}
         <div>
-          <h3 className="text-xs font-semibold uppercase text-textFaint mb-2">Conductor Schedule</h3>
+          <h3 className="text-sm font-semibold uppercase text-textFaint mb-2">Conductor Schedule</h3>
           {conductorTotals.length > 0 ? (
             <div className="border border-border rounded-md overflow-hidden">
               <table className="w-full text-left">
@@ -76,7 +76,7 @@ export function BomBoqTable({ bom }: BomBoqTableProps) {
 
         {/* Pole Schedule by Type */}
         <div>
-          <h3 className="text-xs font-semibold uppercase text-textFaint mb-2">Poles by Type</h3>
+          <h3 className="text-sm font-semibold uppercase text-textFaint mb-2">Poles by Type</h3>
           {poleTypes.length > 0 ? (
             <div className="border border-border rounded-md overflow-hidden">
               <table className="w-full text-left">
@@ -103,7 +103,7 @@ export function BomBoqTable({ bom }: BomBoqTableProps) {
 
         {/* Pole Schedule by Role */}
         <div>
-          <h3 className="text-xs font-semibold uppercase text-textFaint mb-2">Poles by Role</h3>
+          <h3 className="text-sm font-semibold uppercase text-textFaint mb-2">Poles by Role</h3>
           {poleRoles.length > 0 ? (
             <div className="border border-border rounded-md overflow-hidden">
               <table className="w-full text-left">
@@ -131,7 +131,7 @@ export function BomBoqTable({ bom }: BomBoqTableProps) {
         {/* Land & Right of Way */}
         {(bom.totalAffectedAreaM2 > 0 || bom.rowWidthMeters > 0) && (
           <div>
-            <h3 className="text-xs font-semibold uppercase text-textFaint mb-2">Land & Right of Way</h3>
+            <h3 className="text-sm font-semibold uppercase text-textFaint mb-2">Land & Right of Way</h3>
             <div className="border border-border rounded-md overflow-hidden bg-panel mb-4">
               <div className="flex justify-between px-2 py-1.5 border-b border-border">
                 <span className="text-textFaint">RoW Width</span>

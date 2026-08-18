@@ -39,7 +39,7 @@ async function chooseFromSelect(page: Page, trigger: Locator, optionText: string
 }
 
 async function openTab(page: Page, title: string): Promise<void> {
-  await page.locator(`nav button[title="${title}"]`).click();
+  await page.locator(`nav button[aria-label="${title}"]`).click();
 }
 
 test('sign-in loads real projects rather than inventing one', async ({ page }) => {
@@ -104,7 +104,7 @@ test('the BOM strip agrees with the run it belongs to', async ({ page }) => {
 test('account administration is offered only to administrators', async ({ page }) => {
   await signIn(page);
 
-  const usersTab = page.locator('nav button[title="Users"]');
+  const usersTab = page.locator('nav button[aria-label="Users"]');
   if (USERNAME === 'admin') {
     await expect(usersTab).toBeVisible();
     await openTab(page, 'Users');
