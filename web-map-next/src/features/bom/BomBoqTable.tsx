@@ -4,9 +4,11 @@ import type { BomReport } from '../../lib/api/types';
 
 interface BomBoqTableProps {
   bom: BomReport | null | undefined;
+  /** Drops the Card chrome, for contexts that supply their own section heading. */
+  bare?: boolean;
 }
 
-export function BomBoqTable({ bom }: BomBoqTableProps) {
+export function BomBoqTable({ bom, bare = false }: BomBoqTableProps) {
   if (!bom) return null;
 
   const conductorTotals = React.useMemo(() => {
@@ -42,11 +44,11 @@ export function BomBoqTable({ bom }: BomBoqTableProps) {
       .sort((a, b) => b.count - a.count);
   }, [bom.poleCountByRole]);
 
-  return (
-    <Card className="mt-3">
-      <CardTitle>Bill of Quantities</CardTitle>
-
-      <div className="space-y-4 text-sm mt-3">
+  // Built as a value rather than wrapped in a component defined during render: a component
+  // declared inline is a new type on every render, so React would unmount and rebuild these
+  // tables each time instead of updating them.
+  const body = (
+    <div className="space-y-4 text-sm mt-3">
         {/* Conductor Schedule */}
         <div>
           <h3 className="text-sm font-semibold uppercase text-textFaint mb-2">Conductor Schedule</h3>
@@ -178,7 +180,15 @@ export function BomBoqTable({ bom }: BomBoqTableProps) {
             )}
           </div>
         )}
-      </div>
+    </div>
+  );
+
+  if (bare) return body;
+
+  return (
+    <Card className="mt-3">
+      <CardTitle>Bill of Quantities</CardTitle>
+      {body}
     </Card>
   );
 }

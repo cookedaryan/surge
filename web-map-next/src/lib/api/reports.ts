@@ -1,6 +1,17 @@
 import { API_BASE_URL, downloadFile, fetchJson } from './client';
 import type { BomReport, ScenarioComparison } from './types';
 
+/**
+ * The BOM for one specific run.
+ *
+ * <p>Unlike {@link getBomReport} this throws rather than returning a zeroed report. It backs the
+ * run breakdown, where the costs sit beside the decision that produced them: a silently empty BOM
+ * there would read as a network that costs nothing, next to figures saying otherwise.
+ */
+export async function getJobBomReport(projectId: string, jobId: string): Promise<BomReport> {
+  return fetchJson<BomReport>(`${API_BASE_URL}/projects/${projectId}/reports/jobs/${jobId}/bom`);
+}
+
 export async function getBomReport(projectId: string): Promise<BomReport> {
   try {
     return await fetchJson<BomReport>(`${API_BASE_URL}/projects/${projectId}/reports/bom`);
@@ -41,7 +52,11 @@ export function getPdfReportUrl(projectId: string): string {
 }
 
 export function getBomCsvUrl(projectId: string, jobId?: string | null): string {
-  if (jobId) return `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/reports/bom/csv`;
+  // The job-scoped segment goes *after* /reports, which is where ReportController maps it
+  // (@RequestMapping(".../reports") + @GetMapping("/jobs/{jobId}/bom/csv")). Built the other way
+  // round this addressed a route no controller serves, so exporting a CSV 404'd for every run —
+  // and a run is exactly when currentJobId is set, which is to say always after the first one.
+  if (jobId) return `${API_BASE_URL}/projects/${projectId}/reports/jobs/${jobId}/bom/csv`;
   return `${API_BASE_URL}/projects/${projectId}/reports/bom/csv`;
 }
 

@@ -53,6 +53,21 @@ export function useBomReport(projectId: string | null) {
   });
 }
 
+/**
+ * The BOM for one specific run, rather than the project's latest.
+ *
+ * <p>The run breakdown shows costs next to the decision that produced them, so it must be the same
+ * run's costs. `useBomReport` answers with whichever run was costed most recently, which is usually
+ * but not always the one on screen.
+ */
+export function useJobBomReport(projectId: string | null, jobId: string | null) {
+  return useQuery({
+    queryKey: ['bom', projectId, jobId],
+    queryFn: () => api.getJobBomReport(projectId as string, jobId as string),
+    enabled: !!projectId && !!jobId
+  });
+}
+
 export function useAuditLogs() {
   return useQuery({ queryKey: ['auditLogs'], queryFn: api.getAuditLogs });
 }
