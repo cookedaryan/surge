@@ -7,9 +7,52 @@ export type LayerName =
 
 export type SidebarTab = 'assets' | 'optimize' | 'layers' | 'bom' | 'audit' | 'admin';
 
+export type ToastVariant = 'success' | 'error' | 'info';
+export interface ToastItem {
+  id: number;
+  message: string;
+  variant: ToastVariant;
+}
+
+/** Enough to see a burst without the stack covering the map it is reporting on. */
+const MAX_TOASTS = 3;
+let nextToastId = 1;
+
+const SIDEBAR_WIDTH_KEY = 'surge.sidebarWidth';
+const SIDEBAR_COLLAPSED_KEY = 'surge.sidebarCollapsed';
+
+export const SIDEBAR_MIN_WIDTH = 260;
+export const SIDEBAR_MAX_WIDTH = 520;
+
+/**
+ * Panel geometry is read back from localStorage, which is user-writable and survives deploys that
+ * change these bounds. A stored width is therefore treated as a suggestion and clamped, not
+ * trusted — a stale or hand-edited value must not be able to render the panel unusable.
+ */
+function readStoredWidth(): number {
+  if (typeof localStorage === 'undefined') return 300;
+  const raw = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+  if (!Number.isFinite(raw) || raw <= 0) return 300;
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, raw));
+}
+
+function readStoredCollapsed(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+}
+
 interface UiState {
   activeSidebarTab: SidebarTab;
   setActiveSidebarTab: (tab: SidebarTab) => void;
+
+  sidebarWidth: number;
+  setSidebarWidth: (w: number) => void;
+  sidebarCollapsed: boolean;
+  toggleSidebar: () => void;
+
+  /** The expanded run breakdown, shown over the map rather than in the panel. */
+  resultsSheetOpen: boolean;
+  setResultsSheetOpen: (v: boolean) => void;
 
   currentProjectId: string | null;
   setCurrentProjectId: (id: string | null) => void;
@@ -50,9 +93,9 @@ interface UiState {
   importPreviewOpen: boolean;
   setImportPreviewOpen: (v: boolean) => void;
 
-  toast: { message: string; variant: 'success' | 'error' | 'info' } | null;
-  showToast: (message: string, variant?: 'success' | 'error' | 'info') => void;
-  clearToast: () => void;
+  toasts: ToastItem[];
+  showToast: (message: string, variant?: ToastVariant) => void;
+  dismissToast: (id: number) => void;
 
   liveBomOverride: { lengthKm: string; poles: number; cost: number } | null;
   setLiveBomOverride: (v: { lengthKm: string; poles: number; cost: number } | null) => void;
@@ -64,6 +107,32 @@ interface UiState {
 export const useUiStore = create<UiState>((set) => ({
   activeSidebarTab: 'assets',
   setActiveSidebarTab: (tab) => set({ activeSidebarTab: tab }),
+
+  sidebarWidth: readStoredWidth(),
+  setSidebarWidth: (w) => {
+    const clamped = Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, w));
+    try {
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(clamped));
+    } catch {
+      // Private-browsing or a full quota. The panel still resizes for this session; only the
+      // memory of it is lost, which is not worth failing the drag over.
+    }
+    set({ sidebarWidth: clamped });
+  },
+  sidebarCollapsed: readStoredCollapsed(),
+  toggleSidebar: () =>
+    set((s) => {
+      const next = !s.sidebarCollapsed;
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+      } catch {
+        // As above — a preference that cannot be stored is not a failure worth surfacing.
+      }
+      return { sidebarCollapsed: next };
+    }),
+
+  resultsSheetOpen: false,
+  setResultsSheetOpen: (v) => set({ resultsSheetOpen: v }),
 
   currentProjectId: null,
   // Job ids belong to a project. Carrying them across a switch would poll and render another
@@ -108,9 +177,13 @@ export const useUiStore = create<UiState>((set) => ({
   importPreviewOpen: false,
   setImportPreviewOpen: (v) => set({ importPreviewOpen: v }),
 
-  toast: null,
-  showToast: (message, variant = 'info') => set({ toast: { message, variant } }),
-  clearToast: () => set({ toast: null }),
+  toasts: [],
+  // A single-slot toast meant a run that failed and then a second action that succeeded left only
+  // the success on screen — the report's C-11. Messages now queue instead of overwriting, with the
+  // oldest dropped past MAX_TOASTS so a burst cannot bury the map.
+  showToast: (message, variant = 'info') =>
+    set((s) => ({ toasts: [...s.toasts, { id: nextToastId++, message, variant }].slice(-MAX_TOASTS) })),
+  dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
   liveBomOverride: null,
   setLiveBomOverride: (v) => set({ liveBomOverride: v }),

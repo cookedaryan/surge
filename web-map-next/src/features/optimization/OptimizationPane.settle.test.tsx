@@ -89,11 +89,14 @@ describe('OptimizationPane settle sequence', () => {
       currentProjectId: PROJECT_ID,
       currentJobId: JOB_ID,
       resultJobId: null,
-      toast: null
+      toasts: []
     });
     unsubscribe = useUiStore.subscribe((state, prev) => {
       if (state.resultJobId !== prev.resultJobId) events.push(`resultJobId=${state.resultJobId}`);
-      if (state.toast && state.toast !== prev.toast) events.push(`toast:${state.toast.variant}`);
+      // Toasts stack rather than replace, so a new one is a longer list — not a changed reference.
+      if (state.toasts.length > prev.toasts.length) {
+        events.push(`toast:${state.toasts[state.toasts.length - 1].variant}`);
+      }
     });
   });
 

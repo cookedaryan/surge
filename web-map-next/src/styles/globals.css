@@ -7,6 +7,9 @@
   --panel: #111113;
   --surface: #17171B;
   --surface-2: #1C1C20;
+  /* Completes the ramp. Hover and elevated states used to reach for --surface-2, which is also the
+     resting colour of inputs and metric boxes, so "raised" and "inset" rendered identically. */
+  --surface-3: #232329;
   --border: rgba(255,255,255,0.09);
   --border-strong: rgba(255,255,255,0.17);
   /* Three text tiers, all of which must stay readable on --panel through --surface-2.
@@ -18,15 +21,64 @@
   --text: #F2F3F5;
   --text-muted: #A2A8B3;
   --text-faint: #838892;
+
+  /* Accent ramp. Hover and pressed states were previously brightness-110 filters, which shift
+     every channel including the text sitting on top and cannot express a *darker* pressed state
+     at all. These are real values, sampled around the established --accent. */
+  --accent-100: rgba(78,140,255,0.10);
+  --accent-200: rgba(78,140,255,0.22);
+  --accent-400: #6FA2FF;
   --accent: #4E8CFF;
+  --accent-500: #4E8CFF;
+  --accent-600: #3A72DB;
   --accent-soft: rgba(78,140,255,0.14);
   --accent-ink: #071022;
+
   --success: #34D399;
   --success-soft: rgba(52,211,153,0.14);
   --warning: #F5A524;
   --warning-soft: rgba(245,165,36,0.14);
   --danger: #F0555A;
   --danger-soft: rgba(240,85,90,0.14);
+
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.40);
+  --shadow-2: 0 4px 12px rgba(0,0,0,0.38), 0 1px 2px rgba(0,0,0,0.40);
+  --shadow-3: 0 12px 32px rgba(0,0,0,0.45), 0 2px 6px rgba(0,0,0,0.40);
+
+  /* Motion. The 2026-08-12 redesign set the band at 120–150ms, functional rather than decorative;
+     --dur-slow extends it only for surfaces that actually travel a distance (drawers, sheets).
+     Everything animated in the app reads these, which is what makes the reduced-motion override
+     at the bottom of this block sufficient on its own. */
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-slow: 260ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --ring: var(--accent);
+  --ring-offset: var(--bg);
+}
+
+/* One rule disables the entire motion layer, because no component tests the preference itself —
+   they all animate on the tokens above. Kept at a non-zero duration so transitionend and Radix's
+   animation-driven unmount still fire; at 0s they do not, and exit-animated content never leaves. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01ms;
+    --dur: 0.01ms;
+    --dur-slow: 0.01ms;
+  }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -39,8 +91,42 @@ body {
   font-size: 13.5px;
   -webkit-font-smoothing: antialiased;
 }
+
+/* There was no focus-visible style anywhere in the app; keyboard traversal was invisible. Scoped
+   to :focus-visible so pointer users never see a ring on click. */
+:where(a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
 .tabular { font-variant-numeric: tabular-nums; }
 .leaflet-container { background: var(--surface-2) !important; }
+
+@keyframes surge-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes surge-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes surge-scale-in { from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes surge-scale-out { from { opacity: 1; transform: translate(-50%, -50%) scale(1); } to { opacity: 0; transform: translate(-50%, -50%) scale(0.96); } }
+@keyframes surge-slide-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes surge-slide-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes surge-slide-out-right { from { transform: translateX(0); } to { transform: translateX(100%); } }
+@keyframes surge-shimmer { from { background-position: -180% 0; } to { background-position: 180% 0; } }
+@keyframes surge-pulse-ring {
+  0% { box-shadow: 0 0 0 0 var(--accent-200); }
+  70% { box-shadow: 0 0 0 6px rgba(78,140,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(78,140,255,0); }
+}
+/* Draws a stroked path on by retracting its own dash gap. The consumer sets stroke-dasharray and
+   the --draw-len custom property to the path length. */
+@keyframes surge-draw { from { stroke-dashoffset: var(--draw-len, 400); } to { stroke-dashoffset: 0; } }
+
+/* Skeleton placeholder. The gradient is wider than the element so the highlight sweeps across. */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%);
+  background-size: 280% 100%;
+  animation: surge-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--r-sm);
+}
 
 /* Leaflet ships its controls with light chrome. Left alone, the app's near-white text lands on a
    white panel at about 1.1:1 — effectively invisible. Themed to match the rest of the surface. */
@@ -55,6 +141,11 @@ body {
 .leaflet-bar a:hover { background: var(--surface-2) !important; color: var(--text) !important; }
 .leaflet-control-layers label { color: var(--text) !important; }
 .leaflet-control-attribution a { color: var(--text-muted) !important; }
+.leaflet-control-scale-line {
+  background: rgba(17,17,19,0.82) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-muted) !important;
+}
 
 /* Leaflet's zoom buttons are 30px; nudge them to a comfortable target. */
 .leaflet-touch .leaflet-bar a { width: 32px; height: 32px; line-height: 32px; }
@@ -71,7 +162,7 @@ body {
   background: var(--surface);
   border: 2px solid var(--border-strong);
   color: var(--text);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  box-shadow: var(--shadow-1);
   padding: 4px;
 }
 
@@ -88,8 +179,8 @@ body {
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-3);
 }
 .leaflet-popup-tip { background: var(--panel); border: 1px solid var(--border-strong); }
 .leaflet-popup-content { margin: 10px 12px; font-family: -apple-system, "Segoe UI", Inter, sans-serif; }
