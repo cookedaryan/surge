@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardTitle } from '../../components/ui';
 import type { BomReport } from '../../lib/api/types';
+import { ParcelImpactTable } from './ParcelImpactTable';
 
 interface BomBoqTableProps {
   bom: BomReport | null | undefined;
@@ -146,37 +147,7 @@ export function BomBoqTable({ bom, bare = false }: BomBoqTableProps) {
             </div>
 
             {bom.parcelImpactSummaries && bom.parcelImpactSummaries.length > 0 && (
-              <div className="border border-border rounded-md overflow-x-auto">
-                <table className="w-full text-left whitespace-nowrap">
-                  <thead className="bg-surface2 border-b border-border">
-                    <tr>
-                      <th className="px-2 py-1.5 font-medium text-textFaint">Parcel ID</th>
-                      <th className="px-2 py-1.5 font-medium text-textFaint">Owner</th>
-                      <th className="px-2 py-1.5 font-medium text-textFaint">Instrument</th>
-                      <th className="px-2 py-1.5 font-medium text-textFaint text-right">Present Value</th>
-                      <th className="px-2 py-1.5 font-medium text-textFaint">Price Basis</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {bom.parcelImpactSummaries.map((parcel, idx) => (
-                      <tr key={idx} className="bg-panel">
-                        <td className="px-2 py-1.5">{parcel.parcelId}</td>
-                        <td className="px-2 py-1.5">{parcel.ownerName || 'Unknown'}</td>
-                        <td className="px-2 py-1.5">{parcel.transactionMode || '-'}</td>
-                        <td className="px-2 py-1.5 text-right font-mono tabular">
-                          {parcel.selectedPresentValue != null
-                            ? parcel.selectedPresentValue.toLocaleString(undefined, {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                              })
-                            : '-'}
-                        </td>
-                        <td className="px-2 py-1.5">{parcel.priceBasis || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ParcelImpactTable parcels={bom.parcelImpactSummaries} />
             )}
           </div>
         )}
