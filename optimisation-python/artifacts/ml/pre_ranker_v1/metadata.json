@@ -22,7 +22,7 @@
   "comparison_group_count": 7,
   "random_seed": 42,
   "canonical_corpus_sha256": "ef3e3badd295851e92ec169ab278fdd241bf6a3d0dbcc41a646f0b4c3064800f",
-  "model_sha256": "591a432a8b0f4bba2156d7f148c95ed9367ac5ece4f138f269696eabcec6e5bc",
+  "model_sha256": "97154ae4b1b0555cf989db051669cc83eb6d552318c26aa232cce20e5f1ab443",
   "library_versions": {
     "scikit-learn": "1.9.0",
     "pandas": "2.3.3"

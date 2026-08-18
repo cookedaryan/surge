@@ -20,8 +20,8 @@ from app.optimisation.candidate_evaluation import evaluate_candidate
 from app.optimisation.candidate_validation import validate_candidate_structure
 from app.optimisation.ranking_model import (
     HeuristicRankingModel,
+    MutationFeatureVector,
     RankingModelInferenceError,
-    build_feature_vector,
     load_ranking_model,
 )
 from app.optimisation.scenario_builder import materialize_candidate_design
@@ -49,7 +49,6 @@ from app.optimisation.search_models import (
     EdgeReconnectMutation,
     FeederReassignmentMutation,
     FeederSwapMutation,
-    SearchMutation,
     SearchTerminationReason,
 )
 from app.optimisation.workflow_models import (
@@ -414,10 +413,10 @@ def _compute_mutation_features(
     mutation: EdgeReconnectMutation | FeederReassignmentMutation | FeederSwapMutation,
     mutation_weight: float,
     parent_rank: float,
+    round_idx: int,
     grouping: FeederGroupingResult,
     turbines_by_id: Mapping[str, WindTurbine],
-    base_graph: nx.Graph,
-) -> dict[str, object]:
+) -> MutationFeatureVector:
     cap_delta = 0.0
     affected_feeders: set[str] = set()
 
@@ -452,18 +451,14 @@ def _compute_mutation_features(
 
     mean_dispersion = statistics.mean(dispersions) if dispersions else 0.0
 
-    edge_weight = mutation_weight
-    if isinstance(mutation, EdgeReconnectMutation):
-        added_u, added_v = mutation.added_edge
-        edge_weight = float(base_graph[added_u][added_v].get("weight", 0.0))
-
-    return {
-        "mutation_type": mutation.operator,
-        "edge_weight": edge_weight,
-        "capacity_delta_mw": cap_delta,
-        "turbine_dispersion_stddev": mean_dispersion,
-        "parent_rank": parent_rank,
-    }
+    return MutationFeatureVector(
+        heuristic_score=mutation_weight,
+        capacity_delta_mw=cap_delta,
+        turbine_dispersion_stddev=mean_dispersion,
+        parent_rank=parent_rank,
+        round_idx=round_idx + 1,
+        mutation_type=mutation.operator,
+    )
 
 
 def run_candidate_beam_search(
@@ -544,7 +539,10 @@ def run_candidate_beam_search(
 
     archive, current_rec = _score_archive(archive, config, electrical_context_id)
     ranking_model = load_ranking_model(search_config.ranking_model)
-    ranking_model_fallback_count = 0
+    ranking_model_fallback_count = int(
+        isinstance(ranking_model, HeuristicRankingModel)
+        and ranking_model.load_failed
+    )
     ranking_model_rank_calls = 0
     ranking_model_ranked_mutations = 0
 
@@ -602,32 +600,14 @@ def run_candidate_beam_search(
                 or search_config.max_neighbors_per_parent
             )
 
-            def rank_key(
-                item: tuple[float, SearchMutation],
-                parent_rank: float = parent_rank,
-                round_idx: int = round_idx,
-            ) -> tuple[float, str]:
-                nonlocal ranking_model_fallback_count, ranking_model_ranked_mutations
-                ranking_model_ranked_mutations += 1
-                weight, mutation = item
-                feature = build_feature_vector(
-                    mutation=mutation,
-                    weight=weight,
-                    parent_rank=parent_rank,
-                    round_idx=round_idx,
-                    schema_version=search_config.ranking_model.schema_version,
-                    turbines_by_id=turbines_by_id,
-                )
-                try:
-                    score = ranking_model.score(feature)
-                    return (score, repr(mutation))
-                except RankingModelInferenceError:
-                    ranking_model_fallback_count += 1
-                    return (weight, repr(mutation))
-
-            ranking_model_rank_calls += 1
-            top_mutations = nsmallest(
-                limit,
+            mutations: list[
+                tuple[
+                    float,
+                    EdgeReconnectMutation
+                    | FeederReassignmentMutation
+                    | FeederSwapMutation,
+                ]
+            ] = list(
                 chain(
                     _generate_reassignment_mutations(
                         base_graph,
@@ -642,10 +622,48 @@ def run_candidate_beam_search(
                         project_input.feeder_capacity_mw,
                     ),
                     _generate_reconnect_mutations(base_graph, topology),
-                ),
-                key=rank_key,
+                )
             )
-            for mutation_weight, mutation in top_mutations:
+            feature_rows = {
+                mutation: _compute_mutation_features(
+                    mutation,
+                    weight,
+                    parent_rank,
+                    round_idx,
+                    grouping,
+                    turbines_by_id,
+                )
+                for weight, mutation in mutations
+            }
+
+            if isinstance(ranking_model, HeuristicRankingModel):
+                top_mutations = nsmallest(
+                    limit,
+                    mutations,
+                    key=lambda item: (item[0], repr(item[1])),
+                )
+            else:
+                try:
+                    model_scores = {
+                        mutation: ranking_model.score(feature_rows[mutation])
+                        for _, mutation in mutations
+                    }
+                except RankingModelInferenceError:
+                    ranking_model_fallback_count += 1
+                    top_mutations = nsmallest(
+                        limit,
+                        mutations,
+                        key=lambda item: (item[0], repr(item[1])),
+                    )
+                else:
+                    ranking_model_rank_calls += 1
+                    ranking_model_ranked_mutations += len(mutations)
+                    top_mutations = nsmallest(
+                        limit,
+                        mutations,
+                        key=lambda item: (model_scores[item[1]], repr(item[1])),
+                    )
+            for _mutation_weight, mutation in top_mutations:
                 if stats_proposed >= search_config.max_candidate_proposals:
                     budget_reason = SearchTerminationReason.PROPOSAL_BUDGET_EXHAUSTED
                     break
@@ -662,15 +680,7 @@ def run_candidate_beam_search(
                         raise AssertionError(
                             f"Unexpected mutation type: {type(mutation)}"
                         )
-                    features = _compute_mutation_features(
-                        mutation,
-                        mutation_weight,
-                        parent_rank,
-                        grouping,
-                        turbines_by_id,
-                        base_graph,
-                    )
-                    features["round_idx"] = round_idx + 1
+                    features = feature_rows[mutation].as_model_row()
                 else:
                     features = {}
 
@@ -711,8 +721,6 @@ def run_candidate_beam_search(
                 candidate_sequence += 1
                 child_id = f"SCN-S{round_idx + 1}-{candidate_sequence:03d}"
                 if search_config.emit_training_corpus:
-                    features["round_idx"] = round_idx + 1
-                    features["heuristic_score"] = mutation_weight
                     features["parent_id"] = parent_id
                     corpus_rows.append((child_id, features))
                 lineage = CandidateLineage(parent_id, round_idx + 1, mutation)

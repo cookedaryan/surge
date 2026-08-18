@@ -7,7 +7,7 @@ from sklearn.linear_model import Ridge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from .feature_schema import CATEGORICAL_FEATURES, NUMERIC_FEATURES
+from .feature_schema import CATEGORICAL_FEATURES, MODEL_FEATURES, NUMERIC_FEATURES
 from .validation import aggregate_project_metrics, macro_aggregate_metrics
 
 
@@ -46,12 +46,12 @@ def cross_validate_model(
 
         pipeline = build_pipeline(model_name, random_seed)
 
-        x_train = pd.DataFrame(train_rows)
+        x_train = pd.DataFrame(train_rows, columns=list(MODEL_FEATURES))
         y_train = [r["relative_quality"] for r in train_rows]
 
         pipeline.fit(x_train, y_train)
 
-        x_test = pd.DataFrame(test_rows)
+        x_test = pd.DataFrame(test_rows, columns=list(MODEL_FEATURES))
         preds = pipeline.predict(x_test)
 
         # Inject predictions back for validation
@@ -73,7 +73,7 @@ def train_final_model(
     model_name: str, rows: list[dict[str, Any]], random_seed: int = 42
 ) -> Pipeline:
     pipeline = build_pipeline(model_name, random_seed)
-    x_train = pd.DataFrame(rows)
+    x_train = pd.DataFrame(rows, columns=list(MODEL_FEATURES))
     y_train = [r["relative_quality"] for r in rows]
     pipeline.fit(x_train, y_train)
     return pipeline

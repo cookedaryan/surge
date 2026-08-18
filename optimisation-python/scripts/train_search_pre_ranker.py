@@ -1,8 +1,12 @@
 import argparse
 import logging
+import os
 import sys
+import tempfile
 from pathlib import Path
 
+import joblib
+import numpy as np
 import pandas as pd
 import sklearn
 
@@ -103,7 +107,8 @@ def main() -> None:
     # Select best
     best_model_name = select_best_model(results)
     logging.info(
-        f"Selected best model: {best_model_name} based on Top-K Recall (macro-by-project)"
+        "Selected best model: %s based on Top-K Recall (macro-by-project)",
+        best_model_name,
     )
 
     # Train final
@@ -112,20 +117,14 @@ def main() -> None:
 
     # Validate Serialization Round-Trip
     logging.info("Validating serialization round-trip...")
-    test_x = pd.DataFrame(usable_rows[:10])
+    test_x = pd.DataFrame(usable_rows[:10], columns=list(MODEL_FEATURES))
     preds_before = final_pipeline.predict(test_x)
-
-    import tempfile
-    import joblib
-    import os
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = os.path.join(tmpdir, "model.joblib")
         joblib.dump(final_pipeline, tmp_path)
         reloaded = joblib.load(tmp_path)
         preds_after = reloaded.predict(test_x)
-
-    import numpy as np
 
     if not np.allclose(preds_before, preds_after):
         logging.error("Serialization round-trip failed predictions check.")

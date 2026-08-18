@@ -3,9 +3,6 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
-import pytest
-
-from app.algorithms.route_graph import build_project_graph
 from app.algorithms.wtg_grouping import FeederAssignment, FeederGroupingResult
 from app.optimisation.candidate_search import _compute_mutation_features
 from app.optimisation.corpus.synthetic_projects import (
@@ -58,9 +55,8 @@ def test_synthetic_projects_are_deterministic_and_vary_capacity(
     assert cable_resistances == {0.03, 0.55}
 
 
-def test_reconnect_feature_uses_added_edge_weight() -> None:
+def test_reconnect_feature_uses_canonical_training_schema() -> None:
     project = build_demo_project_data()
-    graph = build_project_graph(project)
     turbine_ids = tuple(turbine.turbine_id for turbine in project.turbines)
     grouping = FeederGroupingResult(
         feeder_count=1,
@@ -82,15 +78,14 @@ def test_reconnect_feature_uses_added_edge_weight() -> None:
         mutation=mutation,
         mutation_weight=-123.0,
         parent_rank=1.0,
+        round_idx=0,
         grouping=grouping,
         turbines_by_id={t.turbine_id: t for t in project.turbines},
-        base_graph=graph,
     )
 
-    expected_weight = graph["wtg:T03"]["wtg:T04"]["weight"]
-    assert features["edge_weight"] == pytest.approx(expected_weight)
-    assert features["edge_weight"] != -123.0
-    assert features["turbine_dispersion_stddev"] != 0.0
+    assert features.heuristic_score == -123.0
+    assert features.round_idx == 1
+    assert features.turbine_dispersion_stddev != 0.0
 
 
 def test_training_corpus_emission_exercises_override_and_labels() -> None:
@@ -123,7 +118,10 @@ def test_training_corpus_emission_exercises_override_and_labels() -> None:
 
     assert result.status == OptimisationStatus.PARTIAL_SUCCESS
     assert len(rows) > search.max_neighbors_per_parent
-    assert len({row["edge_weight"] for row in rows}) > search.max_neighbors_per_parent
+    assert (
+        len({row["heuristic_score"] for row in rows})
+        > search.max_neighbors_per_parent
+    )
     assert {row["feasible"] for row in rows} == {True, False}
     for row in rows:
         assert row["project_id"] == "SYN-4-SPREAD-30"

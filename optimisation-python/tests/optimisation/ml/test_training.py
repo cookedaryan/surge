@@ -1,6 +1,11 @@
 import numpy as np
 
-from app.optimisation.ml.training import build_pipeline, cross_validate_model
+from app.optimisation.ml.feature_schema import MODEL_FEATURES
+from app.optimisation.ml.training import (
+    build_pipeline,
+    cross_validate_model,
+    train_final_model,
+)
 
 
 def test_pipeline_construction():
@@ -20,7 +25,7 @@ def test_project_isolated_folds(monkeypatch):
         {
             "project_id": "P1",
             "relative_quality": 0.0,
-            "heuristic_score": 0,
+            "heuristic_score": 10,
             "scenario_id": "1",
             "round_idx": 1,
             "parent_id": "X",
@@ -28,7 +33,7 @@ def test_project_isolated_folds(monkeypatch):
         {
             "project_id": "P1",
             "relative_quality": 1.0,
-            "heuristic_score": 0,
+            "heuristic_score": 10,
             "scenario_id": "2",
             "round_idx": 1,
             "parent_id": "X",
@@ -36,7 +41,7 @@ def test_project_isolated_folds(monkeypatch):
         {
             "project_id": "P2",
             "relative_quality": 0.0,
-            "heuristic_score": 0,
+            "heuristic_score": 20,
             "scenario_id": "3",
             "round_idx": 1,
             "parent_id": "X",
@@ -44,7 +49,7 @@ def test_project_isolated_folds(monkeypatch):
         {
             "project_id": "P2",
             "relative_quality": 1.0,
-            "heuristic_score": 0,
+            "heuristic_score": 20,
             "scenario_id": "4",
             "round_idx": 1,
             "parent_id": "X",
@@ -52,7 +57,7 @@ def test_project_isolated_folds(monkeypatch):
         {
             "project_id": "P3",
             "relative_quality": 0.0,
-            "heuristic_score": 0,
+            "heuristic_score": 30,
             "scenario_id": "5",
             "round_idx": 1,
             "parent_id": "X",
@@ -60,7 +65,7 @@ def test_project_isolated_folds(monkeypatch):
         {
             "project_id": "P3",
             "relative_quality": 1.0,
-            "heuristic_score": 0,
+            "heuristic_score": 30,
             "scenario_id": "6",
             "round_idx": 1,
             "parent_id": "X",
@@ -69,20 +74,12 @@ def test_project_isolated_folds(monkeypatch):
 
     calls = []
 
-    class DummyEstimator:
-        def fit(self, x, y):
-            calls.append(("fit", set(x["project_id"])))
-
-        def predict(self, x):
-            calls.append(("predict", set(x["project_id"])))
-            return np.zeros(len(x))
-
     class DummyPipeline:
         def fit(self, x, y):
-            calls.append(("fit", set(x["project_id"])))
+            calls.append(("fit", set(x["heuristic_score"])))
 
         def predict(self, x):
-            calls.append(("predict", set(x["project_id"])))
+            calls.append(("predict", set(x["heuristic_score"])))
             return np.zeros(len(x))
 
     monkeypatch.setattr(
@@ -97,6 +94,27 @@ def test_project_isolated_folds(monkeypatch):
         fit_projects = calls[i][1]
         test_projects = calls[i + 1][1]
         assert fit_projects.isdisjoint(test_projects)
+
+
+def test_final_pipeline_records_only_declared_model_features():
+    rows = [
+        {
+            **{feature: 0.0 for feature in MODEL_FEATURES},
+            "mutation_type": "EDGE_RECONNECT",
+            "relative_quality": 0.0,
+            "project_id": "must-not-be-an-input-feature",
+        },
+        {
+            **{feature: 1.0 for feature in MODEL_FEATURES},
+            "mutation_type": "FEEDER_SWAP",
+            "relative_quality": 1.0,
+            "project_id": "must-not-be-an-input-feature",
+        },
+    ]
+
+    pipeline = train_final_model("ridge", rows)
+
+    assert tuple(pipeline.feature_names_in_) == MODEL_FEATURES
 
 
 def test_reproducibility():

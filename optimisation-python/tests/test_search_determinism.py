@@ -5,16 +5,17 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
-import joblib
 import networkx as nx
-import numpy as np
 import pytest
 from shapely.geometry import Point
-from sklearn.dummy import DummyRegressor
 
 from app.algorithms.topology import CollectorTopologyResult, FeederTopology
 from app.algorithms.wtg_grouping import FeederAssignment, FeederGroupingResult
 from app.optimisation.orchestrator import optimise_project
+from app.optimisation.ranking_model import (
+    RankingModelInferenceError,
+    SklearnRankingModel,
+)
 from app.optimisation.scenarios import design_fingerprint
 from app.optimisation.search_models import RankingModelConfig
 from app.schemas.v2.domain_mapping import to_workflow_invocation
@@ -70,20 +71,8 @@ def test_hash_candidate_topology_is_order_independent() -> None:
 
 
 @pytest.fixture
-def dummy_model_path(tmp_path: Path) -> str:
-    model = DummyRegressor(strategy="constant", constant=42.0)
-    model.fit(np.zeros((1, 6)), np.zeros(1))
-    
-    model_dir = tmp_path / "dummy_model"
-    model_dir.mkdir()
-    
-    from app.optimisation.ml.feature_schema import PRE_RANKER_FEATURE_SCHEMA_VERSION
-    with open(model_dir / "metadata.json", "w") as f:
-        json.dump({"feature_schema_version": PRE_RANKER_FEATURE_SCHEMA_VERSION}, f)
-        
-    model_path = model_dir / "model.joblib"
-    joblib.dump(model, model_path)
-    return str(model_dir)
+def ranking_model_path() -> str:
+    return str(Path(__file__).parents[1] / "artifacts" / "ml" / "pre_ranker_v1")
 
 
 def test_ranking_model_disabled_parity() -> None:
@@ -131,14 +120,14 @@ def test_ranking_model_disabled_parity() -> None:
     )
 
 
-def test_ranking_model_enabled_determinism(dummy_model_path: str) -> None:
+def test_ranking_model_enabled_determinism(ranking_model_path: str) -> None:
     fixture_path = (
         Path(__file__).parent / "fixtures" / "corpus" / "SYN-4-SPREAD-30.json"
     )
     payload = cast(JsonObject, json.loads(fixture_path.read_text(encoding="utf-8")))
     invocation = to_workflow_invocation(OptimiseProjectRequest.model_validate(payload))
 
-    ranking_enabled = RankingModelConfig(enabled=True, model_path=dummy_model_path)
+    ranking_enabled = RankingModelConfig(enabled=True, model_path=ranking_model_path)
     search_config = replace(
         invocation.config.search,
         enabled=True,
@@ -171,3 +160,86 @@ def test_ranking_model_enabled_determinism(dummy_model_path: str) -> None:
         result1.search_result.statistics.unique_count
         == result2.search_result.statistics.unique_count
     )
+
+
+def test_inference_failure_reranks_whole_parent_batch_heuristically(
+    ranking_model_path: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_path = (
+        Path(__file__).parent / "fixtures" / "corpus" / "SYN-4-SPREAD-30.json"
+    )
+    payload = cast(JsonObject, json.loads(fixture_path.read_text(encoding="utf-8")))
+    invocation = to_workflow_invocation(OptimiseProjectRequest.model_validate(payload))
+    base_search = replace(
+        invocation.config.search,
+        enabled=True,
+        max_rounds=1,
+        beam_width=1,
+        max_search_evaluations=5,
+        max_candidate_proposals=5,
+    )
+    heuristic_result = optimise_project(
+        invocation.project_input,
+        replace(invocation.config, search=base_search),
+    )
+
+    def fail_inference(
+        self: SklearnRankingModel, feature: object
+    ) -> float:
+        raise RankingModelInferenceError("simulated batch failure")
+
+    monkeypatch.setattr(SklearnRankingModel, "score", fail_inference)
+    ranking_config = replace(
+        base_search,
+        ranking_model=RankingModelConfig(
+            enabled=True,
+            model_path=ranking_model_path,
+        ),
+    )
+    fallback_result = optimise_project(
+        invocation.project_input,
+        replace(invocation.config, search=ranking_config),
+    )
+
+    assert fallback_result.search_result is not None
+    assert heuristic_result.search_result is not None
+    assert fallback_result.search_result.final_best_scenario_id == (
+        heuristic_result.search_result.final_best_scenario_id
+    )
+    stats = fallback_result.search_result.statistics
+    assert stats.model_fallback_count > 0
+    assert stats.model_rank_calls == 0
+    assert stats.model_ranked_mutations == 0
+
+
+def test_model_load_failure_is_counted(tmp_path: Path) -> None:
+    fixture_path = (
+        Path(__file__).parent / "fixtures" / "corpus" / "SYN-4-SPREAD-30.json"
+    )
+    payload = cast(JsonObject, json.loads(fixture_path.read_text(encoding="utf-8")))
+    invocation = to_workflow_invocation(OptimiseProjectRequest.model_validate(payload))
+    search_config = replace(
+        invocation.config.search,
+        enabled=True,
+        max_rounds=1,
+        beam_width=1,
+        max_search_evaluations=1,
+        max_candidate_proposals=1,
+        ranking_model=RankingModelConfig(
+            enabled=True,
+            model_path=str(tmp_path / "missing-artifact"),
+        ),
+    )
+
+    result = optimise_project(
+        invocation.project_input,
+        replace(invocation.config, search=search_config),
+    )
+
+    assert result.search_result is not None
+    stats = result.search_result.statistics
+    assert stats.ranking_model_loaded is False
+    assert stats.model_fallback_count == 1
+    assert stats.model_rank_calls == 0
+    assert stats.model_ranked_mutations == 0

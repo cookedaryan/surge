@@ -15,7 +15,6 @@ class SearchTerminationReason(StrEnum):
 class RankingModelConfig:
     enabled: bool = False
     model_path: str | None = None
-    schema_version: str = "py040-v1"
 
     def __post_init__(self) -> None:
         if self.enabled and not self.model_path:
