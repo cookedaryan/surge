@@ -12,7 +12,7 @@ def compute_group_metrics(
 ) -> dict[str, float]:
     if k <= 0:
         raise ValueError("k must be strictly positive")
-        
+
     n = len(group_rows)
     if n <= 1:
         return {
@@ -83,7 +83,9 @@ def aggregate_project_metrics(
     return {
         "capture_at_k": float(np.mean([m["capture_at_k"] for m in group_metrics])),
         "top_k_recall": float(np.mean([m["top_k_recall"] for m in group_metrics])),
-        "rank_correlation": float(np.mean([m["rank_correlation"] for m in group_metrics])),
+        "rank_correlation": float(
+            np.mean([m["rank_correlation"] for m in group_metrics])
+        ),
     }
 
 
@@ -95,8 +97,12 @@ def macro_aggregate_metrics(
 
     n_proj = len(project_metrics)
     return {
-        "capture_at_k": float(sum(pm["capture_at_k"] for pm in project_metrics.values()) / n_proj),
-        "top_k_recall": float(sum(pm["top_k_recall"] for pm in project_metrics.values()) / n_proj),
+        "capture_at_k": float(
+            sum(pm["capture_at_k"] for pm in project_metrics.values()) / n_proj
+        ),
+        "top_k_recall": float(
+            sum(pm["top_k_recall"] for pm in project_metrics.values()) / n_proj
+        ),
         "rank_correlation": float(
             sum(pm["rank_correlation"] for pm in project_metrics.values()) / n_proj
         ),

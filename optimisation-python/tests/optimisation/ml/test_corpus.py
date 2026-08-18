@@ -106,3 +106,14 @@ def test_corpus_duplicate_scenario(tmp_path):
     rows[1]["scenario_id"] = "S1"
     with pytest.raises(ValueError, match="Duplicate scenario_id"):
         load_training_corpus(_write_corpus(rows, tmp_path))
+
+
+def test_corpus_requires_two_projects_with_usable_comparison_groups(tmp_path):
+    rows = _valid_corpus()
+    rows[3]["parent_id"] = "P-2"
+
+    with pytest.raises(
+        ValueError,
+        match="at least two projects with usable comparison groups",
+    ):
+        load_training_corpus(_write_corpus(rows, tmp_path))
