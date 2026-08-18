@@ -123,6 +123,11 @@ def _search_statistics() -> CandidateSearchStatistics:
         search_evaluation_budget=10,
         proposed_candidate_budget=20,
         termination_reason=SearchTerminationReason.NO_NEW_UNIQUE_CANDIDATES,
+        ranking_model_enabled=False,
+        ranking_model_loaded=False,
+        model_rank_calls=0,
+        model_ranked_mutations=0,
+        model_fallback_count=0,
     )
 
 

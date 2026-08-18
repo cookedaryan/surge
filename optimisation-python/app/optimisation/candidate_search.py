@@ -18,6 +18,12 @@ from app.gis.cost_surface import CostSurface
 from app.models.spatial import WindTurbine
 from app.optimisation.candidate_evaluation import evaluate_candidate
 from app.optimisation.candidate_validation import validate_candidate_structure
+from app.optimisation.ranking_model import (
+    HeuristicRankingModel,
+    RankingModelInferenceError,
+    build_feature_vector,
+    load_ranking_model,
+)
 from app.optimisation.scenario_builder import materialize_candidate_design
 from app.optimisation.scenario_models import (
     AttemptOutcome,
@@ -43,6 +49,7 @@ from app.optimisation.search_models import (
     EdgeReconnectMutation,
     FeederReassignmentMutation,
     FeederSwapMutation,
+    SearchMutation,
     SearchTerminationReason,
 )
 from app.optimisation.workflow_models import (
@@ -514,6 +521,11 @@ def run_candidate_beam_search(
             search_evaluation_budget=search_config.max_search_evaluations,
             proposed_candidate_budget=search_config.max_candidate_proposals,
             termination_reason=termination_reason,
+            ranking_model_enabled=search_config.ranking_model.enabled,
+            ranking_model_loaded=False,
+            model_rank_calls=0,
+            model_ranked_mutations=0,
+            model_fallback_count=0,
         )
         return (
             tuple(scored_archive.values()),
@@ -531,6 +543,10 @@ def run_candidate_beam_search(
         )
 
     archive, current_rec = _score_archive(archive, config, electrical_context_id)
+    ranking_model = load_ranking_model(search_config.ranking_model)
+    ranking_model_fallback_count = 0
+    ranking_model_rank_calls = 0
+    ranking_model_ranked_mutations = 0
 
     def get_rank(candidate: CandidateWorkflowResult) -> float:
         evaluation = candidate.evaluation
@@ -585,6 +601,31 @@ def run_candidate_beam_search(
                 search_config.corpus_neighbor_override
                 or search_config.max_neighbors_per_parent
             )
+
+            def rank_key(
+                item: tuple[float, SearchMutation],
+                parent_rank: float = parent_rank,
+                round_idx: int = round_idx,
+            ) -> tuple[float, str]:
+                nonlocal ranking_model_fallback_count, ranking_model_ranked_mutations
+                ranking_model_ranked_mutations += 1
+                weight, mutation = item
+                feature = build_feature_vector(
+                    mutation=mutation,
+                    weight=weight,
+                    parent_rank=parent_rank,
+                    round_idx=round_idx,
+                    schema_version=search_config.ranking_model.schema_version,
+                    turbines_by_id=turbines_by_id,
+                )
+                try:
+                    score = ranking_model.score(feature)
+                    return (score, repr(mutation))
+                except RankingModelInferenceError:
+                    ranking_model_fallback_count += 1
+                    return (weight, repr(mutation))
+
+            ranking_model_rank_calls += 1
             top_mutations = nsmallest(
                 limit,
                 chain(
@@ -602,7 +643,7 @@ def run_candidate_beam_search(
                     ),
                     _generate_reconnect_mutations(base_graph, topology),
                 ),
-                key=lambda item: (item[0], repr(item[1])),
+                key=rank_key,
             )
             for mutation_weight, mutation in top_mutations:
                 if stats_proposed >= search_config.max_candidate_proposals:
@@ -789,6 +830,11 @@ def run_candidate_beam_search(
         search_evaluation_budget=search_config.max_search_evaluations,
         proposed_candidate_budget=search_config.max_candidate_proposals,
         termination_reason=termination_reason,
+        ranking_model_enabled=search_config.ranking_model.enabled,
+        ranking_model_loaded=not isinstance(ranking_model, HeuristicRankingModel),
+        model_rank_calls=ranking_model_rank_calls,
+        model_ranked_mutations=ranking_model_ranked_mutations,
+        model_fallback_count=ranking_model_fallback_count,
     )
 
     search_result = CandidateSearchResult(

@@ -18,12 +18,16 @@ def load_training_corpus(path: Path) -> TrainingCorpus:
         if not reader.fieldnames:
             raise ValueError("Corpus has no columns")
 
-        required_cols = set(COMPARISON_GROUP_COLUMNS) | set(MODEL_FEATURES) | {
-            "evaluation.rank",
-            "total_route_length_m",
-            "feasible",
-            "scenario_id",
-        }
+        required_cols = (
+            set(COMPARISON_GROUP_COLUMNS)
+            | set(MODEL_FEATURES)
+            | {
+                "evaluation.rank",
+                "total_route_length_m",
+                "feasible",
+                "scenario_id",
+            }
+        )
 
         missing = required_cols - set(reader.fieldnames)
         if missing:
@@ -55,8 +59,7 @@ def load_training_corpus(path: Path) -> TrainingCorpus:
         project_scenario = (row["project_id"], scenario_id)
         if project_scenario in scenario_ids:
             raise ValueError(
-                f"Duplicate scenario_id: {scenario_id} "
-                f"for project {row['project_id']}"
+                f"Duplicate scenario_id: {scenario_id} for project {row['project_id']}"
             )
         scenario_ids.add(project_scenario)
 
@@ -112,11 +115,7 @@ def load_training_corpus(path: Path) -> TrainingCorpus:
             row["lifecycle_cost"] = lifecycle_cost
 
             route_length = float(row["total_route_length_m"])
-            if (
-                math.isnan(route_length)
-                or math.isinf(route_length)
-                or route_length < 0
-            ):
+            if math.isnan(route_length) or math.isinf(route_length) or route_length < 0:
                 raise ValueError(
                     f"Row {i} has invalid total_route_length_m: {route_length}"
                 )

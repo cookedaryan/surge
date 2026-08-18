@@ -12,6 +12,17 @@ class SearchTerminationReason(StrEnum):
 
 
 @dataclass(frozen=True)
+class RankingModelConfig:
+    enabled: bool = False
+    model_path: str | None = None
+    schema_version: str = "py040-v1"
+
+    def __post_init__(self) -> None:
+        if self.enabled and not self.model_path:
+            raise ValueError("model_path must be a non-empty string when enabled=True")
+
+
+@dataclass(frozen=True)
 class CandidateSearchConfig:
     """Configuration for deterministic candidate beam search.
 
@@ -26,6 +37,7 @@ class CandidateSearchConfig:
     max_candidate_proposals: int = 200
     emit_training_corpus: bool = False
     corpus_neighbor_override: int | None = None
+    ranking_model: RankingModelConfig = field(default_factory=RankingModelConfig)
 
     def __post_init__(self) -> None:
         if not self.emit_training_corpus:
@@ -107,6 +119,11 @@ class CandidateSearchStatistics:
     search_evaluation_budget: int
     proposed_candidate_budget: int
     termination_reason: SearchTerminationReason
+    ranking_model_enabled: bool
+    ranking_model_loaded: bool
+    model_rank_calls: int
+    model_ranked_mutations: int
+    model_fallback_count: int
 
 
 @dataclass(frozen=True)
