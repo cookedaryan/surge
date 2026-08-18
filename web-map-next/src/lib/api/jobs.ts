@@ -5,17 +5,41 @@ export async function getRoutesGeoJson(projectId: string, jobId?: string | null)
   // Without a specific jobId (e.g. on page load, or after switching to a project that
   // already has a completed run from an earlier session) fall back to the project's most
   // recent completed job instead of rendering an empty map.
-  const url = jobId
-    ? `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/routes/geojson`
-    : `${API_BASE_URL}/projects/${projectId}/routes/latest/geojson`;
-  return fetchGeoJsonOrThrow(url, 'routes');
+  if (!jobId) {
+    return fetchLatestGeoJson(`${API_BASE_URL}/projects/${projectId}/routes/latest/geojson`, 'routes');
+  }
+  return fetchGeoJsonOrThrow(`${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/routes/geojson`, 'routes');
 }
 
 export async function getPolesGeoJson(projectId: string, jobId?: string | null): Promise<FeatureCollection> {
-  const url = jobId
-    ? `${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/poles/geojson`
-    : `${API_BASE_URL}/projects/${projectId}/poles/latest/geojson`;
-  return fetchGeoJsonOrThrow(url, 'poles');
+  if (!jobId) {
+    return fetchLatestGeoJson(`${API_BASE_URL}/projects/${projectId}/poles/latest/geojson`, 'poles');
+  }
+  return fetchGeoJsonOrThrow(`${API_BASE_URL}/projects/${projectId}/jobs/${jobId}/poles/geojson`, 'poles');
+}
+
+/**
+ * The "most recent run" endpoints, where having never run is a normal state rather than a failure.
+ *
+ * <p>A project that has not been optimised yet has no latest job, and the API says so with a 400
+ * naming that exact condition. Treated as an error — which it was — every newly created project
+ * opened under a red banner reading "the map is not showing everything, reload before relying on
+ * it", about a map that was showing everything there was.
+ *
+ * <p>Narrow on purpose. Only this endpoint, and only this one condition, resolves to an empty
+ * collection; every other failure still throws, because the reason these fetchers stopped
+ * swallowing errors in the first place was a real fault that spent an hour disguised as
+ * "the optimiser produced nothing" (see {@link fetchGeoJsonOrThrow}).
+ */
+async function fetchLatestGeoJson(url: string, what: string): Promise<FeatureCollection> {
+  try {
+    return await fetchGeoJsonOrThrow(url, what);
+  } catch (err) {
+    if (/no completed optimization jobs/i.test((err as Error).message)) {
+      return { type: 'FeatureCollection', features: [] };
+    }
+    throw err;
+  }
 }
 
 /**

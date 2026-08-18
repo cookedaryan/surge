@@ -83,7 +83,10 @@ export function SidePanel({ children }: { children: ReactNode }) {
       ref={asideRef}
       aria-label="Workspace panel"
       style={{ width: collapsed ? 0 : width }}
-      className={`relative flex-none bg-panel border-r border-border ${
+      // min-w-0 is load-bearing, not defensive. A flex item's automatic minimum size is its
+      // content's, so without it the panel refuses to shrink below the ~300px its cards occupy and
+      // collapsing sets width:0 to no visible effect.
+      className={`relative flex-none min-w-0 bg-panel border-r border-border ${
         collapsed ? 'overflow-hidden border-r-0' : 'overflow-y-auto'
       } ${
         // Animating width during a drag would make the panel lag the pointer.

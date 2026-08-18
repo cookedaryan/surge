@@ -73,4 +73,33 @@ describe('route and pole GeoJSON fetching', () => {
 
     expect(String(fetchMock.mock.calls[0][0])).toContain('/routes/latest/geojson');
   });
+
+  // A project that has never been optimised has no latest run. The API reports that with a 400
+  // naming the condition, and treating it as a load failure put a red "the map is not showing
+  // everything" banner over every newly created project.
+  const noRuns = () =>
+    new Response(
+      JSON.stringify({ status: 400, message: 'No completed optimization jobs found for project: ' + PROJECT }),
+      { status: 400, headers: { 'content-type': 'application/json' } }
+    );
+
+  it('reports a project with no completed runs as empty rather than broken', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => noRuns()));
+
+    await expect(getRoutesGeoJson(PROJECT, null)).resolves.toEqual({ type: 'FeatureCollection', features: [] });
+    await expect(getPolesGeoJson(PROJECT, null)).resolves.toEqual({ type: 'FeatureCollection', features: [] });
+  });
+
+  it('still throws for a named job, which cannot be missing for want of any run', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => noRuns()));
+
+    await expect(getRoutesGeoJson(PROJECT, JOB)).rejects.toThrow();
+  });
+
+  it('still throws on other latest-run failures', async () => {
+    // The allowance is for one specific condition, not for 4xx and 5xx generally.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('upstream exploded', { status: 500 })));
+
+    await expect(getRoutesGeoJson(PROJECT, null)).rejects.toThrow();
+  });
 });
