@@ -6,6 +6,7 @@ import { MapCanvas, type MapCanvasHandle } from './MapCanvas';
 import { BomStrip } from '../bom/BomStrip';
 import { MapLegendToggle } from './MapLegend';
 import { Tooltip } from '../../components/ui';
+import { NoProjectsOverlay } from '../projects/NoProjectsOverlay';
 
 interface MapAreaContentProps {
   mapRef: RefObject<MapCanvasHandle>;
@@ -80,6 +81,7 @@ export function MapAreaContent({ mapRef }: MapAreaContentProps) {
         </Tooltip>
       </div>
       <BomStrip />
+      <NoProjectsOverlay />
     </>
   );
 }
