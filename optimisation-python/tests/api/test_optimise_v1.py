@@ -113,6 +113,7 @@ def test_v1_without_constraints_preserves_uniform_cost_routing(
     assert len(route_geometry.coords) == 2
     assert route_geometry.hausdorff_distance(direct_route) < 1e-9
 
+
 def test_v1_costing_config_produces_real_candidate_costs(
     constraint_v1_payload: dict[str, Any],
 ) -> None:
@@ -197,6 +198,7 @@ def test_v1_without_costing_config_stays_uncosted(
 
     assert response.status_code == 200, response.text
     assert all(c.get("cost") is None for c in response.json()["candidates"])
+
 
 def test_v1_reports_an_uncovered_conductor_rather_than_costing_it_at_zero(
     constraint_v1_payload: dict[str, Any],

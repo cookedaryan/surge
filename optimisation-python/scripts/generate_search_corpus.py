@@ -4,6 +4,7 @@ import logging
 import sys
 from collections.abc import Mapping
 from dataclasses import replace
+from typing import Any
 from pathlib import Path
 
 COMPONENT_DIR = Path(__file__).resolve().parent.parent
@@ -67,8 +68,8 @@ def generate_corpus(output_path: Path | None = None) -> Path:
     fixtures_dir = COMPONENT_DIR / "tests" / "fixtures" / "corpus"
     output_path = output_path or COMPONENT_DIR / "search_corpus.csv"
 
-    expected_projects = set()
-    writer: csv.DictWriter | None = None
+    expected_projects: set[str] = set()
+    writer: csv.DictWriter[Any] | None = None
     with open(output_path, "w", newline="", encoding="utf-8") as corpus_file:
 
         def corpus_sink(row: Mapping[str, object]) -> None:
@@ -108,9 +109,7 @@ def generate_corpus(output_path: Path | None = None) -> Path:
                     f"{json_file.name} failed with status {res.status.value}"
                 )
 
-            logging.info(
-                "Finished %s with status %s", json_file.name, res.status.value
-            )
+            logging.info("Finished %s with status %s", json_file.name, res.status.value)
 
     _validate_corpus(output_path, expected_projects)
     return output_path

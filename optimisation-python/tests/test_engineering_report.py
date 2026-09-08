@@ -141,6 +141,20 @@ def test_hard_exclusion_is_suppressed_by_schema_version(
     assert "Hard-exclusion compliance count is not reported" not in verified_rendered
 
 
+def test_schema_version_constant_is_wired_correctly(
+    base_report: DecisionReport,
+) -> None:
+    """The base_report fixture must use the centralised schema version constant.
+
+    If CURRENT_REPORT_SCHEMA_VERSION is updated in schema_version.py, the
+    limitations lookup must still work — this test catches a drift between the
+    fixture's literal and the constant actually used by builder.py.
+    """
+    from app.reporting.schema_version import CURRENT_REPORT_SCHEMA_VERSION
+
+    assert base_report.schema_version == CURRENT_REPORT_SCHEMA_VERSION
+
+
 def test_unique_owners_is_explicitly_not_available(
     base_report: DecisionReport,
 ) -> None:

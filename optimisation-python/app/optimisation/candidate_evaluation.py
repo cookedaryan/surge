@@ -12,6 +12,7 @@ from app.electrical.repair import (
     repair_electrical_design,
 )
 from app.land.decision import assess_candidate_land
+from app.land.models import CandidateLandAssessment
 from app.optimisation import engineering_metrics as _engineering_metrics
 from app.optimisation.engineering_metric_models import (
     CandidateEngineeringAssessment,
@@ -312,6 +313,7 @@ def evaluate_candidate(
 
     # 1.6 Initial Pole Placement and Micro-Siting
     pole_result = None
+    micro_siting_failed = False
     if config.pole:
         try:
             pole_result = _engineering_metrics.place_poles_on_network(
@@ -319,20 +321,29 @@ def evaluate_candidate(
             )
 
             if config.pole.micro_siting and config.pole.micro_siting.enabled:
-                micro_context = PoleMicroSitingContext(
-                    route_geometries={
-                        route.route_id: route.geometry for route in pole_result.routes
-                    },
-                    constraint_layers=project_input.constraint_layers,
-                    land_context=project_input.land_context,
-                    pole_config=config.pole,
-                )
-                pole_result, _ = optimize_poles(
-                    pole_result, micro_context, config.pole.micro_siting
-                )
+                try:
+                    micro_context = PoleMicroSitingContext(
+                        route_geometries={
+                            route.route_id: route.geometry
+                            for route in pole_result.routes
+                        },
+                        constraint_layers=project_input.constraint_layers,
+                        land_context=project_input.land_context,
+                        pole_config=config.pole,
+                    )
+                    pole_result, _ = optimize_poles(
+                        pole_result, micro_context, config.pole.micro_siting
+                    )
+                except Exception as ms_exc:
+                    logger.warning(
+                        "%s micro-siting failed, falling back to base placement: %s",
+                        scenario.scenario_id,
+                        str(ms_exc),
+                    )
+                    micro_siting_failed = True
         except Exception as exc:
             logger.warning(
-                "%s pole placement/micro-siting failed: %s",
+                "%s pole placement failed: %s",
                 scenario.scenario_id,
                 str(exc),
             )
@@ -340,14 +351,14 @@ def evaluate_candidate(
 
     # 1.7 Land Assessment
     lifecycle_config = config.costing.lifecycle if config.costing else None
-    land_assessment = assess_candidate_land(
-        scenario_id=scenario.scenario_id,
-        parcel_exposures=(
-            spatial_result.parcel_exposures if spatial_result is not None else ()
-        ),
-        land_context=project_input.land_context,
-        lifecycle_config=lifecycle_config,
-    )
+    land_assessment: CandidateLandAssessment | None = None
+    if spatial_result is not None:
+        land_assessment = assess_candidate_land(
+            scenario_id=scenario.scenario_id,
+            parcel_exposures=spatial_result.parcel_exposures,
+            land_context=project_input.land_context,
+            lifecycle_config=lifecycle_config,
+        )
 
     # 2. Canonical Engineering Metrics
     assessment = build_candidate_engineering_metrics(
@@ -355,12 +366,17 @@ def evaluate_candidate(
         load_flow_result=repair_result.load_flow_result,
         load_flow_config=repair_result.final_electrical_config,
         pole_config=config.pole,
-        owner_interaction_count=land_assessment.owner_interaction_count,
+        owner_interaction_count=(
+            land_assessment.owner_interaction_count
+            if land_assessment is not None
+            else 0
+        ),
         spatial_result=spatial_result,
         pole_result=pole_result,
+        micro_siting_failed=micro_siting_failed,
     )
 
-    if not land_assessment.is_feasible:
+    if land_assessment is not None and not land_assessment.is_feasible:
         logger.warning("%s crosses unavailable land parcel(s)", scenario.scenario_id)
         assessment = CandidateEngineeringAssessment(
             scenario_id=scenario.scenario_id,
