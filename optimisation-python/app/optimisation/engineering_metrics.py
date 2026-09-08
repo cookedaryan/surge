@@ -79,6 +79,7 @@ def build_candidate_engineering_metrics(
     owner_interaction_count: int = 0,
     pole_config: PolePlacementConfig | None = None,
     pole_result: CollectorPoleResult | None = None,
+    micro_siting_failed: bool = False,
 ) -> CandidateEngineeringAssessment:
     """Extract canonical engineering metrics for one candidate.
 
@@ -235,6 +236,15 @@ def build_candidate_engineering_metrics(
                 )
             )
 
+    notices: list[EngineeringMetricFailure] = []
+    if micro_siting_failed:
+        notices.append(
+            EngineeringMetricFailure(
+                EngineeringMetricFailureCode.MICRO_SITING_FAILED,
+                "Micro-siting failed; candidate uses base pole positions.",
+            )
+        )
+
     return CandidateEngineeringAssessment(
         scenario_id=scenario.scenario_id,
         metrics=metrics,
@@ -243,6 +253,7 @@ def build_candidate_engineering_metrics(
         extraction_failures=tuple(failures),
         pole_result=pole_result,
         parcel_exposures=parcel_exposures,
+        degradation_notices=tuple(notices),
     )
 
 

@@ -86,6 +86,7 @@ class EngineeringMetricFailureCode(StrEnum):
     LAND_PARCEL_UNAVAILABLE = "LAND_PARCEL_UNAVAILABLE"
     POLE_CONFIG_MISSING = "POLE_CONFIG_MISSING"
     POLE_PLACEMENT_FAILED = "POLE_PLACEMENT_FAILED"
+    MICRO_SITING_FAILED = "MICRO_SITING_FAILED"
     LOAD_FLOW_NOT_CONVERGED = "LOAD_FLOW_NOT_CONVERGED"
     ELECTRICAL_METRICS_MISSING = "ELECTRICAL_METRICS_MISSING"
     ELECTRICAL_METRICS_NOT_FINITE = "ELECTRICAL_METRICS_NOT_FINITE"
@@ -115,6 +116,7 @@ class CandidateEngineeringAssessment:
     extraction_failures: tuple[EngineeringMetricFailure, ...]
     pole_result: CollectorPoleResult | None = None
     parcel_exposures: tuple[ParcelEngineeringExposure, ...] = ()
+    degradation_notices: tuple[EngineeringMetricFailure, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.scenario_id.strip():
