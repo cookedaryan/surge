@@ -463,7 +463,7 @@ public class OptimizationJobService {
     /**
      * Builds one avoidance FeatureCollection from the project's already-reviewed and persisted
      * reference lines, cadastral parcels, and restricted areas, following the routing-treatment
-     * policy from docs/whats-next.md §2.2: roads/HT-lines/watercourses and land parcels are soft
+     * policy from docs/planning/whats-next.md §2.2: roads/HT-lines/watercourses and land parcels are soft
      * (crossable, penalized) constraints; restricted/no-go areas are hard exclusions. Returns null
      * when the project has no such features, so the request omits avoidance_geojson entirely
      * rather than sending an empty collection.

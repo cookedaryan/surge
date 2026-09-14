@@ -12,7 +12,7 @@ implemented. PY-018 through PY-020 own scoring/recommendation, orchestration,
 and compatible API/end-to-end integration respectively. ML ranking and raw GIS
 constraint rasterization are post-MVP.
 
-See [`../docs/Surge MVP Ticket Plan.md`](../docs/Surge%20MVP%20Ticket%20Plan.md)
+See [`../docs/planning/Surge MVP Ticket Plan.md`](../docs/planning/Surge%20MVP%20Ticket%20Plan.md)
 for the authoritative ticket boundaries.
 
 ## Project Structure

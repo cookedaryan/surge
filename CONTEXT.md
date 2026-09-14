@@ -23,7 +23,7 @@ network) rather than only against fixtures.
 | CI | Four jobs — Java, Python, frontend, container builds |
 
 **Not production-ready.** Three deployment blockers are tracked in
-[§5.7 of the gap closure plan](docs/MVP%20Gap%20Closure%20Plan.md): credential defaults that ship
+[§5.7 of the gap closure plan](docs/planning/MVP%20Gap%20Closure%20Plan.md): credential defaults that ship
 insecure, no brute-force protection on login, and no TLS. Several areas have never had a security
 review at all.
 
@@ -211,4 +211,4 @@ with greedy rebalancing, so feeders obey `feeder_capacity_mw` and cables are not
 Subsequently: SURGE-PY-014 PNC assembly, PY-015 pandapower AC load flow, PY-016 map-ready result
 packaging, PY-017 deterministic candidate scenario generation, PY-019 orchestration, PY-026
 canonical candidate engineering metrics, PY-028 lifecycle cost model. See
-[`docs/Surge MVP Ticket Plan.md`](docs/Surge%20MVP%20Ticket%20Plan.md).
+[`docs/planning/Surge MVP Ticket Plan.md`](docs/planning/Surge%20MVP%20Ticket%20Plan.md).

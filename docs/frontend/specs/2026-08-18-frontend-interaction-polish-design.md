@@ -2,7 +2,7 @@
 
 Date: 2026-08-18
 Status: Approved for implementation
-Supersedes nothing. Successor to [`2026-08-12-web-map-frontend-redesign-design.md`](./2026-08-12-web-map-frontend-redesign-design.md).
+Supersedes nothing. Successor to [`2026-08-12-web-map-frontend-redesign-design.md`](2026-08-12-web-map-frontend-redesign-design.md).
 
 ## 1. Problem & Goals
 

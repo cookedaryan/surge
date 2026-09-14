@@ -4281,7 +4281,7 @@ git commit -m "chore: cut over Docker, CI, and docs from web-map to web-map-next
 
 ## Execution Handoff
 
-Plan complete and saved to `docs/superpowers/plans/2026-08-12-web-map-frontend-redesign.md`. Two execution options:
+Plan complete and saved to `docs/frontend/plans/2026-08-12-web-map-frontend-redesign.md`. Two execution options:
 
 **1. Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration.
 

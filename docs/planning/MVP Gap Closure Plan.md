@@ -30,7 +30,7 @@ not by trusting prior status notes.
 - Optimisation dispatch: Java queries persisted WTGs/substations, builds a
   proximity-based primary-substation selection, and calls the Python engine.
 - Constraint transport: `OptimizationJobService.buildAvoidanceGeoJson()`
-  ([OptimizationJobService.java:290](../backend-java/src/main/java/com/power/surge/service/OptimizationJobService.java)) sends reference lines, parcels, and
+  ([OptimizationJobService.java:290](../../backend-java/src/main/java/com/power/surge/service/OptimizationJobService.java)) sends reference lines, parcels, and
   restricted areas as a real GeoJSON `FeatureCollection` with
   `constraint_type`/`routing_mode`/`buffer_m`/`cost_weight` to Python on every
   job.
@@ -67,16 +67,16 @@ not by trusting prior status notes.
 **Finding A — the four optimisation scenarios do nothing.**
 The scenario dropdown (`Balanced` / `Minimum Cost` / `Minimum Land Impact` /
 `Minimum Environmental Impact`,
-[OptimizationPane.tsx:12-14](../web-map-next/src/features/optimization/OptimizationPane.tsx)) only sets a display-label string.
+[OptimizationPane.tsx:12-14](../../web-map-next/src/features/optimization/OptimizationPane.tsx)) only sets a display-label string.
 `OptimizationJobService` always defaults `capexWeight`/`lossesWeight` to
-`0.5`/`0.5` ([OptimizationJobService.java:123-124](../backend-java/src/main/java/com/power/surge/service/OptimizationJobService.java)) regardless of which
+`0.5`/`0.5` ([OptimizationJobService.java:123-124](../../backend-java/src/main/java/com/power/surge/service/OptimizationJobService.java)) regardless of which
 label was picked, and — critically — `PythonOptimisationRequest` has no field
 for either weight at all, so they are never sent to Python in the first
 place. Python's V1 endpoint (the one Java actually calls) defaults
 `scoring_weights` to a fixed `ScoringWeightsRequest()`
 (`route_length_weight=0.4, electrical_loss_weight=0.25,
 cable_loading_weight=0.20, voltage_margin_weight=0.15`,
-[v2/optimise.py:86-89](../optimisation-python/app/schemas/v2/optimise.py)) on every call. Running the same
+[v2/optimise.py:86-89](../../optimisation-python/app/schemas/v2/optimise.py)) on every call. Running the same
 project under all four scenario labels today produces byte-identical
 candidate scores, byte-identical routes, and byte-identical pole layouts.
 This is the literal MVP release gate from the Obsidian plan ("run each of the
@@ -126,7 +126,7 @@ needs to be *connected*, not built.
 ### 2.1 Design: what actually drives each scenario
 
 Python's candidate scorer (`CandidateScoringConfig`,
-[scoring_models.py:20-24](../optimisation-python/app/optimisation/scoring_models.py)) ranks already-generated candidates on
+[scoring_models.py:20-24](../../optimisation-python/app/optimisation/scoring_models.py)) ranks already-generated candidates on
 exactly four metrics: `route_length`, `electrical_loss`, `cable_loading`,
 `voltage_margin`. There is no "land impact" or "environmental impact" metric
 in that scorer, and adding one is explicitly deferred to P1 in

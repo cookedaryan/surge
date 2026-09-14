@@ -160,7 +160,7 @@ output. The numbering freezes at SURGE-PY-020 for the MVP.
 Raw boundary/restriction transport and rasterization are not part of this MVP.
 Internal routing and scenario generation continue to respect blocked or
 penalized cells already present in a prepared `CostSurface`. See
-[Surge MVP Ticket Plan](Surge%20MVP%20Ticket%20Plan.md) for the authoritative
+[Surge MVP Ticket Plan](../planning/Surge%20MVP%20Ticket%20Plan.md) for the authoritative
 boundaries and compatibility rules.
 
 ## Input Assumptions
