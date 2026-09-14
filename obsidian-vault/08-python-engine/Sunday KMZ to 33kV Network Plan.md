@@ -2,7 +2,7 @@
 
 **Sprint Target:** Sunday, 16 August 2026  
 **Status:** **Delivered & Production-Verified**  
-**Authoritative Plan Reference:** [`docs/whats-next.md`](../../docs/whats-next.md)
+**Authoritative Plan Reference:** [`docs/planning/whats-next.md`](../../docs/planning/whats-next.md)
 
 ---
 

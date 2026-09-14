@@ -5,7 +5,7 @@ The route scoring engine (`app/algorithms/route_scoring.py`) provides preliminar
 
 This module was delivered under SURGE-PY-012. It is now a **legacy/preliminary compatibility scorer**. The canonical SURGE-PY-027 recommendation boundary is `app.optimisation.scoring`, which unifies spatial and electrical metrics into a single multi-objective score.
 
-See [Multi-Objective Candidate Scoring](Multi-Objective%20Candidate%20Scoring.md) for the canonical scoring engine.
+See [Multi-Objective Candidate Scoring](../optimisation/Multi-Objective%20Candidate%20Scoring.md) for the canonical scoring engine.
 
 ## Candidate Scope
 Currently, the module strictly scores `NetworkCandidateMetrics`. It expects to compare complete alternative networks representing the same engineering decision under the same `comparison_group_id`. It does not support mixed-scope evaluation (e.g., scoring a single route segment against a full feeder) because that produces meaningless relative rankings.

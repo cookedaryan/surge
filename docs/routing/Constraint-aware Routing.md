@@ -73,5 +73,5 @@ source artifacts and documented transformations, respectively.
 Upgrading it to a verified round-trip fixture requires a fixed test KMZ to pass
 through the real frontend/Java workflow, followed by capture and comparison of
 the exact request `OptimizationJobService` sends to Python. See the
-[fixture provenance README](../optimisation-python/tests/fixtures/README.md) for
+[fixture provenance README](../../optimisation-python/tests/fixtures/README.md) for
 the ownership and evidence requirements.

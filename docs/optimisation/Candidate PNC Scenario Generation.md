@@ -38,6 +38,6 @@ Focused verification on 2026-08-12 passed all 65 scenario tests and strict mypy
 checking. Ruff found one import-order issue in `app/optimisation/__init__.py`;
 the implementation was left untouched during this documentation-only update.
 
-See [Surge MVP Ticket Plan](Surge%20MVP%20Ticket%20Plan.md) for the canonical
-sequence and [the Obsidian implementation note](../obsidian-vault/08-python-engine/Candidate%20PNC%20Scenario%20Generation.md)
+See [Surge MVP Ticket Plan](../planning/Surge%20MVP%20Ticket%20Plan.md) for the canonical
+sequence and [the Obsidian implementation note](../../obsidian-vault/08-python-engine/Candidate%20PNC%20Scenario%20Generation.md)
 for the detailed parameter schedule and model descriptions.

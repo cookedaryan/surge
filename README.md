@@ -154,7 +154,7 @@ could catch an accidental `permitAll`.
 ## Security: before you deploy
 
 This runs safely on a laptop. Three things must change before it is reachable from the internet,
-tracked in [§5.7 of the gap closure plan](docs/MVP%20Gap%20Closure%20Plan.md):
+tracked in [§5.7 of the gap closure plan](docs/planning/MVP%20Gap%20Closure%20Plan.md):
 
 1. **Credential defaults.** `SURGE_BOOTSTRAP_ADMIN_PASSWORD` defaults to `admin` and `DB_PASSWORD`
    to `postgres`. A fresh database seeds `admin`/`admin` unless you say otherwise.
@@ -174,12 +174,14 @@ review. Fine behind a VPN; not fine on a public URL holding client survey data.
 
 ## Documentation
 
+Browse the [documentation index](docs/README.md) for all documents grouped by topic.
+
 - [`CONTEXT.md`](CONTEXT.md) — implementation status and the full progress record
-- [`docs/MVP Gap Closure Plan.md`](docs/MVP%20Gap%20Closure%20Plan.md) — the living plan, with what
+- [`docs/planning/MVP Gap Closure Plan.md`](docs/planning/MVP%20Gap%20Closure%20Plan.md) — the living plan, with what
   each piece of work actually produced and what it got wrong
-- [`docs/MVP - Minimum Viable Product.md`](docs/MVP%20-%20Minimum%20Viable%20Product.md) — scope
-- [`docs/Python Engine - Architecture.md`](docs/Python%20Engine%20-%20Architecture.md) — optimiser internals
-- [`docs/Surge MVP Ticket Plan.md`](docs/Surge%20MVP%20Ticket%20Plan.md) — the SURGE-PY ticket sequence
+- [`docs/product/MVP - Minimum Viable Product.md`](docs/product/MVP%20-%20Minimum%20Viable%20Product.md) — scope
+- [`docs/architecture/Python Engine - Architecture.md`](docs/architecture/Python%20Engine%20-%20Architecture.md) — optimiser internals
+- [`docs/planning/Surge MVP Ticket Plan.md`](docs/planning/Surge%20MVP%20Ticket%20Plan.md) — the SURGE-PY ticket sequence
 - `obsidian-vault/` — design notes and research
 
 `web-map/` is the previous vanilla-JS frontend. Kept for reference, no longer built or deployed.
