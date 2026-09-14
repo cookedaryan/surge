@@ -1,0 +1,224 @@
+{
+  "node_count": 2061,
+  "unverified_node_count": 0,
+  "raw_edge_count": 9594,
+  "non_object_edges": 0,
+  "missing_endpoint_edges": 0,
+  "dangling_endpoint_edges": 481,
+  "self_loop_edges": 0,
+  "valid_candidate_edges": 9113,
+  "exact_duplicate_edges": 214,
+  "directed_unique_endpoint_pairs": 7389,
+  "directed_same_endpoint_collapsed_edges": 1724,
+  "undirected_unique_endpoint_pairs": 7389,
+  "undirected_same_endpoint_collapsed_edges": 1724,
+  "same_endpoint_group_count": 1343,
+  "relation_variant_groups": 1322,
+  "source_file_variant_groups": 0,
+  "source_location_variant_groups": 9,
+  "context_variant_groups": 26,
+  "post_build_graph_type": "Graph",
+  "post_build_node_count": 2061,
+  "post_build_edge_count": 7389,
+  "post_build_error": "",
+  "producer_suppression": {
+    "path": "C:\\Users\\ARK\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\graphify\\extract.py",
+    "total_sites": 12,
+    "sites": [
+      {
+        "line": 1206,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids = {n[\"id\"] for n in nodes}"
+      },
+      {
+        "line": 1739,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids = {n[\"id\"] for n in nodes}"
+      },
+      {
+        "line": 1741,
+        "name": "seen_doc_refs",
+        "tuple_arity": 0,
+        "sample": "seen_doc_refs: set[str] = set()"
+      },
+      {
+        "line": 2111,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = {n[\"id\"] for n in nodes}"
+      },
+      {
+        "line": 2258,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids = {n.get(\"id\") for n in nodes}"
+      },
+      {
+        "line": 2896,
+        "name": "seen_keys",
+        "tuple_arity": 0,
+        "sample": "seen_keys: set[tuple] = set()"
+      },
+      {
+        "line": 3065,
+        "name": "seen_keys",
+        "tuple_arity": 0,
+        "sample": "seen_keys: set[tuple] = set()"
+      },
+      {
+        "line": 4757,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 4865,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 4944,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 5459,
+        "name": "seen_ids",
+        "tuple_arity": 0,
+        "sample": "seen_ids: set[str] = set()"
+      },
+      {
+        "line": 5460,
+        "name": "seen_edges",
+        "tuple_arity": 4,
+        "sample": "seen_edges: set[tuple[str, str, str, str | None]] = set()"
+      }
+    ],
+    "error": ""
+  },
+  "examples": [
+    {
+      "source": "app_algorithms_pole_micro_siting_optimize_poles",
+      "target": "app_algorithms_pole_placement_collectorpoleresult",
+      "edge_count": 5,
+      "relations": [
+        "calls",
+        "references",
+        "uses"
+      ],
+      "source_files": [
+        "app/algorithms/pole_micro_siting.py"
+      ],
+      "source_locations": [
+        "L283",
+        "L284",
+        "L420"
+      ],
+      "contexts": [
+        "",
+        "call",
+        "generic_arg",
+        "parameter_type"
+      ]
+    },
+    {
+      "source": "app_gis_constraints_apply_constraint_layers",
+      "target": "app_gis_cost_surface_costsurface",
+      "edge_count": 5,
+      "relations": [
+        "calls",
+        "references",
+        "uses"
+      ],
+      "source_files": [
+        "app/gis/constraints.py"
+      ],
+      "source_locations": [
+        "L185",
+        "L186",
+        "L219"
+      ],
+      "contexts": [
+        "",
+        "call",
+        "parameter_type",
+        "return_type"
+      ]
+    },
+    {
+      "source": "app_optimisation_candidate_search_apply_grouping_mutation",
+      "target": "app_algorithms_wtg_grouping_feedergroupingresult",
+      "edge_count": 5,
+      "relations": [
+        "calls",
+        "references",
+        "uses"
+      ],
+      "source_files": [
+        "app/optimisation/candidate_search.py"
+      ],
+      "source_locations": [
+        "L240",
+        "L241",
+        "L265"
+      ],
+      "contexts": [
+        "",
+        "call",
+        "parameter_type",
+        "return_type"
+      ]
+    },
+    {
+      "source": "app_optimisation_candidate_search_apply_topology_mutation",
+      "target": "app_algorithms_topology_collectortopologyresult",
+      "edge_count": 5,
+      "relations": [
+        "calls",
+        "references",
+        "uses"
+      ],
+      "source_files": [
+        "app/optimisation/candidate_search.py"
+      ],
+      "source_locations": [
+        "L268",
+        "L269",
+        "L304"
+      ],
+      "contexts": [
+        "",
+        "call",
+        "parameter_type",
+        "return_type"
+      ]
+    },
+    {
+      "source": "app_costing_lifecycle_add_fallback_land_costs",
+      "target": "app_costing_models_costlineitem",
+      "edge_count": 4,
+      "relations": [
+        "calls",
+        "references",
+        "uses"
+      ],
+      "source_files": [
+        "app/costing/lifecycle.py"
+      ],
+      "source_locations": [
+        "L39",
+        "L43",
+        "L64"
+      ],
+      "contexts": [
+        "",
+        "call",
+        "generic_arg"
+      ]
+    }
+  ]
+}

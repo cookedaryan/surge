@@ -1,0 +1,15 @@
+{
+  "runs": [
+    {
+      "date": "2026-09-12T21:31:36.323984+00:00",
+      "input_tokens": null,
+      "output_tokens": null,
+      "usage_status": "unavailable_from_session_subagent_api",
+      "files": 193,
+      "paid_api_calls": 0
+    }
+  ],
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "totals_exclude_unmeasured_runs": true
+}

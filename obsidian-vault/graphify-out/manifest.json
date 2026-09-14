@@ -1,0 +1,398 @@
+{
+  "00-dashboard/Dashboard.md": {
+    "mtime": 1786920458.6822782,
+    "seen": 1789248915.4471393,
+    "ast_hash": "e57ade034c4753068f9b58a23640619d",
+    "semantic_hash": "e57ade034c4753068f9b58a23640619d"
+  },
+  "00-dashboard/MVP Execution Plan - Frontend & Java.md": {
+    "mtime": 1786944084.297876,
+    "seen": 1789248915.4471393,
+    "ast_hash": "4261299acbf33b3cc1a5d3ddf1610f8e",
+    "semantic_hash": "4261299acbf33b3cc1a5d3ddf1610f8e"
+  },
+  "01-vision/Goals.md": {
+    "mtime": 1786920458.6873934,
+    "seen": 1789248915.4471393,
+    "ast_hash": "05749609900a31a39610fa155ca4bbe3",
+    "semantic_hash": "05749609900a31a39610fa155ca4bbe3"
+  },
+  "01-vision/Roadmap.md": {
+    "mtime": 1786920458.6890712,
+    "seen": 1789248915.4471393,
+    "ast_hash": "9db1beb93d47fbc69fa36aeffd261c30",
+    "semantic_hash": "9db1beb93d47fbc69fa36aeffd261c30"
+  },
+  "01-vision/Scope.md": {
+    "mtime": 1786920458.6909313,
+    "seen": 1789248915.4471393,
+    "ast_hash": "591a7303ba24f0754a6d4ddde74dda14",
+    "semantic_hash": "591a7303ba24f0754a6d4ddde74dda14"
+  },
+  "01-vision/Vision.md": {
+    "mtime": 1786920458.6932864,
+    "seen": 1789248915.4471393,
+    "ast_hash": "c94015249b8c0e674fc01507cd2c9fac",
+    "semantic_hash": "c94015249b8c0e674fc01507cd2c9fac"
+  },
+  "02-requirements/Constraints.md": {
+    "mtime": 1786920458.6963518,
+    "seen": 1789248915.4471393,
+    "ast_hash": "19c72de7d8ba26aab91a455b19f7e5df",
+    "semantic_hash": "19c72de7d8ba26aab91a455b19f7e5df"
+  },
+  "02-requirements/Functional Requirements.md": {
+    "mtime": 1786920458.6990252,
+    "seen": 1789248915.4471393,
+    "ast_hash": "cbe12c1a875b7d03e3b92f8acb37e916",
+    "semantic_hash": "cbe12c1a875b7d03e3b92f8acb37e916"
+  },
+  "02-requirements/Non Functional Requirements.md": {
+    "mtime": 1786920458.7011943,
+    "seen": 1789248915.4471393,
+    "ast_hash": "6992fff0246e1c6d374c3fbcfa99849b",
+    "semantic_hash": "6992fff0246e1c6d374c3fbcfa99849b"
+  },
+  "02-requirements/User Stories.md": {
+    "mtime": 1786920458.7035751,
+    "seen": 1789248915.4471393,
+    "ast_hash": "f194ed54ace90925d9114966deccf004",
+    "semantic_hash": "f194ed54ace90925d9114966deccf004"
+  },
+  "04-architecture/Authentication.md": {
+    "mtime": 1786920458.706717,
+    "seen": 1789248915.4471393,
+    "ast_hash": "d87e5160254ddba703ca2cc1235a1c34",
+    "semantic_hash": "d87e5160254ddba703ca2cc1235a1c34"
+  },
+  "04-architecture/Backend.md": {
+    "mtime": 1786920458.7082205,
+    "seen": 1789248915.4471393,
+    "ast_hash": "234c322c224b61799212a79cab6710a8",
+    "semantic_hash": "234c322c224b61799212a79cab6710a8"
+  },
+  "04-architecture/Database.md": {
+    "mtime": 1786920458.7110286,
+    "seen": 1789248915.4471393,
+    "ast_hash": "fefe9d099a079b44872e27ccba7dd7c0",
+    "semantic_hash": "fefe9d099a079b44872e27ccba7dd7c0"
+  },
+  "04-architecture/Deployment.md": {
+    "mtime": 1786920458.7137642,
+    "seen": 1789248915.4471393,
+    "ast_hash": "adb213e477ec0506aeaa065aaa23a7c7",
+    "semantic_hash": "adb213e477ec0506aeaa065aaa23a7c7"
+  },
+  "04-architecture/Frontend.md": {
+    "mtime": 1786920458.7158253,
+    "seen": 1789248915.4471393,
+    "ast_hash": "79f5536bbb23a50e5d22035c9738b59e",
+    "semantic_hash": "79f5536bbb23a50e5d22035c9738b59e"
+  },
+  "04-architecture/Python Engine.md": {
+    "mtime": 1786920458.717667,
+    "seen": 1789248915.4471393,
+    "ast_hash": "4c323356436db6af1f502f504dfa6b63",
+    "semantic_hash": "4c323356436db6af1f502f504dfa6b63"
+  },
+  "04-architecture/System Overview.md": {
+    "mtime": 1786920458.719047,
+    "seen": 1789248915.4471393,
+    "ast_hash": "87f89be51b27e4d0aebf6d7cec4463a1",
+    "semantic_hash": "87f89be51b27e4d0aebf6d7cec4463a1"
+  },
+  "05-optimization/Cost Model.md": {
+    "mtime": 1786920458.720871,
+    "seen": 1789248915.4471393,
+    "ast_hash": "b05c1eb8a1b3d892a99fc989c62fe8a1",
+    "semantic_hash": "b05c1eb8a1b3d892a99fc989c62fe8a1"
+  },
+  "05-optimization/Explainability.md": {
+    "mtime": 1786920458.7229173,
+    "seen": 1789248915.4471393,
+    "ast_hash": "e2c6685d31f353f31d3751b2dbceed2b",
+    "semantic_hash": "e2c6685d31f353f31d3751b2dbceed2b"
+  },
+  "05-optimization/Feeder Planning.md": {
+    "mtime": 1786920458.725348,
+    "seen": 1789248915.4471393,
+    "ast_hash": "52a39b92454daffe09125f1717e70959",
+    "semantic_hash": "52a39b92454daffe09125f1717e70959"
+  },
+  "05-optimization/ML Ranking.md": {
+    "mtime": 1786920458.7276115,
+    "seen": 1789248915.4471393,
+    "ast_hash": "c1bb89fad1e4438090e5c4ab30808d08",
+    "semantic_hash": "c1bb89fad1e4438090e5c4ab30808d08"
+  },
+  "05-optimization/Per-Feeder MST Topology.md": {
+    "mtime": 1786920458.7323174,
+    "seen": 1789248915.4471393,
+    "ast_hash": "dfc50505e79d8221cc0eb7eebe2ed0b5",
+    "semantic_hash": "dfc50505e79d8221cc0eb7eebe2ed0b5"
+  },
+  "05-optimization/Pole Placement.md": {
+    "mtime": 1786920458.7339878,
+    "seen": 1789248915.4471393,
+    "ast_hash": "8622e8b52e2c6c3bb32d1af3c5d1beef",
+    "semantic_hash": "8622e8b52e2c6c3bb32d1af3c5d1beef"
+  },
+  "05-optimization/Routing.md": {
+    "mtime": 1786920458.7365913,
+    "seen": 1789248915.4471393,
+    "ast_hash": "e033b68fa6e016ca15d7922740cf51bc",
+    "semantic_hash": "e033b68fa6e016ca15d7922740cf51bc"
+  },
+  "05-optimization/WTG Grouping.md": {
+    "mtime": 1786920458.7387195,
+    "seen": 1789248915.4471393,
+    "ast_hash": "9e57aa0d8a1f0a612c969a5e769f0e62",
+    "semantic_hash": "9e57aa0d8a1f0a612c969a5e769f0e62"
+  },
+  "06-gis/Constraint-aware Routing.md": {
+    "mtime": 1786920458.7408133,
+    "seen": 1789248915.4471393,
+    "ast_hash": "2117f300bda83ab542ea6763a3bbee4c",
+    "semantic_hash": "2117f300bda83ab542ea6763a3bbee4c"
+  },
+  "06-gis/GIS Cost Surface.md": {
+    "mtime": 1786920458.7424872,
+    "seen": 1789248915.4471393,
+    "ast_hash": "68e68affee262e25665ad9b735c9edfa",
+    "semantic_hash": "68e68affee262e25665ad9b735c9edfa"
+  },
+  "06-gis/ROW Corridor Analysis.md": {
+    "mtime": 1786920458.745112,
+    "seen": 1789248915.4471393,
+    "ast_hash": "b81e5242299de4c3d280a3d4a0fe4c22",
+    "semantic_hash": "b81e5242299de4c3d280a3d4a0fe4c22"
+  },
+  "08-python-engine/AC Load Flow Validation.md": {
+    "mtime": 1786920458.7470882,
+    "seen": 1789248915.4471393,
+    "ast_hash": "5c18b54344b707ec42aa0b3f85f18e4c",
+    "semantic_hash": "5c18b54344b707ec42aa0b3f85f18e4c"
+  },
+  "08-python-engine/Candidate PNC Scenario Generation.md": {
+    "mtime": 1786920458.7494648,
+    "seen": 1789248915.4471393,
+    "ast_hash": "8a671e34b39807c6ea0630caa939b811",
+    "semantic_hash": "8a671e34b39807c6ea0630caa939b811"
+  },
+  "08-python-engine/Canonical Candidate Engineering Metrics.md": {
+    "mtime": 1786920458.751135,
+    "seen": 1789248915.4471393,
+    "ast_hash": "149d2535a5c89e8609c41768dcef9b15",
+    "semantic_hash": "149d2535a5c89e8609c41768dcef9b15"
+  },
+  "08-python-engine/Electrical Feeder Screening.md": {
+    "mtime": 1786920458.7527997,
+    "seen": 1789248915.4471393,
+    "ast_hash": "b460c15fd100fd69c8c794adbd7eac66",
+    "semantic_hash": "b460c15fd100fd69c8c794adbd7eac66"
+  },
+  "08-python-engine/Geospatial Integrity & CRS.md": {
+    "mtime": 1786920458.7542098,
+    "seen": 1789248915.4471393,
+    "ast_hash": "afe65fc566007b06ba94d72aeb67b179",
+    "semantic_hash": "afe65fc566007b06ba94d72aeb67b179"
+  },
+  "08-python-engine/Multi-Objective Candidate Scoring.md": {
+    "mtime": 1786920458.7565076,
+    "seen": 1789248915.4471393,
+    "ast_hash": "69ad334b52b66958ca8980b63a359602",
+    "semantic_hash": "69ad334b52b66958ca8980b63a359602"
+  },
+  "08-python-engine/Overview & Layout.md": {
+    "mtime": 1786920458.7587433,
+    "seen": 1789248915.4471393,
+    "ast_hash": "45f6ac386bbc2a39fda6387085b1c050",
+    "semantic_hash": "45f6ac386bbc2a39fda6387085b1c050"
+  },
+  "08-python-engine/PNC Network Assembly.md": {
+    "mtime": 1786920458.7610242,
+    "seen": 1789248915.4471393,
+    "ast_hash": "39f5aa0d76121d4317652bd1961e9d6c",
+    "semantic_hash": "39f5aa0d76121d4317652bd1961e9d6c"
+  },
+  "08-python-engine/Route Scoring Architecture.md": {
+    "mtime": 1786920458.7635188,
+    "seen": 1789248915.4471393,
+    "ast_hash": "2376392ac2ba1464957b379596c2e728",
+    "semantic_hash": "2376392ac2ba1464957b379596c2e728"
+  },
+  "08-python-engine/Sunday KMZ to 33kV Network Plan.md": {
+    "mtime": 1786920458.765888,
+    "seen": 1789248915.4471393,
+    "ast_hash": "7548e042962d0b214f4632bbd54279dc",
+    "semantic_hash": "7548e042962d0b214f4632bbd54279dc"
+  },
+  "08-python-engine/Surge MVP Ticket Plan.md": {
+    "mtime": 1786920458.7679725,
+    "seen": 1789248915.4471393,
+    "ast_hash": "0152f1c6b56f682696209407070dac7d",
+    "semantic_hash": "0152f1c6b56f682696209407070dac7d"
+  },
+  "08-python-engine/presentation-boundary.md": {
+    "mtime": 1786920458.770323,
+    "seen": 1789248915.4471393,
+    "ast_hash": "af6f36f1fd2aa2ddb22a3ba3a91464c8",
+    "semantic_hash": "af6f36f1fd2aa2ddb22a3ba3a91464c8"
+  },
+  "10-api/FastAPI Endpoints.md": {
+    "mtime": 1786920458.7726347,
+    "seen": 1789248915.4471393,
+    "ast_hash": "74e4cab3cc700c82cc0c126629cbbabb",
+    "semantic_hash": "74e4cab3cc700c82cc0c126629cbbabb"
+  },
+  "12-testing/Testing Status.md": {
+    "mtime": 1786920458.774709,
+    "seen": 1789248915.4471393,
+    "ast_hash": "9dc8a2777b1685ffeedf3d1a9346e542",
+    "semantic_hash": "9dc8a2777b1685ffeedf3d1a9346e542"
+  },
+  "14-decisions/ADR-001 Use FastAPI.md": {
+    "mtime": 1786920458.777012,
+    "seen": 1789248915.4471393,
+    "ast_hash": "2f4abbf1a52c38723ecf3544a1a2fa84",
+    "semantic_hash": "2f4abbf1a52c38723ecf3544a1a2fa84"
+  },
+  "14-decisions/ADR-002 Use PostGIS.md": {
+    "mtime": 1786920458.7796037,
+    "seen": 1789248915.4471393,
+    "ast_hash": "7224069e72b614bb11446b97f31cd36e",
+    "semantic_hash": "7224069e72b614bb11446b97f31cd36e"
+  },
+  "14-decisions/ADR-003 ML Ranking.md": {
+    "mtime": 1786944111.8829806,
+    "seen": 1789248915.4471393,
+    "ast_hash": "3fac414be384a2e060c41e3384e0f40a",
+    "semantic_hash": "3fac414be384a2e060c41e3384e0f40a"
+  },
+  "14-decisions/ADR-004 Lifecycle Cost Objective.md": {
+    "mtime": 1786920458.783777,
+    "seen": 1789248915.4471393,
+    "ast_hash": "c8320b3f2535f1d58035eb57d857cebf",
+    "semantic_hash": "c8320b3f2535f1d58035eb57d857cebf"
+  },
+  "14-decisions/ADR-005 Python Service Architecture and Schemas.md": {
+    "mtime": 1786920458.7860432,
+    "seen": 1789248915.4471393,
+    "ast_hash": "313ca35f35b6f4f95a9dda7d9f603267",
+    "semantic_hash": "313ca35f35b6f4f95a9dda7d9f603267"
+  },
+  "14-decisions/ADR-006 Spatial Models and Unified UTM.md": {
+    "mtime": 1786920458.787977,
+    "seen": 1789248915.4471393,
+    "ast_hash": "246d8fb9605e7ff72c6e597625f5108b",
+    "semantic_hash": "246d8fb9605e7ff72c6e597625f5108b"
+  },
+  "14-decisions/ADR-007 Pandapower AC Load Flow Validation.md": {
+    "mtime": 1786920458.7897694,
+    "seen": 1789248915.4471393,
+    "ast_hash": "0faf6a7b67d7bb57331a177b3031fa98",
+    "semantic_hash": "0faf6a7b67d7bb57331a177b3031fa98"
+  },
+  "15-research/Paper - GIS Optimization.md": {
+    "mtime": 1786920458.79218,
+    "seen": 1789248915.4471393,
+    "ast_hash": "923938f42d512a9034fcb0692edb4874",
+    "semantic_hash": "923938f42d512a9034fcb0692edb4874"
+  },
+  "15-research/Paper - Genetic Algorithms.md": {
+    "mtime": 1786920458.7943258,
+    "seen": 1789248915.4471393,
+    "ast_hash": "21344a00f36e5e416fec740966b98f55",
+    "semantic_hash": "21344a00f36e5e416fec740966b98f55"
+  },
+  "15-research/Paper - Multi Objective Routing.md": {
+    "mtime": 1786920458.7970314,
+    "seen": 1789248915.4471393,
+    "ast_hash": "543c9772aa73b73d9e36414cc62594be",
+    "semantic_hash": "543c9772aa73b73d9e36414cc62594be"
+  },
+  "journal/2026-08-04.md": {
+    "mtime": 1786920458.7991152,
+    "seen": 1789248915.4471393,
+    "ast_hash": "7b46b7172e091b7140b1b1d6dd55cbd0",
+    "semantic_hash": "7b46b7172e091b7140b1b1d6dd55cbd0"
+  },
+  "journal/2026-08-07.md": {
+    "mtime": 1786920458.8013687,
+    "seen": 1789248915.4471393,
+    "ast_hash": "e596e161772186bff06f510b809edb58",
+    "semantic_hash": "e596e161772186bff06f510b809edb58"
+  },
+  "journal/2026-08-08.md": {
+    "mtime": 1786920458.8031275,
+    "seen": 1789248915.4471393,
+    "ast_hash": "d497d6e2f778ad542826e59376a37524",
+    "semantic_hash": "d497d6e2f778ad542826e59376a37524"
+  },
+  "journal/2026-08-09.md": {
+    "mtime": 1786920458.8046129,
+    "seen": 1789248915.4471393,
+    "ast_hash": "c0d917c3a655a63add8e73ee68b43df4",
+    "semantic_hash": "c0d917c3a655a63add8e73ee68b43df4"
+  },
+  "journal/2026-08-13.md": {
+    "mtime": 1786920458.8075416,
+    "seen": 1789248915.4471393,
+    "ast_hash": "f8fc685dba319eabbda85b156add9b89",
+    "semantic_hash": "f8fc685dba319eabbda85b156add9b89"
+  },
+  "journal/2026-08-14.md": {
+    "mtime": 1786920458.809329,
+    "seen": 1789248915.4471393,
+    "ast_hash": "5d606b0cd6544787553dd74917bd9b9e",
+    "semantic_hash": "5d606b0cd6544787553dd74917bd9b9e"
+  },
+  "journal/2026-08-15.md": {
+    "mtime": 1786920458.8115344,
+    "seen": 1789248915.4471393,
+    "ast_hash": "dc37924f360517dffef413dd0706d21b",
+    "semantic_hash": "dc37924f360517dffef413dd0706d21b"
+  },
+  "journal/2026-08-16-ark.md": {
+    "mtime": 1786920458.812464,
+    "seen": 1789248915.4471393,
+    "ast_hash": "db7d368d6abd620d7b79d15c06325aca",
+    "semantic_hash": "db7d368d6abd620d7b79d15c06325aca"
+  },
+  "journal/2026-08-16.md": {
+    "mtime": 1786920458.814618,
+    "seen": 1789248915.4471393,
+    "ast_hash": "1925dd9971ea3e3dadec06c9b245882a",
+    "semantic_hash": "1925dd9971ea3e3dadec06c9b245882a"
+  },
+  "templates/ADR.md": {
+    "mtime": 1785842193.0765717,
+    "seen": 1789248915.4471393,
+    "ast_hash": "deb125a7bff5ff12fbc53a2f47465442",
+    "semantic_hash": "deb125a7bff5ff12fbc53a2f47465442"
+  },
+  "templates/Journal.md": {
+    "mtime": 1786072519.964705,
+    "seen": 1789248915.4471393,
+    "ast_hash": "ac046464b943159e524721c998c4d58d",
+    "semantic_hash": "ac046464b943159e524721c998c4d58d"
+  },
+  "templates/Meeting.md": {
+    "mtime": 1785842204.7860448,
+    "seen": 1789248915.4471393,
+    "ast_hash": "90a6f93f5a7e25a47a93ad72e1b2980d",
+    "semantic_hash": "90a6f93f5a7e25a47a93ad72e1b2980d"
+  },
+  "templates/Requirement.md": {
+    "mtime": 1785842189.0934186,
+    "seen": 1789248915.4471393,
+    "ast_hash": "94139db728aead78a1f93d9aeeb724fe",
+    "semantic_hash": "94139db728aead78a1f93d9aeeb724fe"
+  },
+  "templates/Research.md": {
+    "mtime": 1785842197.5161526,
+    "seen": 1789248915.4471393,
+    "ast_hash": "ab2e23f823e9996a45383c030e79fbd8",
+    "semantic_hash": "ab2e23f823e9996a45383c030e79fbd8"
+  }
+}
