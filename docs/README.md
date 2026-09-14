@@ -44,6 +44,7 @@ Geographic constraints and preliminary route scoring.
 
 PNC assembly, candidate generation, engineering metrics, and ranking.
 
+- [Python optimization implementation audit — 15 September 2026](optimisation/audits/2026-09-15/report.md)
 - [Candidate PNC Scenario Generation](optimisation/Candidate%20PNC%20Scenario%20Generation.md)
 - [Canonical Candidate Engineering Metrics (SURGE-PY-026)](optimisation/Canonical%20Candidate%20Engineering%20Metrics.md)
 - [Multi-Objective Candidate Scoring (PY-027 / PY-029)](optimisation/Multi-Objective%20Candidate%20Scoring.md)
