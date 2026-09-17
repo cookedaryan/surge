@@ -1,0 +1,86 @@
+{
+  "request_id": "REQ-SYN-1-CLUSTERED-8",
+  "status": "failed",
+  "scenario": "Balanced",
+  "metrics": {
+    "feeder_count": 0,
+    "total_length_m": 0.0,
+    "message": "Optimisation completed with workflow status NO_FEASIBLE_CANDIDATE."
+  },
+  "schema_version": "2.0",
+  "workflow_status": "NO_FEASIBLE_CANDIDATE",
+  "generation": {
+    "requested_candidate_count": 2,
+    "accepted_candidate_count": 2,
+    "attempts": 3
+  },
+  "candidates": [
+    {
+      "scenario_id": "SCN-001",
+      "parameter_set_id": "PS-001",
+      "strategy": "baseline",
+      "topology_fingerprint": "v1:658920bb89c26ecb4e90f874362e18192af1940cdb2ff56a940c5a9de07000d0",
+      "execution_failure": {
+        "code": "ELECTRICAL_VALIDATION_FAILED",
+        "message": "Electrical repair failed (REPAIR_EXHAUSTED) with no violation reported.",
+        "details": {
+          "status": "REPAIR_EXHAUSTED",
+          "summary": "Electrical repair failed (REPAIR_EXHAUSTED) with no violation reported.",
+          "no_upgrade_reason_code": "CABLE_SIZING_FAILED",
+          "no_upgrade_reason": "Initial cable sizing failed, so no repair was attempted at all.",
+          "unresolved_violations": [],
+          "repair_attempts": [],
+          "largest_cable_available": {
+            "cable_type_id": "66kV_800mm2",
+            "effective_ampacity_a": 276.0,
+            "parallel_count": 1
+          },
+          "catalogue_size": 1
+        }
+      }
+    },
+    {
+      "scenario_id": "SCN-002",
+      "parameter_set_id": "PS-003",
+      "strategy": "balanced_feeders",
+      "topology_fingerprint": "v1:70109bb3c01373b58765c58f78782f25e2f0513b413d18039ec0f63916932cea",
+      "execution_failure": {
+        "code": "ELECTRICAL_VALIDATION_FAILED",
+        "message": "Electrical repair failed (REPAIR_EXHAUSTED) with no violation reported.",
+        "details": {
+          "status": "REPAIR_EXHAUSTED",
+          "summary": "Electrical repair failed (REPAIR_EXHAUSTED) with no violation reported.",
+          "no_upgrade_reason_code": "CABLE_SIZING_FAILED",
+          "no_upgrade_reason": "Initial cable sizing failed, so no repair was attempted at all.",
+          "unresolved_violations": [],
+          "repair_attempts": [],
+          "largest_cable_available": {
+            "cable_type_id": "66kV_800mm2",
+            "effective_ampacity_a": 276.0,
+            "parallel_count": 1
+          },
+          "catalogue_size": 1
+        }
+      }
+    }
+  ],
+  "failures": [
+    {
+      "stage": "ELECTRICAL_VALIDATION",
+      "code": "ELECTRICAL_VALIDATION_FAILED",
+      "message": "Electrical repair failed (REPAIR_EXHAUSTED) with no violation reported.",
+      "scenario_id": "SCN-001"
+    },
+    {
+      "stage": "ELECTRICAL_VALIDATION",
+      "code": "ELECTRICAL_VALIDATION_FAILED",
+      "message": "Electrical repair failed (REPAIR_EXHAUSTED) with no violation reported.",
+      "scenario_id": "SCN-002"
+    }
+  ],
+  "_provenance": {
+    "base_sha": "8ceda7f",
+    "fixture": "tests/fixtures/corpus/SYN-1-CLUSTERED-8.json",
+    "captured_at": "2026-09-17T15:43:43.672709+00:00"
+  }
+}
