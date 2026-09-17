@@ -1,6 +1,6 @@
 """Stage 0 seams (CON-2): each is present and changes no V0 behaviour."""
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,6 +8,7 @@ from pyproj import CRS
 from shapely.geometry import Point
 
 import app.api.v1.endpoints.optimise as optimise_endpoint
+import app.optimisation.orchestrator as orchestrator_module
 import tests.test_optimisation_orchestrator as orchestrator_fixtures
 from app.algorithms.solver_models import SolverOptions
 from app.algorithms.wtg_grouping import GroupingObjective, group_wtgs
@@ -24,6 +25,7 @@ from app.optimisation.run_guard import (
     RunGuardContext,
     build_run_guard,
 )
+from app.optimisation.scenario_models import ScenarioGenerationConfig
 from app.optimisation.search_models import CandidateSearchConfig
 from scripts.contracts.export_contracts import CONTRACTS
 from tests.test_optimise import create_payload
@@ -129,6 +131,41 @@ def test_orchestrator_consults_the_guard_before_seed_work() -> None:
     )
     assert result.generation_result is not None
     assert result.generation_result.solver_runs
+
+
+def test_orchestrator_forwards_every_generation_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A generation field L3 adds to ScenarioGenerationConfig (WP5-2 schedule
+    # selection) must reach the generator without an edit to orchestrator.py.
+    @dataclass(frozen=True)
+    class ExtendedGenerationConfig(ScenarioGenerationConfig):
+        schedule: str = "v0"
+
+    captured: list[ScenarioGenerationConfig] = []
+
+    def capture(**kwargs: object) -> None:
+        captured.append(kwargs["config"])  # type: ignore[arg-type]
+        raise RuntimeError("stop after capture")
+
+    monkeypatch.setattr(orchestrator_module, "generate_pnc_scenarios", capture)
+    base = orchestrator_fixtures.base_config.__wrapped__()
+    options = SolverOptions(time_limit_s=5.0)
+    config = replace(
+        base,
+        scenario=ExtendedGenerationConfig(candidate_count=2, schedule="new"),
+        solver=options,
+    )
+    project_input = orchestrator_fixtures.project_input.__wrapped__()
+    with pytest.raises(RuntimeError, match="stop after capture"):
+        optimise_project(project_input, config)
+
+    (forwarded,) = captured
+    assert isinstance(forwarded, ExtendedGenerationConfig)
+    assert forwarded.schedule == "new"
+    assert forwarded.candidate_count == 2
+    assert forwarded.project_id == project_input.project_id
+    assert forwarded.solver_options == options
 
 
 def test_search_consults_the_guard_before_child_routing() -> None:

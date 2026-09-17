@@ -152,7 +152,7 @@ Python models in `optimisation-python/app/contracts/` are authoritative. Every J
 | C9 | Persistence: `contracts/persistence.md` | Flyway reservations in merge order — V21 WP4-9b, V22 WP2-3, V23 WP3-7b, V24 WP5B-3, V25 WP6A-3, V26 WP6B (main is at V20) — plus column names for hashes, flags, termination and cohort ID. Changes are expand/contract | L2 |
 | C10 | Ownership: `contracts/ownership/L{1,2,3}.globs`, `contracts/frozen.txt` | Paths per level (§6 in each file); frozen files and symbols (§3.3) | All levels |
 | C11 | Feeder/segment identity: `contracts/fixtures/feeder-segment-identity.json` | One Feature = one routed segment under one feeder, from WP0A-3 or WP0C-1 | L2 WP3-9b · L3 WP3-9a |
-| C12 | WP5 V0 decision: `contracts/decisions/wp5-v0.md` | Option **(a)**, gate the new schedule, is recorded as the default and awaits owner confirmation. Option (b), intentional re-baseline, is a CCR | L1 goldens · L3 WP5-2 |
+| C12 | WP5 V0 decision: `contracts/decisions/wp5-v0.md` | Option **(a)**, gate the new schedule, confirmed by the owner. Option (b), intentional re-baseline, is a CCR | L1 goldens · L3 WP5-2 |
 
 ### 3.3 CON-2 seams and frozen list
 
@@ -180,6 +180,7 @@ A seam is a no-behaviour code shape that lets two levels implement opposite side
 | `scenarios._apply_long_edge_penalty(graph, alpha)` | L3 | L1 WP5-1 |
 | `group_wtgs` signature and `FeederGroupingResult.solver_runs` | shared regions | L2 WP4-6, L3 WP5-3 |
 | Solver option threading in `scenarios.py` and `orchestrator.py` | L3, L2 | L2 WP4-6 |
+| `orchestrator.py` forwards the whole `config.scenario` (overriding only `project_id` and `solver_options`) to `generate_pnc_scenarios`; guarded by `test_orchestrator_forwards_every_generation_setting` | L2 | L3 WP5-2 |
 | Guard checks in `candidate_search.py` and `orchestrator.py` | L2 | L3 WP4-9a |
 | `METRIC_REGISTRY_VERSION` name | L3 | L2 WP1-3 |
 | `ClaimDisclosure` mount in `ResultsSheet.tsx` | L2 | L1 WP6A-1 |

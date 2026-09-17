@@ -17,7 +17,7 @@ This is the evidence that Stage 0 met its exit criteria. Tag `demo-opt-base` onl
 | Java `mvnw verify` at `a313d2f` | `eclipse-temurin:21-jdk` container (no local JDK) | **279 tests, 0 failures, 0 errors** |
 | Frontend `npm ci`, `npm run test`, `npm run build` at `a313d2f` | `node:20` container, matching CI | **130 passed**; build succeeds |
 | Frontend on the host's Node 26 | — | 94 failures: Node 26's built-in `localStorage` shadows jsdom's (`localStorage.clear` undefined in `src/test/setup.ts`). **Environmental, not a regression.** Use Node 20 as CI does |
-| Clean Compose start | Isolated project `surge-stage0`, renamed containers, remapped ports, throwaway secrets; see note | **Open — network.** The frontend image built. After 19 minutes Docker Desktop could no longer resolve `registry-1.docker.io` ("no such host"), so the backend's `mvnw dependency:go-offline` and the `postgis/postgis:16-3.4` pull failed. No application code was involved. Re-run when the registry is reachable |
+| Clean Compose start | Isolated project `surge-stage0`, renamed containers, remapped ports, throwaway secrets; see note | **Pass** on 2026-09-17 at close-out commit `0f6f093`, Docker Engine 29.8.0: `up --build --wait` exited 0 in 3 minutes; postgis, backend, optimizer and web all healthy; `/api/v1/health` `healthy`, `/actuator/health` `UP` with db `UP`, frontend 200; torn down with `down -v`. Three earlier attempts failed only on Docker Desktop's in-container DNS (`registry-1.docker.io`, `files.pythonhosted.org`, `repo.maven.apache.org`) and passed once Docker Desktop restarted |
 
 Note on Compose: a developer stack (`surge-optimizer-python` on :8000) and a host Postgres on :5432 were already running. The check runs as a separate project with [compose.stage0-override.yml](compose.stage0-override.yml), which renames containers, remaps ports to 55432, 18080, 18000 and 13000, and disables restart, so it neither stops nor reuses anything. The failed attempt's project resources were removed with `down -v`; the developer stack was not touched. To re-run from the repository root in Git Bash:
 
@@ -95,6 +95,7 @@ Changes to existing files, all behaviour-neutral:
 
 - `wtg_grouping.py`: `_run_milp` records telemetry; new `feeder_count` (reserved) and `solver_options` keywords.
 - `scenarios.py`, `scenario_models.py`, `workflow_models.py`, `orchestrator.py`: solver options in and telemetry out; guard checks.
+- `orchestrator.py` (close-out, from seam sign-off): forwards `config.scenario` whole to the generator instead of rebuilding it field by field, so a WP5-2 schedule setting reaches `generate_pnc_scenarios`. Guarded by `test_seams.py::test_orchestrator_forwards_every_generation_setting`.
 - `candidate_search.py`: guard checks before child routing and evaluation.
 - `schemas/optimise.py`, `schemas/legacy_mapping.py`: C1 and C2 attachments and response hooks.
 - `api/v1/endpoints/optimise.py`, `api/v1/router.py`: resolvers, run guard, run-ID header, reserved routes.
@@ -110,15 +111,15 @@ Changes to existing files, all behaviour-neutral:
 | Existing Python, Java and frontend suites pass | **Pass** | Final run on this branch: Python **688 passed** (622 existing + 66 new), ruff and mypy clean, contract `--check` clean · Java `mvnw verify` **281 tests, 0 failures** (279 existing + 2 probes) · Frontend **130 passed**, build succeeds (Node 20) |
 | V1 responses byte-identical before and after Stage 0 | **Pass** | 7 requests (four scenarios on the stub project, two V1-mapped fixtures, one invalid input): status codes and bodies identical to `a313d2f` |
 | Contract fixtures validate; C6 hash vector reproduces | **Pass** | `tests/contracts/test_contract_pack.py`, including a fresh-interpreter drift check |
-| WP0A-1 clean Compose start | **Open** | Blocked by registry DNS failure on the Stage 0 machine; re-run command in §1 |
-| Seam-sufficiency sign-off by the three level leads | **Open** | Owner action before tagging |
+| WP0A-1 clean Compose start | **Pass** | All four services healthy from a clean start at `0f6f093` (§1) |
+| Seam-sufficiency sign-off by the three level leads | **Pass** | Signed off 2026-09-17 by the owner acting as L1, L2 and L3 lead. The three flagged checks: WP1-1 land assessment is restored entirely in `search_cache.py` (L2), where `CandidateEvaluationOutcome` drops it; WP2-4 parsing is covered because `avoidance_geojson` reaches `gis/constraints.py` (L3) with its properties intact; **WP5-2 schedule selection had a gap**, closed in §5 (`orchestrator.py` now forwards `config.scenario` whole) |
 | WP0A-2 amendments applied to the level files | **Pass** | WP2-3 active, WP0C closed, ledger updated in all three plans |
-| Owner decisions recorded | **Open** | Confirm C12 option (a); confirm `MAX_V1_REQUEST_BYTES` (10 MiB proposed) |
+| Owner decisions recorded | **Pass** | 2026-09-17: C12 option (a) confirmed (`contracts/decisions/wp5-v0.md`); `MAX_V1_REQUEST_BYTES` = 10 MiB confirmed. Python after close-out: **689 passed**, ruff, mypy and contract `--check` clean |
 | Merge to main and tag `demo-opt-base` | **Open** | After review |
 
 ## 7. Known limits of this record
 
-- The Compose check, once it completes, proves images build and services become healthy from a clean start. It does not run an optimisation job end to end; that is WP0B-8's harness.
+- The Compose check proves images build and services become healthy from a clean start. It does not run an optimisation job end to end; that is WP0B-8's harness.
 - `.github/workflows/ci.yml` is edited on this branch, so the new `ownership` job and the contract tests run in CI only after this PR is opened. They were run locally.
 - The audit probe was re-run on this branch, not on `a313d2f`. Because Stage 0 is byte-identical on V1 and adds only null seams, results are the same, and they match the audit's published values.
 - Region ownership in `wtg_grouping.py` is not enforceable by path; reviewers check it.
