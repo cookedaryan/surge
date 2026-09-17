@@ -85,14 +85,22 @@ def group_wtgs(
         compact feeders.  ``BALANCE_WTG_COUNT`` minimises the maximum
         deviation from the ideal equal-split WTG count per feeder.
     feeder_count:
-        Reserved for the explicit ``k+1`` candidate (WP5-3, L3). Not yet
-        supported; ``None`` keeps the minimum capacity-feasible count.
+        ``None`` (default) keeps the minimum capacity-feasible count. An integer
+        asks for exactly that many non-empty feeders, which the explicit ``k+1``
+        candidate uses (WP5-3). It never falls back to another count: when that
+        count holds no capacity-valid grouping, or the solve leaves a feeder
+        empty, the result has no assignments and ``solver_runs`` says why. Must
+        be between 1 and the number of turbines.
     solver_options:
         Limits for each MILP solve (WP4-6, L2). Stage 0 threads them through
         but applies none.
     """
-    if feeder_count is not None:
-        raise NotImplementedError("feeder_count override is implemented by WP5-3")
+    if feeder_count is not None and (
+        isinstance(feeder_count, bool)
+        or not isinstance(feeder_count, int)
+        or feeder_count < 1
+    ):
+        raise ValueError(f"feeder_count must be a positive int, got {feeder_count!r}")
     if not math.isfinite(feeder_capacity_mw) or feeder_capacity_mw <= 0:
         raise ValueError("feeder_capacity_mw must be positive and finite")
 
@@ -167,7 +175,21 @@ def group_wtgs(
     best_assignments: list[int] = list(range(num_wtgs))  # fallback
     solver_runs: list[SolverTelemetry] = []
 
-    for k in range(base_k, num_wtgs + 1):
+    feeder_counts = range(base_k, num_wtgs + 1)
+    if feeder_count is not None:
+        if feeder_count > num_wtgs:
+            raise ValueError(
+                f"feeder_count {feeder_count} exceeds the {num_wtgs} turbines; "
+                "every feeder needs at least one"
+            )
+        # Exactly the requested count, with no fallback. Below the capacity
+        # bound no grouping can exist, so nothing is solved.
+        best_assignments = []
+        feeder_counts = range(feeder_count, feeder_count + 1)
+        if feeder_count < base_k:
+            feeder_counts = range(0)
+
+    for k in feeder_counts:
         if k == 1:
             best_assignments = [0] * num_wtgs
             break
@@ -212,6 +234,9 @@ def group_wtgs(
                 if s > feeder_capacity_kw:
                     raise RuntimeError("MILP success but capacity exceeded!")
 
+            if feeder_count is not None and len(set(assignments)) < k:
+                # The model allows empty feeders; that is not the count asked for.
+                break
             best_assignments = assignments
             break
 
