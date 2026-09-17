@@ -95,6 +95,7 @@ Changes to existing files, all behaviour-neutral:
 
 - `wtg_grouping.py`: `_run_milp` records telemetry; new `feeder_count` (reserved) and `solver_options` keywords.
 - `scenarios.py`, `scenario_models.py`, `workflow_models.py`, `orchestrator.py`: solver options in and telemetry out; guard checks.
+- `orchestrator.py` (close-out, from seam sign-off): forwards `config.scenario` whole to the generator instead of rebuilding it field by field, so a WP5-2 schedule setting reaches `generate_pnc_scenarios`. Guarded by `test_seams.py::test_orchestrator_forwards_every_generation_setting`.
 - `candidate_search.py`: guard checks before child routing and evaluation.
 - `schemas/optimise.py`, `schemas/legacy_mapping.py`: C1 and C2 attachments and response hooks.
 - `api/v1/endpoints/optimise.py`, `api/v1/router.py`: resolvers, run guard, run-ID header, reserved routes.
@@ -111,9 +112,9 @@ Changes to existing files, all behaviour-neutral:
 | V1 responses byte-identical before and after Stage 0 | **Pass** | 7 requests (four scenarios on the stub project, two V1-mapped fixtures, one invalid input): status codes and bodies identical to `a313d2f` |
 | Contract fixtures validate; C6 hash vector reproduces | **Pass** | `tests/contracts/test_contract_pack.py`, including a fresh-interpreter drift check |
 | WP0A-1 clean Compose start | **Open** | Blocked by registry DNS failure on the Stage 0 machine; re-run command in §1 |
-| Seam-sufficiency sign-off by the three level leads | **Open** | Owner action before tagging |
+| Seam-sufficiency sign-off by the three level leads | **Pass** | Signed off 2026-09-17 by the owner acting as L1, L2 and L3 lead. The three flagged checks: WP1-1 land assessment is restored entirely in `search_cache.py` (L2), where `CandidateEvaluationOutcome` drops it; WP2-4 parsing is covered because `avoidance_geojson` reaches `gis/constraints.py` (L3) with its properties intact; **WP5-2 schedule selection had a gap**, closed in §5 (`orchestrator.py` now forwards `config.scenario` whole) |
 | WP0A-2 amendments applied to the level files | **Pass** | WP2-3 active, WP0C closed, ledger updated in all three plans |
-| Owner decisions recorded | **Open** | Confirm C12 option (a); confirm `MAX_V1_REQUEST_BYTES` (10 MiB proposed) |
+| Owner decisions recorded | **Pass** | 2026-09-17: C12 option (a) confirmed (`contracts/decisions/wp5-v0.md`); `MAX_V1_REQUEST_BYTES` = 10 MiB confirmed. Python after close-out: **689 passed**, ruff, mypy and contract `--check` clean |
 | Merge to main and tag `demo-opt-base` | **Open** | After review |
 
 ## 7. Known limits of this record

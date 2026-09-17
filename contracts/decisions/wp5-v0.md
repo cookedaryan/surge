@@ -1,6 +1,6 @@
 # C12 — WP5 V0 decision
 
-Status: **default recorded in Stage 0, awaiting owner confirmation**
+Status: **confirmed by the owner on 2026-09-17 (Stage 0 close-out)**
 
 Draft 0.6 WP5 requires one of:
 

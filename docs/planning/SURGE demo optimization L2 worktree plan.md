@@ -239,7 +239,7 @@ Python paths are relative to `optimisation-python/`.
 - `docker-compose.yml`, only where the measurement harness needs it
 - Tests for the above: `tests/test_search_*.py`, `tests/test_wtg_grouping.py`, `tests/test_presentation.py`, `tests/test_decision_report.py`, `tests/test_engineering_report.py`, `tests/test_optimise.py`, `tests/test_optimisation_orchestrator.py`, `tests/api/**`, `tests/search/**`, and new `tests/evidence/test_topology*.py`, `tests/evidence/test_cost_recompute*.py`
 
-Keep these frozen symbols intact: guard checks and the `RunGuardStop` re-raise in `candidate_search.py` and `orchestrator.py`, solver-option threading in `orchestrator.py`, the `group_wtgs` signature, and the `ClaimDisclosure` mount. Where this list and `contracts/ownership/L2.globs` differ, the globs file wins.
+Keep these frozen symbols intact: guard checks and the `RunGuardStop` re-raise in `candidate_search.py` and `orchestrator.py`, solver-option threading in `orchestrator.py`, forwarding the whole `config.scenario` to the generator in `orchestrator.py` (L3 WP5-2 relies on it), the `group_wtgs` signature, and the `ClaimDisclosure` mount. Where this list and `contracts/ownership/L2.globs` differ, the globs file wins.
 
 ---
 
