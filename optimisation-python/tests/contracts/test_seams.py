@@ -1,5 +1,6 @@
 """Stage 0 seams (CON-2): each is present and changes no V0 behaviour."""
 
+import inspect
 from dataclasses import dataclass, replace
 
 import pytest
@@ -92,9 +93,14 @@ def test_grouping_records_solver_telemetry_without_changing_the_result(
     assert final.time_limit_s is None and final.node_limit is None
 
 
-def test_feeder_count_override_is_reserved_for_wp5() -> None:
-    with pytest.raises(NotImplementedError):
-        group_wtgs(_two_feeder_project(), 12.0, feeder_count=3)
+def test_feeder_count_is_a_keyword_seam_that_defaults_to_the_minimum() -> None:
+    # S5 region seam: what an explicit feeder_count does belongs to L3 (WP5-3).
+    # The seam only fixes the keyword and that None keeps the minimum count.
+    parameter = inspect.signature(group_wtgs).parameters["feeder_count"]
+    assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
+    assert parameter.default is None
+    project = _two_feeder_project()
+    assert group_wtgs(project, 12.0, feeder_count=None) == group_wtgs(project, 12.0)
 
 
 @pytest.mark.parametrize(
