@@ -1,0 +1,49 @@
+{
+  "$defs": {
+    "RunTerminationReason": {
+      "description": "Why a run or its search stopped.\n\nA superset of ``SearchTerminationReason``; every value there must exist here\nwith the same spelling.",
+      "enum": [
+        "COMPLETED",
+        "SEARCH_DISABLED",
+        "MAX_ROUNDS_REACHED",
+        "EVALUATION_BUDGET_EXHAUSTED",
+        "PROPOSAL_BUDGET_EXHAUSTED",
+        "ROUTED_PROPOSAL_BUDGET_EXHAUSTED",
+        "SEED_BUDGET_EXHAUSTED",
+        "CHILD_BUDGET_EXHAUSTED",
+        "ARCHIVE_LIMIT_REACHED",
+        "NO_NEW_UNIQUE_CANDIDATES",
+        "NO_FEASIBLE_SEARCH_CANDIDATES",
+        "ADMISSION_DEADLINE_REACHED",
+        "SOLVER_LIMIT_REACHED",
+        "CANCELLED",
+        "NO_ELIGIBLE_CANDIDATE"
+      ],
+      "title": "RunTerminationReason",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "message": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Message"
+    },
+    "reason": {
+      "$ref": "#/$defs/RunTerminationReason"
+    }
+  },
+  "required": [
+    "reason"
+  ],
+  "title": "RunTermination",
+  "type": "object"
+}

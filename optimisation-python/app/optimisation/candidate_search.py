@@ -14,10 +14,12 @@ from app.algorithms.topology import (
     build_feeder_mst,
 )
 from app.algorithms.wtg_grouping import FeederAssignment, FeederGroupingResult
+from app.contracts.codes import GuardPoint
 from app.gis.cost_surface import CostSurface
 from app.models.spatial import WindTurbine
 from app.optimisation.candidate_evaluation import evaluate_candidate
 from app.optimisation.candidate_validation import validate_candidate_structure
+from app.optimisation.run_guard import NULL_RUN_GUARD, RunGuard
 from app.optimisation.scenario_builder import materialize_candidate_design
 from app.optimisation.scenario_models import (
     AttemptOutcome,
@@ -470,12 +472,17 @@ def run_candidate_beam_search(
     evaluation_context_id: str,
     evaluation_cache: CandidateEvaluationCache,
     corpus_sink: Callable[[Mapping[str, object]], None] | None = None,
+    run_guard: RunGuard = NULL_RUN_GUARD,
 ) -> tuple[
     tuple[CandidateWorkflowResult, ...],
     OptimizationRecommendation | None,
     CandidateSearchResult,
 ]:
-    """Runs deterministic beam search to improve network candidates."""
+    """Runs deterministic beam search to improve network candidates.
+
+    ``run_guard`` is consulted before each child is routed and before each child
+    evaluation, and may raise a ``RunGuardStop``.
+    """
     search_config = config.search
     archive = {seed.scenario.scenario_id: seed for seed in seeds}
 
@@ -677,6 +684,7 @@ def run_candidate_beam_search(
                 lineage = CandidateLineage(parent_id, round_idx + 1, mutation)
                 parent_parameters = archive[parent_id].scenario.parameters
 
+                run_guard.check(GuardPoint.BEFORE_CHILD_ROUTING)
                 scenario, outcome, _ = materialize_candidate_design(
                     topology=new_topology,
                     working_graph=base_graph,
@@ -716,6 +724,7 @@ def run_candidate_beam_search(
                         )
                         break
 
+                    run_guard.check(GuardPoint.BEFORE_CHILD_EVALUATION)
                     stats_evaluations_used += 1
                     candidate = evaluate_candidate(scenario, project_input, config)
                     if (

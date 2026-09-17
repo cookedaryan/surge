@@ -1,0 +1,49 @@
+# Contract C10: paths L3 may edit in Phase 1 (see the L3 worktree plan §6).
+
+# Scoring, metrics and generation.
+optimisation-python/app/optimisation/scoring.py
+optimisation-python/app/optimisation/scoring_models.py
+optimisation-python/app/optimisation/engineering_metrics.py
+optimisation-python/app/optimisation/engineering_metric_models.py
+optimisation-python/app/optimisation/candidate_evaluation.py
+optimisation-python/app/optimisation/scenarios.py
+optimisation-python/app/optimisation/scenario_builder.py
+optimisation-python/app/optimisation/scenario_models.py
+optimisation-python/app/optimisation/profiles/**
+optimisation-python/app/optimisation/cancellation.py
+optimisation-python/app/contracts/metric_registry_version.py
+
+# Typed identity, ROW and land.
+optimisation-python/app/gis/constraints.py
+optimisation-python/app/gis/preprocessing.py
+optimisation-python/app/gis/row_analysis.py
+optimisation-python/app/land/**
+
+# Response hooks and endpoint handlers L3 implements.
+optimisation-python/app/presentation/explanation.py
+optimisation-python/app/presentation/profile_echo.py
+optimisation-python/app/api/v1/endpoints/runs.py
+optimisation-python/app/api/v1/endpoints/profiles.py
+
+# Canonical identity and the cohort runner.
+optimisation-python/app/evidence/fingerprints/geometry.py
+optimisation-python/app/evidence/fingerprints/final_design.py
+optimisation-python/app/evidence/cohort.py
+
+# Region-owned: L3 owns only the feeder-count selection inside group_wtgs.
+optimisation-python/app/algorithms/wtg_grouping.py
+
+# Tests for the above.
+optimisation-python/tests/test_optimisation_scoring.py
+optimisation-python/tests/test_scenarios.py
+optimisation-python/tests/test_row_analysis.py
+optimisation-python/tests/test_land_decision.py
+optimisation-python/tests/test_constraints.py
+optimisation-python/tests/test_engineering_metrics.py
+optimisation-python/tests/test_candidate_evaluation_defects.py
+optimisation-python/tests/evidence/test_geometry*.py
+optimisation-python/tests/evidence/test_final_design*.py
+optimisation-python/tests/evidence/test_cohort*.py
+optimisation-python/tests/profiles/**
+optimisation-python/tests/generation/**
+optimisation-python/tests/test_cancellation*.py

@@ -1,0 +1,324 @@
+{
+  "$defs": {
+    "LineageEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "discarded_duplicate_of": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Discarded Duplicate Of"
+        },
+        "mutation_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Mutation Type"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Parent Id"
+        },
+        "round": {
+          "minimum": 0,
+          "title": "Round",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "parent_id",
+        "round",
+        "mutation_type"
+      ],
+      "title": "LineageEntry",
+      "type": "object"
+    },
+    "SearchCaps": {
+      "additionalProperties": false,
+      "properties": {
+        "archive": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Archive"
+        },
+        "children": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Children"
+        },
+        "evaluations": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evaluations"
+        },
+        "proposals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Proposals"
+        },
+        "rounds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rounds"
+        },
+        "routed_proposals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Routed Proposals"
+        },
+        "seeds": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seeds"
+        }
+      },
+      "title": "SearchCaps",
+      "type": "object"
+    },
+    "SearchCounts": {
+      "additionalProperties": false,
+      "description": "Count vocabulary; see ``contracts/reconcile.py`` for the equations.",
+      "properties": {
+        "archive_size": {
+          "minimum": 0,
+          "title": "Archive Size",
+          "type": "integer"
+        },
+        "cache_hits": {
+          "minimum": 0,
+          "title": "Cache Hits",
+          "type": "integer"
+        },
+        "child_evaluations": {
+          "minimum": 0,
+          "title": "Child Evaluations",
+          "type": "integer"
+        },
+        "child_proposals": {
+          "minimum": 0,
+          "title": "Child Proposals",
+          "type": "integer"
+        },
+        "duplicates": {
+          "minimum": 0,
+          "title": "Duplicates",
+          "type": "integer"
+        },
+        "eligible": {
+          "minimum": 0,
+          "title": "Eligible",
+          "type": "integer"
+        },
+        "evaluation_failures": {
+          "minimum": 0,
+          "title": "Evaluation Failures",
+          "type": "integer"
+        },
+        "executed_evaluations": {
+          "minimum": 0,
+          "title": "Executed Evaluations",
+          "type": "integer"
+        },
+        "feasible": {
+          "minimum": 0,
+          "title": "Feasible",
+          "type": "integer"
+        },
+        "requested_seeds": {
+          "minimum": 0,
+          "title": "Requested Seeds",
+          "type": "integer"
+        },
+        "rounds_completed": {
+          "minimum": 0,
+          "title": "Rounds Completed",
+          "type": "integer"
+        },
+        "routed_not_evaluated": {
+          "minimum": 0,
+          "title": "Routed Not Evaluated",
+          "type": "integer"
+        },
+        "routed_proposals": {
+          "minimum": 0,
+          "title": "Routed Proposals",
+          "type": "integer"
+        },
+        "seed_evaluations": {
+          "minimum": 0,
+          "title": "Seed Evaluations",
+          "type": "integer"
+        },
+        "structural_rejects": {
+          "minimum": 0,
+          "title": "Structural Rejects",
+          "type": "integer"
+        },
+        "successful_evaluations": {
+          "minimum": 0,
+          "title": "Successful Evaluations",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "requested_seeds",
+        "seed_evaluations",
+        "child_proposals",
+        "duplicates",
+        "structural_rejects",
+        "routed_proposals",
+        "routed_not_evaluated",
+        "cache_hits",
+        "child_evaluations",
+        "executed_evaluations",
+        "successful_evaluations",
+        "evaluation_failures",
+        "feasible",
+        "eligible",
+        "archive_size",
+        "rounds_completed"
+      ],
+      "title": "SearchCounts",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Public search provenance (WP4).",
+  "properties": {
+    "admission_deadline_reached": {
+      "default": false,
+      "title": "Admission Deadline Reached",
+      "type": "boolean"
+    },
+    "admission_deadline_s": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Admission Deadline S"
+    },
+    "caps": {
+      "$ref": "#/$defs/SearchCaps"
+    },
+    "counts": {
+      "$ref": "#/$defs/SearchCounts"
+    },
+    "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "lineage": {
+      "items": {
+        "$ref": "#/$defs/LineageEntry"
+      },
+      "title": "Lineage",
+      "type": "array"
+    },
+    "routing_time_s": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Routing Time S"
+    }
+  },
+  "required": [
+    "enabled",
+    "caps",
+    "counts",
+    "lineage"
+  ],
+  "title": "SearchEvidence",
+  "type": "object"
+}

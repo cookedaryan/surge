@@ -1,0 +1,24 @@
+{
+  "absent_profile_means": "V0",
+  "canonical_feature_types": [
+    "road",
+    "ht_line",
+    "watercourse",
+    "parcel",
+    "forest",
+    "protected_area",
+    "environmental",
+    "water_body",
+    "settlement",
+    "aviation",
+    "restricted_area"
+  ],
+  "java_generation_setting_keys": [],
+  "max_v1_request_bytes": 10485760,
+  "run_id_header": "X-Surge-Run-Id",
+  "typed_identity_properties": [
+    "source_id",
+    "feature_type",
+    "routing_mode"
+  ]
+}

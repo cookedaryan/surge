@@ -1,0 +1,201 @@
+{
+  "$defs": {
+    "CandidateExplanation": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "contributions": {
+          "items": {
+            "$ref": "#/$defs/MetricContribution"
+          },
+          "title": "Contributions",
+          "type": "array"
+        },
+        "eligible": {
+          "title": "Eligible",
+          "type": "boolean"
+        },
+        "rank": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rank"
+        },
+        "total_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Total Score"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "eligible",
+        "total_score",
+        "contributions"
+      ],
+      "title": "CandidateExplanation",
+      "type": "object"
+    },
+    "GenerationPenalty": {
+      "additionalProperties": false,
+      "description": "A routing input, shown apart from ranking evidence.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "unit"
+      ],
+      "title": "GenerationPenalty",
+      "type": "object"
+    },
+    "MetricContribution": {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/MetricDirection"
+        },
+        "metric": {
+          "title": "Metric",
+          "type": "string"
+        },
+        "normalised_value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Normalised Value"
+        },
+        "raw_value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Raw Value"
+        },
+        "reference_max": {
+          "title": "Reference Max",
+          "type": "number"
+        },
+        "reference_min": {
+          "title": "Reference Min",
+          "type": "number"
+        },
+        "weight": {
+          "minimum": 0,
+          "title": "Weight",
+          "type": "number"
+        },
+        "weighted_contribution": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Weighted Contribution"
+        }
+      },
+      "required": [
+        "metric",
+        "direction",
+        "raw_value",
+        "reference_min",
+        "reference_max",
+        "normalised_value",
+        "weight",
+        "weighted_contribution"
+      ],
+      "title": "MetricContribution",
+      "type": "object"
+    },
+    "MetricDirection": {
+      "description": "Whether a lower or higher raw metric value is better.",
+      "enum": [
+        "minimise",
+        "maximise"
+      ],
+      "title": "MetricDirection",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Why candidates ranked as they did (WP2-7).",
+  "properties": {
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/CandidateExplanation"
+      },
+      "title": "Candidates",
+      "type": "array"
+    },
+    "generation_penalties": {
+      "items": {
+        "$ref": "#/$defs/GenerationPenalty"
+      },
+      "title": "Generation Penalties",
+      "type": "array"
+    },
+    "profile_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Profile Id"
+    },
+    "reference_ranges_version": {
+      "title": "Reference Ranges Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "profile_id",
+    "reference_ranges_version",
+    "candidates",
+    "generation_penalties"
+  ],
+  "title": "ScoringExplanation",
+  "type": "object"
+}

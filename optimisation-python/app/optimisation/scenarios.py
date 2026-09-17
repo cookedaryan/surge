@@ -64,6 +64,7 @@ import networkx as nx
 from app.algorithms.physical_routing import RouteNotFoundError, route_collector_topology
 from app.algorithms.route_graph import build_project_graph
 from app.algorithms.route_refinement import refine_routing_result
+from app.algorithms.solver_models import SolverOptions, SolverTelemetry
 from app.algorithms.topology import CollectorTopologyResult, build_feeder_mst
 from app.algorithms.wtg_grouping import (
     FeederGroupingResult,
@@ -270,6 +271,8 @@ def _generate_candidate(
     base_graph: nx.Graph,
     substation_node: str,
     accepted_fingerprints: set[str],
+    solver_options: SolverOptions | None = None,
+    solver_runs: list[SolverTelemetry] | None = None,
 ) -> tuple[ProjectPNCNetwork | None, str | None, AttemptOutcome, str]:
     """Run the full PNC pipeline for one set of scenario parameters.
 
@@ -296,9 +299,12 @@ def _generate_candidate(
             feeder_capacity_mw,
             random_state=parameters.grouping_seed,
             objective=parameters.grouping_objective,
+            solver_options=solver_options,
         )
     except ValueError as exc:
         return None, None, AttemptOutcome.GROUPING_FAILED, str(exc)
+    if solver_runs is not None:
+        solver_runs.extend(grouping.solver_runs)
 
     if not grouping.assignments:
         return (
@@ -453,6 +459,7 @@ def generate_pnc_scenarios(
     accepted_fingerprints: set[str] = set()
     candidates: list[PNCScenario] = []
     attempts: list[ScenarioAttempt] = []
+    solver_runs: list[SolverTelemetry] = []
     scenario_counter = 0
 
     # Bounded loop: try each entry in the full schedule in order.
@@ -470,6 +477,8 @@ def generate_pnc_scenarios(
             base_graph=base_graph,
             substation_node=substation_node,
             accepted_fingerprints=accepted_fingerprints,
+            solver_options=config.solver_options,
+            solver_runs=solver_runs,
         )
 
         attempts.append(
@@ -523,4 +532,5 @@ def generate_pnc_scenarios(
         candidates=tuple(candidates),
         attempts=tuple(attempts),
         comparison_group_id=comparison_group_id,
+        solver_runs=tuple(solver_runs),
     )

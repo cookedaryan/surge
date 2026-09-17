@@ -14,8 +14,10 @@ incompatible comparisons.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
+
+from app.algorithms.solver_models import SolverOptions, SolverTelemetry
 
 # ---------------------------------------------------------------------------
 # Re-export GroupingObjective from wtg_grouping so callers only need to
@@ -189,6 +191,8 @@ class ScenarioGenerationConfig:
     candidate_count: int = 3
     base_seed: int = 42
     project_id: str = "PROJECT"
+    # Limits passed to every grouping MILP (S5). ``None`` applies no limit.
+    solver_options: SolverOptions | None = None
 
     def __post_init__(self) -> None:
         # Reject bool subclass — isinstance(True, int) is True in Python.
@@ -422,6 +426,9 @@ class ScenarioGenerationResult:
     candidates: tuple[PNCScenario, ...]
     attempts: tuple[ScenarioAttempt, ...]
     comparison_group_id: str
+    # Every grouping MILP solve across all attempts, in order (S5). Excluded
+    # from equality because wall time varies between identical runs.
+    solver_runs: tuple[SolverTelemetry, ...] = field(default=(), compare=False)
 
 
 # ---------------------------------------------------------------------------

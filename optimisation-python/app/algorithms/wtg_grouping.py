@@ -1,13 +1,20 @@
 import math
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
+from typing import Any
 
 import numpy as np
-from scipy.optimize import Bounds, LinearConstraint, milp
+from scipy.optimize import Bounds, LinearConstraint, OptimizeResult, milp
 from shapely.geometry import Point
 from sklearn.cluster import KMeans
 
+from app.algorithms.solver_models import (
+    SolverOptions,
+    SolverTelemetry,
+    solver_status_from_scipy,
+)
 from app.models.spatial import ProjectSpatialData
 
 
@@ -41,6 +48,9 @@ class FeederAssignment:
 class FeederGroupingResult:
     feeder_count: int
     assignments: tuple[FeederAssignment, ...]
+    # Telemetry for every MILP solve attempted, in order. Excluded from
+    # equality because wall time differs between otherwise identical runs.
+    solver_runs: tuple[SolverTelemetry, ...] = field(default=(), compare=False)
 
 
 def group_wtgs(
@@ -49,6 +59,8 @@ def group_wtgs(
     *,
     random_state: int = 42,
     objective: GroupingObjective = GroupingObjective.MINIMIZE_DISTANCE,
+    feeder_count: int | None = None,
+    solver_options: SolverOptions | None = None,
 ) -> FeederGroupingResult:
     """
     Deterministically groups wind turbines into feeders such that no feeder
@@ -72,7 +84,15 @@ def group_wtgs(
         minimises squared turbine-to-centroid distance, producing spatially
         compact feeders.  ``BALANCE_WTG_COUNT`` minimises the maximum
         deviation from the ideal equal-split WTG count per feeder.
+    feeder_count:
+        Reserved for the explicit ``k+1`` candidate (WP5-3, L3). Not yet
+        supported; ``None`` keeps the minimum capacity-feasible count.
+    solver_options:
+        Limits for each MILP solve (WP4-6, L2). Stage 0 threads them through
+        but applies none.
     """
+    if feeder_count is not None:
+        raise NotImplementedError("feeder_count override is implemented by WP5-3")
     if not math.isfinite(feeder_capacity_mw) or feeder_capacity_mw <= 0:
         raise ValueError("feeder_capacity_mw must be positive and finite")
 
@@ -145,6 +165,7 @@ def group_wtgs(
         base_k = 1
 
     best_assignments: list[int] = list(range(num_wtgs))  # fallback
+    solver_runs: list[SolverTelemetry] = []
 
     for k in range(base_k, num_wtgs + 1):
         if k == 1:
@@ -169,13 +190,15 @@ def group_wtgs(
             seeds = kmeans.cluster_centers_.tolist()
 
         if objective == GroupingObjective.BALANCE_WTG_COUNT:
-            assignments = _solve_milp_balance(
-                coords, capacities_kw, k, feeder_capacity_kw
+            assignments, telemetry = _solve_milp_balance(
+                coords, capacities_kw, k, feeder_capacity_kw, solver_options
             )
         else:
-            assignments = _solve_milp_assignment(
-                coords, capacities_kw, seeds, k, feeder_capacity_kw
+            assignments, telemetry = _solve_milp_assignment(
+                coords, capacities_kw, seeds, k, feeder_capacity_kw, solver_options
             )
+        if telemetry is not None:
+            solver_runs.append(telemetry)
         if assignments is not None:
             # Defensive invariant check
             if any(a == -1 for a in assignments):
@@ -227,6 +250,37 @@ def group_wtgs(
     return FeederGroupingResult(
         feeder_count=len(feeder_assignments),
         assignments=tuple(feeder_assignments),
+        solver_runs=tuple(solver_runs),
+    )
+
+
+def _run_milp(
+    *,
+    objective: GroupingObjective,
+    k: int,
+    solver_options: SolverOptions | None,
+    **milp_arguments: Any,
+) -> tuple[OptimizeResult, SolverTelemetry]:
+    """Run one MILP solve and record its telemetry.
+
+    Stage 0 applies no limits from ``solver_options``; WP4-6 does.
+    """
+    options: dict[str, Any] = {"disp": False}
+    started = time.perf_counter()
+    res = milp(options=options, **milp_arguments)
+    wall_time_s = time.perf_counter() - started
+    status = solver_status_from_scipy(int(res.status))
+    raw_gap = getattr(res, "mip_gap", None)
+    mip_gap = float(raw_gap) if raw_gap is not None and math.isfinite(raw_gap) else None
+    return res, SolverTelemetry(
+        objective=objective.value,
+        feeder_count=k,
+        status=status,
+        wall_time_s=wall_time_s,
+        mip_gap=mip_gap,
+        time_limit_s=None,
+        node_limit=None,
+        limit_reached=int(res.status) == 1,
     )
 
 
@@ -236,7 +290,8 @@ def _solve_milp_assignment(
     centroids: list[tuple[float, float]],
     k: int,
     feeder_capacity_kw: int,
-) -> list[int] | None:
+    solver_options: SolverOptions | None = None,
+) -> tuple[list[int] | None, SolverTelemetry | None]:
     """
     Uses scipy.optimize.milp to solve the capacitated assignment problem.
     Variables: x_ij (binary) = 1 if turbine i is in feeder j.
@@ -291,12 +346,14 @@ def _solve_milp_assignment(
     bounds = Bounds(0, 1)
     integrality = np.ones(num_vars)  # 1 means integer
 
-    res = milp(
+    res, telemetry = _run_milp(
+        objective=GroupingObjective.MINIMIZE_DISTANCE,
+        k=k,
+        solver_options=solver_options,
         c=c,
         constraints=constraints,
         integrality=integrality,
         bounds=bounds,
-        options={"disp": False},
     )
 
     if res.success:
@@ -307,9 +364,9 @@ def _solve_milp_assignment(
                 if x_sol[i * k + j] == 1:
                     assignments[i] = j
                     break
-        return assignments
+        return assignments, telemetry
 
-    return None
+    return None, telemetry
 
 
 def _solve_milp_balance(
@@ -317,7 +374,8 @@ def _solve_milp_balance(
     capacities_kw: list[int],
     k: int,
     feeder_capacity_kw: int,
-) -> list[int] | None:
+    solver_options: SolverOptions | None = None,
+) -> tuple[list[int] | None, SolverTelemetry | None]:
     """Solve the capacitated assignment problem with an explicit balance objective.
 
     The objective minimises the maximum absolute deviation of feeder WTG count
@@ -339,7 +397,7 @@ def _solve_milp_balance(
     """
     n = len(coords)
     if n == 0 or k == 0:
-        return None
+        return None, None
 
     ideal = n / k  # ideal WTGs per feeder (may be fractional)
     num_x = n * k
@@ -402,12 +460,14 @@ def _solve_milp_balance(
     )
     integrality = np.concatenate((np.ones(num_x), [0.0]))  # t is continuous
 
-    res = milp(
+    res, telemetry = _run_milp(
+        objective=GroupingObjective.BALANCE_WTG_COUNT,
+        k=k,
+        solver_options=solver_options,
         c=c,
         constraints=constraints,
         integrality=integrality,
         bounds=bounds,
-        options={"disp": False},
     )
 
     if res.success:
@@ -418,6 +478,6 @@ def _solve_milp_balance(
                 if x_sol[i * k + j] == 1:
                     assignments[i] = j
                     break
-        return assignments
+        return assignments, telemetry
 
-    return None
+    return None, telemetry

@@ -1,0 +1,914 @@
+{
+  "$defs": {
+    "CandidateEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "contributions": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Contributions"
+        },
+        "eligible": {
+          "title": "Eligible",
+          "type": "boolean"
+        },
+        "extra_feeder_outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExtraFeederOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "failure_codes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Failure Codes",
+          "type": "array"
+        },
+        "feasible": {
+          "title": "Feasible",
+          "type": "boolean"
+        },
+        "fingerprints": {
+          "$ref": "#/$defs/CandidateFingerprints"
+        },
+        "mutation_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Mutation Type"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Parent Id"
+        },
+        "rank": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rank"
+        },
+        "raw_metrics": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Raw Metrics",
+          "type": "object"
+        },
+        "winner": {
+          "default": false,
+          "title": "Winner",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "parent_id",
+        "mutation_type",
+        "fingerprints",
+        "feasible",
+        "eligible",
+        "failure_codes",
+        "raw_metrics",
+        "contributions"
+      ],
+      "title": "CandidateEvidence",
+      "type": "object"
+    },
+    "CandidateFingerprints": {
+      "additionalProperties": false,
+      "properties": {
+        "canonicaliser_versions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Canonicaliser Versions",
+          "type": "object"
+        },
+        "final_design": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Final Design"
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Geometry"
+        },
+        "topology": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Topology"
+        }
+      },
+      "required": [
+        "topology",
+        "geometry",
+        "final_design",
+        "canonicaliser_versions"
+      ],
+      "title": "CandidateFingerprints",
+      "type": "object"
+    },
+    "CatalogueBasis": {
+      "additionalProperties": false,
+      "properties": {
+        "catalogue_id": {
+          "title": "Catalogue Id",
+          "type": "string"
+        },
+        "cost_assumptions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Cost Assumptions",
+          "type": "object"
+        },
+        "currency": {
+          "title": "Currency",
+          "type": "string"
+        },
+        "price_basis_date": {
+          "title": "Price Basis Date",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "catalogue_id",
+        "version",
+        "currency",
+        "price_basis_date",
+        "cost_assumptions"
+      ],
+      "title": "CatalogueBasis",
+      "type": "object"
+    },
+    "CohortExclusionCode": {
+      "description": "Why a candidate was left out of the shared comparison cohort.",
+      "enum": [
+        "EVALUATION_FAILED",
+        "INELIGIBLE",
+        "MISSING_REQUIRED_METRIC",
+        "INCOMPLETE_LIFECYCLE_COST",
+        "DUPLICATE_FINAL_DESIGN"
+      ],
+      "title": "CohortExclusionCode",
+      "type": "string"
+    },
+    "EffectiveProfile": {
+      "additionalProperties": false,
+      "description": "The effective policy and flag state behind this response (WP3-7).",
+      "properties": {
+        "definition_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Definition Hash"
+        },
+        "generation_settings_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Generation Settings Hash"
+        },
+        "metric_registry_version": {
+          "title": "Metric Registry Version",
+          "type": "string"
+        },
+        "policy_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Policy Hash"
+        },
+        "profile_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Profile Id"
+        },
+        "profile_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Profile Version"
+        },
+        "profiles_enabled": {
+          "title": "Profiles Enabled",
+          "type": "boolean"
+        },
+        "search_enabled": {
+          "title": "Search Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "profile_id",
+        "profile_version",
+        "policy_hash",
+        "definition_hash",
+        "metric_registry_version",
+        "generation_settings_hash",
+        "profiles_enabled",
+        "search_enabled"
+      ],
+      "title": "EffectiveProfile",
+      "type": "object"
+    },
+    "ExclusionCount": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/CohortExclusionCode"
+        },
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "code",
+        "count"
+      ],
+      "title": "ExclusionCount",
+      "type": "object"
+    },
+    "ExtraFeederOutcome": {
+      "description": "Result of trying the explicit ``k+1`` feeder candidate.",
+      "enum": [
+        "ACCEPTED",
+        "NOT_APPLICABLE",
+        "CAPACITY_INFEASIBLE",
+        "SOLVER_LIMIT_REACHED",
+        "DUPLICATE_TOPOLOGY",
+        "EVALUATION_FAILED"
+      ],
+      "title": "ExtraFeederOutcome",
+      "type": "string"
+    },
+    "HostEnvironment": {
+      "additionalProperties": false,
+      "properties": {
+        "cold_definition": {
+          "title": "Cold Definition",
+          "type": "string"
+        },
+        "cold_run": {
+          "title": "Cold Run",
+          "type": "boolean"
+        },
+        "cpu": {
+          "title": "Cpu",
+          "type": "string"
+        },
+        "java_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Java Version"
+        },
+        "memory_gb": {
+          "exclusiveMinimum": 0,
+          "title": "Memory Gb",
+          "type": "number"
+        },
+        "node_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Node Version"
+        },
+        "os": {
+          "title": "Os",
+          "type": "string"
+        },
+        "python_version": {
+          "title": "Python Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "os",
+        "python_version",
+        "java_version",
+        "node_version",
+        "cpu",
+        "memory_gb",
+        "cold_run",
+        "cold_definition"
+      ],
+      "title": "HostEnvironment",
+      "type": "object"
+    },
+    "JobStatus": {
+      "description": "Java job lifecycle states, mirrored so evidence can name them.",
+      "enum": [
+        "PENDING",
+        "RUNNING",
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED",
+        "TIMED_OUT"
+      ],
+      "title": "JobStatus",
+      "type": "string"
+    },
+    "RunState": {
+      "additionalProperties": false,
+      "properties": {
+        "admission_deadline_reached": {
+          "title": "Admission Deadline Reached",
+          "type": "boolean"
+        },
+        "job_status": {
+          "$ref": "#/$defs/JobStatus"
+        },
+        "outer_timeout_reached": {
+          "title": "Outer Timeout Reached",
+          "type": "boolean"
+        },
+        "repeatability_matched": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Repeatability Matched"
+        },
+        "termination_reason": {
+          "$ref": "#/$defs/RunTerminationReason"
+        }
+      },
+      "required": [
+        "job_status",
+        "termination_reason",
+        "admission_deadline_reached",
+        "outer_timeout_reached",
+        "repeatability_matched"
+      ],
+      "title": "RunState",
+      "type": "object"
+    },
+    "RunTerminationReason": {
+      "description": "Why a run or its search stopped.\n\nA superset of ``SearchTerminationReason``; every value there must exist here\nwith the same spelling.",
+      "enum": [
+        "COMPLETED",
+        "SEARCH_DISABLED",
+        "MAX_ROUNDS_REACHED",
+        "EVALUATION_BUDGET_EXHAUSTED",
+        "PROPOSAL_BUDGET_EXHAUSTED",
+        "ROUTED_PROPOSAL_BUDGET_EXHAUSTED",
+        "SEED_BUDGET_EXHAUSTED",
+        "CHILD_BUDGET_EXHAUSTED",
+        "ARCHIVE_LIMIT_REACHED",
+        "NO_NEW_UNIQUE_CANDIDATES",
+        "NO_FEASIBLE_SEARCH_CANDIDATES",
+        "ADMISSION_DEADLINE_REACHED",
+        "SOLVER_LIMIT_REACHED",
+        "CANCELLED",
+        "NO_ELIGIBLE_CANDIDATE"
+      ],
+      "title": "RunTerminationReason",
+      "type": "string"
+    },
+    "SearchCounts": {
+      "additionalProperties": false,
+      "description": "Count vocabulary; see ``contracts/reconcile.py`` for the equations.",
+      "properties": {
+        "archive_size": {
+          "minimum": 0,
+          "title": "Archive Size",
+          "type": "integer"
+        },
+        "cache_hits": {
+          "minimum": 0,
+          "title": "Cache Hits",
+          "type": "integer"
+        },
+        "child_evaluations": {
+          "minimum": 0,
+          "title": "Child Evaluations",
+          "type": "integer"
+        },
+        "child_proposals": {
+          "minimum": 0,
+          "title": "Child Proposals",
+          "type": "integer"
+        },
+        "duplicates": {
+          "minimum": 0,
+          "title": "Duplicates",
+          "type": "integer"
+        },
+        "eligible": {
+          "minimum": 0,
+          "title": "Eligible",
+          "type": "integer"
+        },
+        "evaluation_failures": {
+          "minimum": 0,
+          "title": "Evaluation Failures",
+          "type": "integer"
+        },
+        "executed_evaluations": {
+          "minimum": 0,
+          "title": "Executed Evaluations",
+          "type": "integer"
+        },
+        "feasible": {
+          "minimum": 0,
+          "title": "Feasible",
+          "type": "integer"
+        },
+        "requested_seeds": {
+          "minimum": 0,
+          "title": "Requested Seeds",
+          "type": "integer"
+        },
+        "rounds_completed": {
+          "minimum": 0,
+          "title": "Rounds Completed",
+          "type": "integer"
+        },
+        "routed_not_evaluated": {
+          "minimum": 0,
+          "title": "Routed Not Evaluated",
+          "type": "integer"
+        },
+        "routed_proposals": {
+          "minimum": 0,
+          "title": "Routed Proposals",
+          "type": "integer"
+        },
+        "seed_evaluations": {
+          "minimum": 0,
+          "title": "Seed Evaluations",
+          "type": "integer"
+        },
+        "structural_rejects": {
+          "minimum": 0,
+          "title": "Structural Rejects",
+          "type": "integer"
+        },
+        "successful_evaluations": {
+          "minimum": 0,
+          "title": "Successful Evaluations",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "requested_seeds",
+        "seed_evaluations",
+        "child_proposals",
+        "duplicates",
+        "structural_rejects",
+        "routed_proposals",
+        "routed_not_evaluated",
+        "cache_hits",
+        "child_evaluations",
+        "executed_evaluations",
+        "successful_evaluations",
+        "evaluation_failures",
+        "feasible",
+        "eligible",
+        "archive_size",
+        "rounds_completed"
+      ],
+      "title": "SearchCounts",
+      "type": "object"
+    },
+    "SolverRun": {
+      "additionalProperties": false,
+      "description": "One grouping MILP solve (WP4-6).",
+      "properties": {
+        "feeder_count": {
+          "minimum": 1,
+          "title": "Feeder Count",
+          "type": "integer"
+        },
+        "limit_reached": {
+          "title": "Limit Reached",
+          "type": "boolean"
+        },
+        "mip_gap": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mip Gap"
+        },
+        "node_limit": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Node Limit"
+        },
+        "objective": {
+          "title": "Objective",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/SolverStatus"
+        },
+        "time_limit_s": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time Limit S"
+        },
+        "wall_time_s": {
+          "minimum": 0,
+          "title": "Wall Time S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "objective",
+        "feeder_count",
+        "status",
+        "wall_time_s",
+        "limit_reached"
+      ],
+      "title": "SolverRun",
+      "type": "object"
+    },
+    "SolverStatus": {
+      "description": "Outcome of one MILP solve.\n\n``LIMIT_REACHED`` must never be treated as ``INFEASIBLE``: a limit that\nstops a solve says nothing about whether that feeder count is feasible.",
+      "enum": [
+        "OPTIMAL",
+        "INFEASIBLE",
+        "LIMIT_REACHED",
+        "UNBOUNDED",
+        "ERROR"
+      ],
+      "title": "SolverStatus",
+      "type": "string"
+    },
+    "SourceRevisions": {
+      "additionalProperties": false,
+      "properties": {
+        "clean_worktree": {
+          "title": "Clean Worktree",
+          "type": "boolean"
+        },
+        "frontend_revision": {
+          "title": "Frontend Revision",
+          "type": "string"
+        },
+        "image_digests": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Image Digests",
+          "type": "object"
+        },
+        "java_revision": {
+          "title": "Java Revision",
+          "type": "string"
+        },
+        "lockfile_sha256": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Lockfile Sha256",
+          "type": "object"
+        },
+        "python_revision": {
+          "title": "Python Revision",
+          "type": "string"
+        },
+        "source_artifact_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Artifact Sha256"
+        }
+      },
+      "required": [
+        "python_revision",
+        "java_revision",
+        "frontend_revision",
+        "clean_worktree",
+        "lockfile_sha256",
+        "image_digests"
+      ],
+      "title": "SourceRevisions",
+      "type": "object"
+    },
+    "Timings": {
+      "additionalProperties": false,
+      "properties": {
+        "image_pull_build_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Pull Build S"
+        },
+        "job_submitted_to_persisted_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Job Submitted To Persisted S"
+        },
+        "routing_time_s": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Routing Time S"
+        },
+        "stage_timings_s": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Stage Timings S",
+          "type": "object"
+        },
+        "total_wall_time_s": {
+          "minimum": 0,
+          "title": "Total Wall Time S",
+          "type": "number"
+        }
+      },
+      "required": [
+        "total_wall_time_s",
+        "stage_timings_s"
+      ],
+      "title": "Timings",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "blinded": {
+      "title": "Blinded",
+      "type": "boolean"
+    },
+    "candidates": {
+      "items": {
+        "$ref": "#/$defs/CandidateEvidence"
+      },
+      "title": "Candidates",
+      "type": "array"
+    },
+    "catalogue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CatalogueBasis"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "cohort_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Cohort Hash"
+    },
+    "counts": {
+      "$ref": "#/$defs/SearchCounts"
+    },
+    "effective_profile": {
+      "$ref": "#/$defs/EffectiveProfile"
+    },
+    "environment": {
+      "$ref": "#/$defs/HostEnvironment"
+    },
+    "exclusions": {
+      "items": {
+        "$ref": "#/$defs/ExclusionCount"
+      },
+      "title": "Exclusions",
+      "type": "array"
+    },
+    "profile_version_count": {
+      "minimum": 0,
+      "title": "Profile Version Count",
+      "type": "integer"
+    },
+    "project_input_sha256": {
+      "title": "Project Input Sha256",
+      "type": "string"
+    },
+    "record_id": {
+      "title": "Record Id",
+      "type": "string"
+    },
+    "request_variant": {
+      "title": "Request Variant",
+      "type": "string"
+    },
+    "revisions": {
+      "$ref": "#/$defs/SourceRevisions"
+    },
+    "run_state": {
+      "$ref": "#/$defs/RunState"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "serialised_request_sha256": {
+      "title": "Serialised Request Sha256",
+      "type": "string"
+    },
+    "solver_runs": {
+      "items": {
+        "$ref": "#/$defs/SolverRun"
+      },
+      "title": "Solver Runs",
+      "type": "array"
+    },
+    "timings": {
+      "$ref": "#/$defs/Timings"
+    }
+  },
+  "required": [
+    "record_id",
+    "request_variant",
+    "project_input_sha256",
+    "serialised_request_sha256",
+    "blinded",
+    "revisions",
+    "environment",
+    "effective_profile",
+    "profile_version_count",
+    "catalogue",
+    "counts",
+    "exclusions",
+    "solver_runs",
+    "candidates",
+    "cohort_hash",
+    "run_state",
+    "timings"
+  ],
+  "title": "EvidenceRecord",
+  "type": "object"
+}

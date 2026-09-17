@@ -1,0 +1,22 @@
+{
+  "additionalProperties": false,
+  "description": "``OptimisationRequest.profile``: an allow-listed profile ID and version.",
+  "properties": {
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "version": {
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "version"
+  ],
+  "title": "ProfileSelection",
+  "type": "object"
+}

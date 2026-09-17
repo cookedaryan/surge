@@ -1,0 +1,131 @@
+{
+  "blinded": true,
+  "candidates": [
+    {
+      "candidate_id": "SCN-001",
+      "contributions": null,
+      "eligible": true,
+      "extra_feeder_outcome": null,
+      "failure_codes": [],
+      "feasible": true,
+      "fingerprints": {
+        "canonicaliser_versions": {
+          "final_design": "1",
+          "geometry": "1",
+          "topology": "1"
+        },
+        "final_design": "final_design:1:9999999999999999999999999999999999999999999999999999999999999999",
+        "geometry": "geometry:1:8888888888888888888888888888888888888888888888888888888888888888",
+        "topology": "topology:1:7777777777777777777777777777777777777777777777777777777777777777"
+      },
+      "mutation_type": null,
+      "parent_id": null,
+      "rank": null,
+      "raw_metrics": {
+        "ROUTE_LENGTH": 12500.0
+      },
+      "winner": false
+    }
+  ],
+  "catalogue": {
+    "catalogue_id": "IN-33KV-INDICATIVE",
+    "cost_assumptions": {
+      "discount_rate": "0.08"
+    },
+    "currency": "INR",
+    "price_basis_date": "2026-09-01",
+    "version": "1"
+  },
+  "cohort_hash": null,
+  "counts": {
+    "archive_size": 17,
+    "cache_hits": 3,
+    "child_evaluations": 10,
+    "child_proposals": 20,
+    "duplicates": 4,
+    "eligible": 9,
+    "evaluation_failures": 2,
+    "executed_evaluations": 13,
+    "feasible": 14,
+    "requested_seeds": 3,
+    "rounds_completed": 2,
+    "routed_not_evaluated": 1,
+    "routed_proposals": 14,
+    "seed_evaluations": 3,
+    "structural_rejects": 2,
+    "successful_evaluations": 11
+  },
+  "effective_profile": {
+    "definition_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "generation_settings_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "metric_registry_version": "1",
+    "policy_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "profile_id": "balanced",
+    "profile_version": "1",
+    "profiles_enabled": true,
+    "search_enabled": true
+  },
+  "environment": {
+    "cold_definition": "clean Compose start, empty application caches",
+    "cold_run": true,
+    "cpu": "example",
+    "java_version": "21",
+    "memory_gb": 16.0,
+    "node_version": "20",
+    "os": "linux",
+    "python_version": "3.11.9"
+  },
+  "exclusions": [
+    {
+      "code": "INCOMPLETE_LIFECYCLE_COST",
+      "count": 1
+    }
+  ],
+  "profile_version_count": 1,
+  "project_input_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+  "record_id": "EVD-EXAMPLE-0001",
+  "request_variant": "balanced",
+  "revisions": {
+    "clean_worktree": true,
+    "frontend_revision": "a313d2f",
+    "image_digests": {
+      "optimizer": "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+    },
+    "java_revision": "a313d2f",
+    "lockfile_sha256": {
+      "requirements.lock.txt": "5555555555555555555555555555555555555555555555555555555555555555"
+    },
+    "python_revision": "a313d2f",
+    "source_artifact_sha256": null
+  },
+  "run_state": {
+    "admission_deadline_reached": false,
+    "job_status": "COMPLETED",
+    "outer_timeout_reached": false,
+    "repeatability_matched": null,
+    "termination_reason": "MAX_ROUNDS_REACHED"
+  },
+  "schema_version": "1.0.0",
+  "serialised_request_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+  "solver_runs": [
+    {
+      "feeder_count": 2,
+      "limit_reached": false,
+      "mip_gap": 0.0,
+      "node_limit": null,
+      "objective": "minimize_distance",
+      "status": "OPTIMAL",
+      "time_limit_s": null,
+      "wall_time_s": 0.042
+    }
+  ],
+  "timings": {
+    "image_pull_build_s": null,
+    "job_submitted_to_persisted_s": null,
+    "routing_time_s": 3.2,
+    "stage_timings_s": {
+      "generation": 12.0
+    },
+    "total_wall_time_s": 38.5
+  }
+}

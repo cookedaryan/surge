@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from app.electrical.repair import RepairAction
 
 from app.algorithms.pole_placement import CollectorPoleResult, PolePlacementConfig
+from app.algorithms.solver_models import SolverOptions
 from app.costing.failures import CostConfigurationError
 from app.costing.models import (
     CandidateCostAssessment,
@@ -84,6 +85,8 @@ class OptimisationConfig:
     costing: CostingConfig | None = None
     cost_aware: CostAwareRecommendationConfig | None = None
     search: CandidateSearchConfig = CandidateSearchConfig()
+    # Grouping MILP limits (S5); ``None`` applies no limit.
+    solver: SolverOptions | None = None
 
 
 class WorkflowStage(StrEnum):

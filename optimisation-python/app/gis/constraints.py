@@ -50,6 +50,10 @@ class ConstraintLayer:
     buffer_m: float
     cost_weight: float | None
     crs: CRS
+    # Contract C1 typed identity, carried through unvalidated (S1). WP2-4 (L3)
+    # validates and canonicalises; routing never reads these.
+    source_id: str | None = None
+    feature_type: str | None = None
 
     def __post_init__(self) -> None:
         if not self.layer_id.strip():
@@ -165,10 +169,17 @@ def parse_constraint_layers(
                 buffer_m=buffer_m,
                 cost_weight=cost_weight,
                 crs=target_crs,
+                source_id=_optional_text(properties, "source_id"),
+                feature_type=_optional_text(properties, "feature_type"),
             )
         )
 
     return tuple(sorted(layers, key=lambda layer: layer.layer_id))
+
+
+def _optional_text(properties: dict[str, Any], key: str) -> str | None:
+    value = properties.get(key)
+    return value if isinstance(value, str) and value.strip() else None
 
 
 def effective_constraint_geometry(layer: ConstraintLayer) -> BaseGeometry:

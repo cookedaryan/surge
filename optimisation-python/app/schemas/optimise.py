@@ -2,6 +2,15 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.contracts.request import ProfileSelection
+from app.contracts.response import (
+    DesignTruth,
+    EffectiveProfile,
+    RunTermination,
+    ScoringExplanation,
+    SearchEvidence,
+    SolverRun,
+)
 from app.presentation.models import ProjectOptimizationResult
 from app.schemas.v2.optimise import (
     CableConfigRequest,
@@ -74,6 +83,9 @@ class OptimisationRequest(BaseModel):
     # so a caller sending costing_config before it existed here had it silently
     # dropped and got uncosted results with no error to explain them.
     costing_config: CostingConfigRequest | None = None
+    # Contract C1. Absent means V0 behaviour; an explicit profile is resolved
+    # server-side and rejected with a stable code when it is not supported.
+    profile: ProfileSelection | None = None
 
 
 class OptimisationMetrics(BaseModel):
@@ -99,3 +111,11 @@ class OptimisationResponse(BaseModel):
     recommendation: RecommendationSummary | None = None
     recommended_result: ProjectOptimizationResult | None = None
     failures: list[FailuresSummary] = Field(default_factory=list)
+    # Contract C2 additive blocks. Each is omitted from the JSON when not
+    # produced, so V0 responses are unchanged.
+    design_truth: DesignTruth | None = None
+    search_evidence: SearchEvidence | None = None
+    solver_runs: list[SolverRun] | None = None
+    scoring_explanation: ScoringExplanation | None = None
+    effective_profile: EffectiveProfile | None = None
+    termination: RunTermination | None = None
