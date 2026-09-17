@@ -9,6 +9,7 @@ from app.optimisation.search_cache import (
 def _outcome() -> CandidateEvaluationOutcome:
     return CandidateEvaluationOutcome(
         load_flow_result=None,
+        land_assessment=None,
         engineering_assessment=None,
         cost_assessment=None,
         cable_sizing=None,

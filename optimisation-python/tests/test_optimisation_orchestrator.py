@@ -14,6 +14,8 @@ from app.algorithms.pole_placement import (
     PolePlacementConfig,
     place_poles_on_network,
 )
+from app.contracts import evidence as evidence_contract
+from app.contracts import metric_registry_version
 from app.electrical.errors import CandidateElectricalEvaluationError
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import WTGOperatingPoint
@@ -28,6 +30,7 @@ from app.land.models import (
     LandCommercialContext,
     ParcelCommercialProfile,
 )
+from app.optimisation import search_cache
 from app.optimisation.orchestrator import (
     _apply_land_routing_constraints,
     derive_land_constraint_layers,
@@ -40,7 +43,11 @@ from app.optimisation.scoring_models import (
     ScoringPolicyMode,
     SpatialScoringWeights,
 )
-from app.optimisation.search_cache import CandidateEvaluationCache
+from app.optimisation.search_cache import (
+    CandidateEvaluationCache,
+    CandidateEvaluationOutcome,
+    compute_evaluation_context_id,
+)
 from app.optimisation.search_models import (
     CandidateSearchConfig,
     SearchTerminationReason,
@@ -260,12 +267,40 @@ def test_candidate_search_reuses_evaluations_between_workflows(
             max_neighbors_per_parent=1,
         ),
     )
+    surface = project_input.cost_surface
+    parcel_layer = ConstraintLayer(
+        layer_id="P1",
+        layer_type=ConstraintType.PARCEL,
+        mode=ConstraintMode.SOFT_PENALTY,
+        geometry=box(*array_bounds(surface.height, surface.width, surface.transform)),
+        buffer_m=0.0,
+        cost_weight=5.0,
+        crs=surface.crs,
+        source_id="P1",
+        feature_type="parcel",
+    )
+    land_input = replace(
+        project_input,
+        constraint_layers=(parcel_layer,),
+        land_context=LandCommercialContext(
+            currency="USD",
+            as_of_date=datetime.date(2026, 1, 1),
+            parcel_profiles=(
+                ParcelCommercialProfile(
+                    parcel_id="P1",
+                    owner_id="OWNER-1",
+                    availability_status=LandAvailabilityStatus.AVAILABLE,
+                    transaction_options=(),
+                ),
+            ),
+        ),
+    )
     cache = CandidateEvaluationCache()
 
-    first = optimise_project(project_input, config, evaluation_cache=cache)
-    second = optimise_project(project_input, config, evaluation_cache=cache)
+    first = optimise_project(land_input, config, evaluation_cache=cache)
+    second = optimise_project(land_input, config, evaluation_cache=cache)
     changed_context = optimise_project(
-        replace(project_input, row_width_m=project_input.row_width_m + 1.0),
+        replace(land_input, row_width_m=land_input.row_width_m + 1.0),
         config,
         evaluation_cache=cache,
     )
@@ -278,6 +313,118 @@ def test_candidate_search_reuses_evaluations_between_workflows(
     assert second.search_result.statistics.evaluation_cache_hit_count == 1
     assert changed_context.search_result.statistics.search_evaluations_used == 1
     assert changed_context.search_result.statistics.evaluation_cache_hit_count == 0
+
+    first_child = next(
+        candidate
+        for candidate in first.candidates
+        if candidate.scenario.lineage is not None
+    )
+    second_child = next(
+        candidate
+        for candidate in second.candidates
+        if candidate.scenario.lineage is not None
+    )
+    assert first_child.land_assessment is not None
+    assert second_child.land_assessment == first_child.land_assessment
+    assert second_child.land_assessment.owner_interaction_basis == (
+        first_child.land_assessment.owner_interaction_basis
+    )
+    assert [
+        decision.affected_area_m2
+        for decision in second_child.land_assessment.parcel_decisions
+    ] == [
+        decision.affected_area_m2
+        for decision in first_child.land_assessment.parcel_decisions
+    ]
+    assert second_child.engineering_assessment == first_child.engineering_assessment
+    assert second_child.cost_assessment == first_child.cost_assessment
+    assert second_child.cable_sizing == first_child.cable_sizing
+    assert second_child.repair_log == first_child.repair_log
+    assert second_child.evaluation is not None
+    assert first_child.evaluation is not None
+    assert (
+        second_child.evaluation.assessment.eligible
+        == first_child.evaluation.assessment.eligible
+    )
+
+
+def test_evaluation_context_versions_and_typed_identity_invalidate_cache(
+    project_input: ProjectInput,
+    base_config: OptimisationConfig,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_id = compute_evaluation_context_id(
+        project_input,
+        base_config,
+        electrical_context_id="electrical-v1",
+    )
+    cache = CandidateEvaluationCache()
+    cache.put(
+        "candidate",
+        original_id,
+        CandidateEvaluationOutcome(
+            load_flow_result=None,
+            land_assessment=None,
+            engineering_assessment=None,
+            cost_assessment=None,
+            cable_sizing=None,
+            repair_log=(),
+            execution_failure=None,
+        ),
+    )
+
+    version_targets = (
+        (search_cache, "EVALUATION_PIPELINE_VERSION", "pipeline-next"),
+        (evidence_contract, "EVIDENCE_SCHEMA_VERSION", "evidence-next"),
+        (metric_registry_version, "METRIC_REGISTRY_VERSION", "metrics-next"),
+    )
+    for module, name, next_value in version_targets:
+        with monkeypatch.context() as patch:
+            patch.setattr(module, name, next_value)
+            changed_id = compute_evaluation_context_id(
+                project_input,
+                base_config,
+                electrical_context_id="electrical-v1",
+            )
+        assert changed_id != original_id
+        assert cache.get("candidate", changed_id) is None
+
+    surface = project_input.cost_surface
+    layer = ConstraintLayer(
+        layer_id="constraint-1",
+        layer_type=ConstraintType.PARCEL,
+        mode=ConstraintMode.SOFT_PENALTY,
+        geometry=box(*array_bounds(surface.height, surface.width, surface.transform)),
+        buffer_m=0.0,
+        cost_weight=5.0,
+        crs=surface.crs,
+    )
+    untyped_input = replace(project_input, constraint_layers=(layer,))
+    untyped_id = compute_evaluation_context_id(
+        untyped_input,
+        base_config,
+        electrical_context_id="electrical-v1",
+    )
+    source_typed_id = compute_evaluation_context_id(
+        replace(
+            project_input,
+            constraint_layers=(replace(layer, source_id="parcel-1"),),
+        ),
+        base_config,
+        electrical_context_id="electrical-v1",
+    )
+    fully_typed_id = compute_evaluation_context_id(
+        replace(
+            project_input,
+            constraint_layers=(
+                replace(layer, source_id="parcel-1", feature_type="parcel"),
+            ),
+        ),
+        base_config,
+        electrical_context_id="electrical-v1",
+    )
+
+    assert len({untyped_id, source_typed_id, fully_typed_id}) == 3
 
 
 def test_candidate_search_reports_proposal_budget_exhaustion(
