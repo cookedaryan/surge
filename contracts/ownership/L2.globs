@@ -1,0 +1,44 @@
+# Contract C10: paths L2 may edit in Phase 1 (see the L2 worktree plan §6).
+
+# Java and frontend, except L1's claim copy.
+backend-java/**
+web-map-next/**
+!web-map-next/src/features/optimization/ClaimDisclosure.tsx
+!web-map-next/src/features/optimization/ClaimDisclosure.test.tsx
+docker-compose.yml
+
+# Candidate truth, bounded search and orchestration.
+optimisation-python/app/optimisation/search_cache.py
+optimisation-python/app/optimisation/candidate_search.py
+optimisation-python/app/optimisation/search_models.py
+optimisation-python/app/optimisation/orchestrator.py
+optimisation-python/app/optimisation/search_activation.py
+optimisation-python/app/optimisation/deadline_guard.py
+optimisation-python/app/presentation/**
+!optimisation-python/app/presentation/explanation.py
+!optimisation-python/app/presentation/profile_echo.py
+optimisation-python/app/schemas/v2/**
+optimisation-python/app/reporting/**
+
+# Solver limits and telemetry. wtg_grouping.py is region-owned:
+# L2 owns the _run_milp and _solve_milp_* bodies only.
+optimisation-python/app/algorithms/solver_models.py
+optimisation-python/app/algorithms/wtg_grouping.py
+
+# Baseline measurement and independent checks.
+optimisation-python/app/evidence/fingerprints/topology.py
+optimisation-python/app/evidence/cost_recompute.py
+optimisation-python/scripts/evidence/**
+
+# Tests for the above.
+optimisation-python/tests/test_search_*.py
+optimisation-python/tests/test_wtg_grouping.py
+optimisation-python/tests/test_presentation.py
+optimisation-python/tests/test_decision_report.py
+optimisation-python/tests/test_engineering_report.py
+optimisation-python/tests/test_optimise.py
+optimisation-python/tests/test_optimisation_orchestrator.py
+optimisation-python/tests/api/**
+optimisation-python/tests/evidence/test_topology*.py
+optimisation-python/tests/evidence/test_cost_recompute*.py
+optimisation-python/tests/search/**

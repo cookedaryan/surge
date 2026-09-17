@@ -1,0 +1,71 @@
+{
+  "$defs": {
+    "CanonicalFeatureType": {
+      "description": "Typed identity of an avoidance feature, independent of routing class.",
+      "enum": [
+        "road",
+        "ht_line",
+        "watercourse",
+        "parcel",
+        "forest",
+        "protected_area",
+        "environmental",
+        "water_body",
+        "settlement",
+        "aviation",
+        "restricted_area"
+      ],
+      "title": "CanonicalFeatureType",
+      "type": "string"
+    },
+    "RoutingMode": {
+      "description": "Existing ``routing_mode`` values. An enum, not a ``Literal``: typing caches\nLiterals regardless of value order, which makes exported schemas unstable.",
+      "enum": [
+        "soft",
+        "hard"
+      ],
+      "title": "RoutingMode",
+      "type": "string"
+    }
+  },
+  "description": "Additive properties on each ``avoidance_geojson`` feature.\n\n``constraint_type`` keeps selecting routing treatment exactly as today.\n``source_id`` is the stable upstream identity (the cadastral ``parcel_id``\nfor parcels, the persisted asset id otherwise). ``feature_type`` is the\ntyped identity used by land and environment metrics. ``routing_mode``\nalready exists and is restated here because metrics consume it too.",
+  "properties": {
+    "feature_type": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CanonicalFeatureType"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "routing_mode": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RoutingMode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "source_id": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Id"
+    }
+  },
+  "title": "TypedFeatureIdentity",
+  "type": "object"
+}

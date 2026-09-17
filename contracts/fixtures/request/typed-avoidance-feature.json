@@ -1,0 +1,35 @@
+{
+  "geometry": {
+    "coordinates": [
+      [
+        [
+          77.2,
+          14.38
+        ],
+        [
+          77.21,
+          14.38
+        ],
+        [
+          77.21,
+          14.39
+        ],
+        [
+          77.2,
+          14.38
+        ]
+      ]
+    ],
+    "type": "Polygon"
+  },
+  "id": "restricted-3f0c",
+  "properties": {
+    "buffer_m": 30.0,
+    "constraint_id": "restricted-3f0c",
+    "constraint_type": "restricted_area",
+    "feature_type": "forest",
+    "routing_mode": "hard",
+    "source_id": "3f0c9a52-1b8e-4a57-9d8e-0f3f4e6f2a10"
+  },
+  "type": "Feature"
+}

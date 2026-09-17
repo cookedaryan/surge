@@ -1,0 +1,124 @@
+{
+  "design_truth": {
+    "candidate_id": "SCN-001",
+    "candidate_sizing_basis": "INITIAL_ONLY",
+    "repair_actions": [
+      {
+        "original_cable_type_id": "SMALL",
+        "reason_code": "VOLTAGE_VIOLATION",
+        "repair_iteration": 1,
+        "segment_id": "SEG-F1-001",
+        "trigger_violation_type": "OVERVOLTAGE",
+        "upgraded_cable_type_id": "LARGE"
+      }
+    ],
+    "segments": [
+      {
+        "feeder_id": "F1",
+        "final_cable_type_id": "LARGE",
+        "initial_cable_type_id": "SMALL",
+        "repaired": true,
+        "segment_id": "SEG-F1-001"
+      }
+    ]
+  },
+  "effective_profile": {
+    "definition_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+    "generation_settings_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+    "metric_registry_version": "1",
+    "policy_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "profile_id": "balanced",
+    "profile_version": "1",
+    "profiles_enabled": true,
+    "search_enabled": true
+  },
+  "scoring_explanation": {
+    "candidates": [
+      {
+        "candidate_id": "SCN-001",
+        "contributions": [
+          {
+            "direction": "minimise",
+            "metric": "affected_parcel_row_area_m2",
+            "normalised_value": 0.75,
+            "raw_value": 1250.0,
+            "reference_max": 5000.0,
+            "reference_min": 0.0,
+            "weight": 0.2,
+            "weighted_contribution": 0.15
+          }
+        ],
+        "eligible": true,
+        "rank": 1,
+        "total_score": 0.74
+      }
+    ],
+    "generation_penalties": [
+      {
+        "name": "parcel_cost_weight",
+        "unit": "1",
+        "value": 20.0
+      }
+    ],
+    "profile_id": "balanced",
+    "reference_ranges_version": "1"
+  },
+  "search_evidence": {
+    "admission_deadline_reached": false,
+    "admission_deadline_s": 45.0,
+    "caps": {
+      "archive": 60,
+      "children": 40,
+      "evaluations": 40,
+      "proposals": 200,
+      "rounds": 2,
+      "routed_proposals": 60,
+      "seeds": 5
+    },
+    "counts": {
+      "archive_size": 17,
+      "cache_hits": 3,
+      "child_evaluations": 10,
+      "child_proposals": 20,
+      "duplicates": 4,
+      "eligible": 9,
+      "evaluation_failures": 2,
+      "executed_evaluations": 13,
+      "feasible": 14,
+      "requested_seeds": 3,
+      "rounds_completed": 2,
+      "routed_not_evaluated": 1,
+      "routed_proposals": 14,
+      "seed_evaluations": 3,
+      "structural_rejects": 2,
+      "successful_evaluations": 11
+    },
+    "enabled": true,
+    "lineage": [
+      {
+        "candidate_id": "SCN-S1-001",
+        "discarded_duplicate_of": null,
+        "mutation_type": "FEEDER_SWAP",
+        "parent_id": "SCN-001",
+        "round": 1
+      }
+    ],
+    "routing_time_s": 3.2
+  },
+  "solver_runs": [
+    {
+      "feeder_count": 2,
+      "limit_reached": false,
+      "mip_gap": 0.0,
+      "node_limit": null,
+      "objective": "minimize_distance",
+      "status": "OPTIMAL",
+      "time_limit_s": null,
+      "wall_time_s": 0.042
+    }
+  ],
+  "termination": {
+    "message": null,
+    "reason": "MAX_ROUNDS_REACHED"
+  }
+}

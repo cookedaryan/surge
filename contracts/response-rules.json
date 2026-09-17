@@ -1,0 +1,17 @@
+{
+  "absent_when_not_produced": true,
+  "additive_blocks": [
+    "design_truth",
+    "search_evidence",
+    "solver_runs",
+    "scoring_explanation",
+    "effective_profile",
+    "termination"
+  ],
+  "evidence_schema_version": "1.0.0",
+  "golden_comparison_exclusions": [
+    "search_evidence.routing_time_s",
+    "solver_runs[].wall_time_s"
+  ],
+  "metric_registry_version": "1"
+}

@@ -1,0 +1,26 @@
+{
+  "bundle_id": "BUNDLE-EXAMPLE",
+  "cohort_hash": null,
+  "hashes": {
+    "catalogue_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "code_revisions": {
+      "python": "a313d2f"
+    },
+    "evidence_schema_version": "1.0.0",
+    "image_digests": {
+      "optimizer": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    },
+    "profile_definition_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "request_sha256": {
+      "balanced": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "response_schema_version": "2.0"
+  },
+  "on_screen_label": "Recorded run",
+  "recorded_at": "2026-09-17T00:00:00Z",
+  "release_candidate_tag": "demo-opt-rc1",
+  "schema_version": "1.0.0",
+  "winner_final_design_fingerprints": {
+    "balanced": "final_design:1:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  }
+}

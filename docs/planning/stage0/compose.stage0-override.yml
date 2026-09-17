@@ -1,0 +1,23 @@
+# Isolates the Stage 0 clean-start check from the developer's running SURGE stack:
+# unique container names, remapped host ports, and restart disabled.
+services:
+  db:
+    container_name: surge-stage0-postgis
+    restart: "no"
+    ports: !override
+      - "55432:5432"
+  backend:
+    container_name: surge-stage0-backend
+    restart: "no"
+    ports: !override
+      - "18080:8080"
+  optimizer:
+    container_name: surge-stage0-optimizer
+    restart: "no"
+    ports: !override
+      - "18000:8000"
+  frontend:
+    container_name: surge-stage0-web
+    restart: "no"
+    ports: !override
+      - "13000:80"

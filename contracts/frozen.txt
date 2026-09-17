@@ -1,0 +1,23 @@
+# Contract C10: paths no level may edit in Phase 1. Change only through a
+# contract change request (contracts/README.md). A leading ! un-freezes a path.
+
+contracts/**
+docs/planning/SURGE demo optimization *.md
+docs/planning/stage0/**
+scripts/ci/**
+.github/workflows/**
+
+optimisation-python/app/contracts/**
+!optimisation-python/app/contracts/metric_registry_version.py
+optimisation-python/app/schemas/optimise.py
+optimisation-python/app/schemas/legacy_mapping.py
+optimisation-python/app/api/v1/endpoints/optimise.py
+optimisation-python/app/api/v1/router.py
+optimisation-python/app/core/config.py
+optimisation-python/app/optimisation/run_guard.py
+optimisation-python/app/optimisation/workflow_models.py
+optimisation-python/scripts/contracts/**
+optimisation-python/tests/contracts/**
+optimisation-python/requirements.lock.txt
+optimisation-python/requirements.txt
+optimisation-python/pyproject.toml

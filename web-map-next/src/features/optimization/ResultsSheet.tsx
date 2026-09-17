@@ -5,6 +5,7 @@ import { useUiStore } from '../../lib/store';
 import { formatMoney } from '../../lib/format/money';
 import { CandidateComparison, FeederBreakdown, ViolationList, parseSummary } from './resultParts';
 import { DecisionExplainer } from './DecisionExplainer';
+import { ClaimDisclosure } from './ClaimDisclosure';
 import { CostBreakdown } from '../bom/CostBreakdown';
 import { BomBoqTable } from '../bom/BomBoqTable';
 import type { FeederElectricalResult } from '../../lib/api';
@@ -124,6 +125,8 @@ export function ResultsSheet() {
 
           {tab === 'decision' && (
             <div className="animate-fade-in">
+              {/* Contract S9: L1 owns ClaimDisclosure; this mount stays where it is. */}
+              <ClaimDisclosure />
               <DecisionExplainer summary={summary} />
               {summary.candidates && summary.candidates.length > 1 && (
                 <div className="mt-5">
