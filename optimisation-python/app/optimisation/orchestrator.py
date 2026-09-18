@@ -566,6 +566,7 @@ def optimise_project(
                 load_flow_result=load_flow_result,
                 pole_network=pole_network,
                 constraint_layers=project_input.constraint_layers,
+                repair_log=winner_candidate.repair_log,
             )
             # Create a new instance with the presentation result
             winner_candidate = replace(

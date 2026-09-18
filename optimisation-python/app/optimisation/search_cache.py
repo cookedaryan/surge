@@ -5,10 +5,13 @@ import json
 from dataclasses import dataclass, replace
 from typing import Any
 
+from app.contracts import evidence as evidence_contract
+from app.contracts import metric_registry_version
 from app.costing.models import CandidateCostAssessment
 from app.electrical.cable_sizing import CableSizingResult
 from app.electrical.load_flow.models import LoadFlowNetworkResult
 from app.electrical.repair import RepairAction
+from app.land.models import CandidateLandAssessment
 from app.optimisation.engineering_metric_models import CandidateEngineeringAssessment
 from app.optimisation.scenario_models import PNCScenario
 from app.optimisation.workflow_models import (
@@ -19,6 +22,7 @@ from app.optimisation.workflow_models import (
 )
 
 CacheKey = tuple[str, str]
+EVALUATION_PIPELINE_VERSION = "v2"
 
 
 @dataclass(frozen=True)
@@ -26,6 +30,7 @@ class CandidateEvaluationOutcome:
     """Scenario-independent result of the expensive evaluation pipeline."""
 
     load_flow_result: LoadFlowNetworkResult | None
+    land_assessment: CandidateLandAssessment | None
     engineering_assessment: CandidateEngineeringAssessment | None
     cost_assessment: CandidateCostAssessment | None
     cable_sizing: CableSizingResult | None
@@ -38,6 +43,7 @@ class CandidateEvaluationOutcome:
     ) -> "CandidateEvaluationOutcome":
         return cls(
             load_flow_result=candidate.load_flow_result,
+            land_assessment=candidate.land_assessment,
             engineering_assessment=candidate.engineering_assessment,
             cost_assessment=candidate.cost_assessment,
             cable_sizing=candidate.cable_sizing,
@@ -58,6 +64,11 @@ class CandidateEvaluationOutcome:
             if self.engineering_assessment
             else None
         )
+        land = (
+            replace(self.land_assessment, scenario_id=scenario_id)
+            if self.land_assessment
+            else None
+        )
         cost = self.cost_assessment
         if cost:
             lifecycle_cost = (
@@ -70,6 +81,7 @@ class CandidateEvaluationOutcome:
             load_flow_result=self.load_flow_result,
             evaluation=None,
             execution_failure=failure,
+            land_assessment=land,
             engineering_assessment=engineering,
             cost_assessment=cost,
             cable_sizing=self.cable_sizing,
@@ -163,7 +175,9 @@ def compute_evaluation_context_id(
 ) -> str:
     """Hash every non-topological input used to evaluate and score a design."""
     state: dict[str, Any] = {
-        "pipeline_version": "v1",
+        "pipeline_version": EVALUATION_PIPELINE_VERSION,
+        "evidence_schema_version": evidence_contract.EVIDENCE_SCHEMA_VERSION,
+        "metric_registry_version": metric_registry_version.METRIC_REGISTRY_VERSION,
         "project_id": project_input.project_id,
         "electrical_context_id": electrical_context_id,
         "land_economic_context_id": land_economic_context_id,
@@ -177,6 +191,8 @@ def compute_evaluation_context_id(
                 "buffer_m": layer.buffer_m,
                 "cost_weight": layer.cost_weight,
                 "crs": layer.crs.to_wkt(),
+                "source_id": layer.source_id,
+                "feature_type": layer.feature_type,
             }
             for layer in sorted(
                 project_input.constraint_layers, key=lambda item: item.layer_id
