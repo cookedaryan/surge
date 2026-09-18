@@ -15,6 +15,9 @@ topology_fingerprint_from_grouping(grouping, graph)
 design_fingerprint(grouping, topology, substation_node_id)
     Compute a logical network design fingerprint.
 
+extra_feeder_outcome(result)
+    The C3 ``k+1`` outcome of one generation run, for evidence (WP5-4).
+
 Internal helpers (prefixed with _) are not part of the public API.
 
 Design principles
@@ -38,6 +41,15 @@ Design principles
 
 5.  Fewer candidates than requested is a valid result.  Zero candidates
     raises NoValidScenarioError.
+
+6.  ``config.generation_schedule`` selects the parameter schedule (WP5-2,
+    C12 option (a)). ``V0`` is today's five-entry schedule and the default.
+    ``V1`` gates out the two personalities that add no topology diversity and
+    adds the explicit ``k+1`` candidate: the baseline grouping with exactly one
+    feeder more than the minimum capacity-feasible count that the baseline
+    entry found. ``ScenarioAttempt.extra_feeder_outcome`` records the result,
+    and an extra-feeder candidate is never published with any other feeder
+    count.
 
 Fingerprint schema v1
 ---------------------
@@ -68,13 +80,17 @@ from app.algorithms.solver_models import SolverOptions, SolverTelemetry
 from app.algorithms.topology import CollectorTopologyResult, build_feeder_mst
 from app.algorithms.wtg_grouping import (
     FeederGroupingResult,
+    GroupingObjective,
     group_wtgs,
 )
+from app.contracts.codes import ExtraFeederOutcome, SolverStatus
 from app.gis.cost_surface import CostSurface
 from app.models.spatial import ProjectSpatialData
 from app.optimisation.scenario_models import (
     PARAMETER_SCHEDULE,
+    V1_PARAMETER_SCHEDULE,
     AttemptOutcome,
+    GenerationSchedule,
     NoValidScenarioError,
     PNCScenario,
     ScenarioAttempt,
@@ -232,16 +248,23 @@ def _apply_long_edge_penalty(
 def _build_scenario_parameters(
     feeder_capacity_mw: float,
     n_candidates: int,
+    schedule: GenerationSchedule = GenerationSchedule.V0,
 ) -> tuple[ScenarioParameters, ...]:
     """Materialise ``ScenarioParameters`` for the first *n_candidates* entries
-    in ``PARAMETER_SCHEDULE``.
+    of the selected schedule (``PARAMETER_SCHEDULE`` for ``V0``,
+    ``V1_PARAMETER_SCHEDULE`` for ``V1``).
 
     This is the single source of truth for the deterministic parameter
-    schedule.  The result is always a prefix of ``PARAMETER_SCHEDULE``
+    schedule.  The result is always a prefix of the selected schedule
     — never a permutation or random subset.
     """
+    entries = (
+        tuple((entry, 0) for entry in PARAMETER_SCHEDULE)
+        if schedule == GenerationSchedule.V0
+        else V1_PARAMETER_SCHEDULE
+    )
     params: list[ScenarioParameters] = []
-    for entry in PARAMETER_SCHEDULE[:n_candidates]:
+    for entry, feeder_count_offset in entries[:n_candidates]:
         ps_id, strategy, seed, obj, weight_profile, penalty = entry
         params.append(
             ScenarioParameters(
@@ -252,6 +275,7 @@ def _build_scenario_parameters(
                 topology_weight_profile=weight_profile,
                 topology_penalty=penalty,
                 effective_feeder_capacity_mw=feeder_capacity_mw,
+                feeder_count_offset=feeder_count_offset,
             )
         )
     return tuple(params)
@@ -273,8 +297,14 @@ def _generate_candidate(
     accepted_fingerprints: set[str],
     solver_options: SolverOptions | None = None,
     solver_runs: list[SolverTelemetry] | None = None,
+    feeder_count: int | None = None,
+    minimum_feeder_counts: dict[tuple[int, GroupingObjective], int] | None = None,
 ) -> tuple[ProjectPNCNetwork | None, str | None, AttemptOutcome, str]:
     """Run the full PNC pipeline for one set of scenario parameters.
+
+    ``feeder_count`` asks grouping for exactly that many feeders. Otherwise the
+    minimum capacity-feasible count found is recorded in
+    ``minimum_feeder_counts`` under the grouping seed and objective.
 
     Returns
     -------
@@ -293,6 +323,8 @@ def _generate_candidate(
     All other exceptions propagate to the caller.
     """
     # 1. WTG grouping --------------------------------------------------
+    # V0 calls keep their original shape; only the k+1 call adds feeder_count.
+    override = {} if feeder_count is None else {"feeder_count": feeder_count}
     try:
         grouping = group_wtgs(
             project,
@@ -300,6 +332,7 @@ def _generate_candidate(
             random_state=parameters.grouping_seed,
             objective=parameters.grouping_objective,
             solver_options=solver_options,
+            **override,
         )
     except ValueError as exc:
         return None, None, AttemptOutcome.GROUPING_FAILED, str(exc)
@@ -307,12 +340,18 @@ def _generate_candidate(
         solver_runs.extend(grouping.solver_runs)
 
     if not grouping.assignments:
-        return (
-            None,
-            None,
-            AttemptOutcome.GROUPING_FAILED,
-            "Grouping produced zero feeder assignments",
-        )
+        detail = "Grouping produced zero feeder assignments"
+        if feeder_count is not None:
+            status = grouping.solver_runs[-1].status if grouping.solver_runs else None
+            detail = (
+                f"No capacity-valid grouping into exactly {feeder_count} non-empty "
+                "feeders was found (last solver status: "
+                f"{status.value if status else 'not solved'})"
+            )
+        return None, None, AttemptOutcome.GROUPING_FAILED, detail
+    if feeder_count is None and minimum_feeder_counts is not None:
+        key = (parameters.grouping_seed, parameters.grouping_objective)
+        minimum_feeder_counts[key] = grouping.feeder_count
 
     # 2. Graph (reweight if necessary) ---------------------------------
     if parameters.topology_weight_profile == TopologyWeightProfile.LONG_EDGE_PENALTY:
@@ -367,6 +406,104 @@ def _generate_candidate(
         )
 
     return network, net_fp, AttemptOutcome.ACCEPTED, ""
+
+
+_EXTRA_FEEDER_OUTCOMES: dict[AttemptOutcome, ExtraFeederOutcome] = {
+    AttemptOutcome.ACCEPTED: ExtraFeederOutcome.ACCEPTED,
+    AttemptOutcome.DUPLICATE_TOPOLOGY: ExtraFeederOutcome.DUPLICATE_TOPOLOGY,
+    AttemptOutcome.ROUTING_FAILED: ExtraFeederOutcome.EVALUATION_FAILED,
+    AttemptOutcome.ASSEMBLY_FAILED: ExtraFeederOutcome.EVALUATION_FAILED,
+}
+
+
+def _generate_extra_feeder_candidate(
+    *,
+    project: ProjectSpatialData,
+    feeder_capacity_mw: float,
+    cost_surface: CostSurface,
+    project_id: str,
+    parameters: ScenarioParameters,
+    base_graph: nx.Graph,
+    substation_node: str,
+    accepted_fingerprints: set[str],
+    solver_options: SolverOptions | None,
+    solver_runs: list[SolverTelemetry],
+    minimum_feeder_counts: dict[tuple[int, GroupingObjective], int],
+) -> tuple[
+    ProjectPNCNetwork | None,
+    str | None,
+    AttemptOutcome,
+    str,
+    ExtraFeederOutcome,
+]:
+    """Run the pipeline for the explicit ``k+1`` candidate (WP5-3).
+
+    ``k`` is the minimum capacity-feasible feeder count that an earlier entry
+    with the same grouping seed and objective found in this run; the V1
+    schedule puts the baseline entry first for that reason. Grouping is asked
+    for exactly ``k + feeder_count_offset`` feeders and never falls back to
+    another count.
+    """
+    key = (parameters.grouping_seed, parameters.grouping_objective)
+    minimum = minimum_feeder_counts.get(key)
+    if minimum is None:
+        return (
+            None,
+            None,
+            AttemptOutcome.GROUPING_FAILED,
+            "No earlier grouping in this run found a minimum feeder count to extend",
+            ExtraFeederOutcome.NOT_APPLICABLE,
+        )
+    target = minimum + parameters.feeder_count_offset
+    turbine_count = len(project.turbines)
+    if target > turbine_count:
+        return (
+            None,
+            None,
+            AttemptOutcome.GROUPING_FAILED,
+            f"{target} non-empty feeders need at least {target} turbines; "
+            f"the project has {turbine_count}",
+            ExtraFeederOutcome.CAPACITY_INFEASIBLE,
+        )
+
+    solves_before = len(solver_runs)
+    network, fingerprint, outcome, detail = _generate_candidate(
+        project=project,
+        feeder_capacity_mw=feeder_capacity_mw,
+        cost_surface=cost_surface,
+        project_id=project_id,
+        parameters=parameters,
+        base_graph=base_graph,
+        substation_node=substation_node,
+        accepted_fingerprints=accepted_fingerprints,
+        solver_options=solver_options,
+        solver_runs=solver_runs,
+        feeder_count=target,
+    )
+    if outcome != AttemptOutcome.GROUPING_FAILED:
+        return network, fingerprint, outcome, detail, _EXTRA_FEEDER_OUTCOMES[outcome]
+    # A limit that stops a solve says nothing about feasibility (C3).
+    limited = any(
+        run.status == SolverStatus.LIMIT_REACHED for run in solver_runs[solves_before:]
+    )
+    extra = (
+        ExtraFeederOutcome.SOLVER_LIMIT_REACHED
+        if limited
+        else ExtraFeederOutcome.CAPACITY_INFEASIBLE
+    )
+    return network, fingerprint, outcome, detail, extra
+
+
+def extra_feeder_outcome(result: ScenarioGenerationResult) -> ExtraFeederOutcome:
+    """Return the ``k+1`` outcome of one generation run (WP5-4 evidence).
+
+    ``NOT_APPLICABLE`` when the run made no extra-feeder attempt, which is
+    always the case under the V0 schedule.
+    """
+    for attempt in result.attempts:
+        if attempt.extra_feeder_outcome is not None:
+            return attempt.extra_feeder_outcome
+    return ExtraFeederOutcome.NOT_APPLICABLE
 
 
 # ---------------------------------------------------------------------------
@@ -450,11 +587,12 @@ def generate_pnc_scenarios(
         raise ValueError("Project graph contains no substation node")
     substation_node = substations[0]
 
-    # Materialise the parameter schedule for all 5 entries.
+    # Materialise every entry of the selected schedule.
     # The generator stops when it has collected enough or exhausted the schedule.
     all_parameters = _build_scenario_parameters(
-        feeder_capacity_mw, len(PARAMETER_SCHEDULE)
+        feeder_capacity_mw, len(PARAMETER_SCHEDULE), config.generation_schedule
     )
+    minimum_feeder_counts: dict[tuple[int, GroupingObjective], int] = {}
 
     accepted_fingerprints: set[str] = set()
     candidates: list[PNCScenario] = []
@@ -468,18 +606,37 @@ def generate_pnc_scenarios(
         if len(candidates) >= config.candidate_count:
             break
 
-        network, fingerprint, outcome, detail = _generate_candidate(
-            project=project_data,
-            feeder_capacity_mw=feeder_capacity_mw,
-            cost_surface=cost_surface,
-            project_id=config.project_id,
-            parameters=parameters,
-            base_graph=base_graph,
-            substation_node=substation_node,
-            accepted_fingerprints=accepted_fingerprints,
-            solver_options=config.solver_options,
-            solver_runs=solver_runs,
-        )
+        extra_feeder: ExtraFeederOutcome | None = None
+        if parameters.feeder_count_offset:
+            network, fingerprint, outcome, detail, extra_feeder = (
+                _generate_extra_feeder_candidate(
+                    project=project_data,
+                    feeder_capacity_mw=feeder_capacity_mw,
+                    cost_surface=cost_surface,
+                    project_id=config.project_id,
+                    parameters=parameters,
+                    base_graph=base_graph,
+                    substation_node=substation_node,
+                    accepted_fingerprints=accepted_fingerprints,
+                    solver_options=config.solver_options,
+                    solver_runs=solver_runs,
+                    minimum_feeder_counts=minimum_feeder_counts,
+                )
+            )
+        else:
+            network, fingerprint, outcome, detail = _generate_candidate(
+                project=project_data,
+                feeder_capacity_mw=feeder_capacity_mw,
+                cost_surface=cost_surface,
+                project_id=config.project_id,
+                parameters=parameters,
+                base_graph=base_graph,
+                substation_node=substation_node,
+                accepted_fingerprints=accepted_fingerprints,
+                solver_options=config.solver_options,
+                solver_runs=solver_runs,
+                minimum_feeder_counts=minimum_feeder_counts,
+            )
 
         attempts.append(
             ScenarioAttempt(
@@ -488,6 +645,7 @@ def generate_pnc_scenarios(
                 outcome=outcome,
                 topology_fingerprint=fingerprint,
                 detail=detail,
+                extra_feeder_outcome=extra_feeder,
             )
         )
 
