@@ -19,7 +19,7 @@ This is the running record of what the merge queue has actually merged, what is 
 | 2 | [#36](https://github.com/cookedaryan/surge/pull/36) L2 candidate truth and cache identity | `demo-opt/l2-wp1-truth` | `6601234` | **Merged** |
 | 3 | — | L2 `wp4-search`, L2 `wp4-java-timeout`, L3 `wp4-cancellation` | — | **Skipped while G2 is undecided** (L-plans §1) |
 | 4 | — | L3 `wp5-generation` | — | Branch written, unrebased. Ungated. See §3 |
-| 5, 6 | — | WP2 metrics and transport, WP3 profiles | — | **Wait on G0** |
+| 5, 6 | — | WP2 metrics and transport, WP3 profiles | — | **Unblocked by the G0 decision of 2026-09-18**; WP2-3 also carries G1's transport clause |
 
 Every merged PR was rebased onto main before merging, per the queue rule, and CI was green on the rebased head. Tasks delivered: WP2-2, WP3-2, WP4-2, WP5-1 (L1); WP0B-7, WP0B-6, WP0B-11 (L3); WP1-1 … WP1-5 (L2).
 
@@ -44,18 +44,18 @@ The V0 goldens merged in slot 1 have since held green through two runtime PRs, w
 
 **L3 `wp5-generation`, slot 4, unrebased.** Ungated, so it is the next package that can merge. It could not have passed before #34, because the old S5 seam test asserted the `NotImplementedError` that WP5-3 replaces.
 
-**L1 has no ungated Phase 1 work left.** WP0B-1 waits on G1 and WP6A-1 on G0. Per the L1 plan §5 its remaining capacity goes to unmerged drafts: the WP6C-4 runbook skeleton and the WP7 documentation change list.
+**L1's remaining Phase 1 work.** WP6A-1 was unblocked by the G0 decision of 2026-09-18 and can now be built as the `wp6a-claim-copy` PR, which merges at Stage 2 step S2-4, not in Phase 1. WP0B-1 still waits on G1. The WP6C-4 runbook skeleton and the WP7 documentation change list are drafted in the L1 worktree and stay unmerged until their Stage 2 steps.
 
 ## 4. Gate status
 
 | Gate | Owners | Blocks | Latest date (draft 0.6 §5) | Status |
 |---|---|---|---|---|
-| G0 — stage claim | Demo owner + scoring approver | Slots 5 and 6, then FRZ-1 and Stage 2 | WP2 start | Undecided |
+| G0 — stage claim | Demo owner + scoring approver | Slots 5 and 6, then FRZ-1 and Stage 2 | WP2 start | **Decided 2026-09-18: weak claim.** See [`contracts/decisions/g0-claim.md`](../../../contracts/decisions/g0-claim.md) |
 | G1 — golden data | Project owner + data/security owner | WP0B-1; WP0B-3, 8, 9, 10 golden runs; WP0B-2 | WP0B start — **passed** | Undecided, and circular. See below |
 | G2 — runtime envelope | Project owner + engineering lead | All of slot 3 | WP4 start — **now** | Undecided |
 | G4 — cohort surface | Demo owner + engineering lead | S2-3 | WP2 start | Undecided; default is recorded evidence |
 
-After slot 4 merges, **every remaining Phase 1 package is gate-blocked.** The constraint is no longer engineering capacity.
+G0 is now decided, so slots 5 and 6 are open and slot 4 is ungated. What remains gate-blocked is slot 3 (G2) and WP0B-1 (G1).
 
 **G1 is circular as written.** Its transport clause requires a probe proving Java carries parcel and forest/environment identity plus soft/hard mode. That probe failed in Stage 0 ([stage0/README.md §4](../stage0/README.md)). The fix is WP2-3, which the L2 plan gates on G1 — so G1 waits on the work that G1 gates.
 
