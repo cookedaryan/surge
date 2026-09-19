@@ -445,3 +445,66 @@ def test_analysis_is_deterministic() -> None:
     second = analyse(features=features)
 
     assert first == second
+
+
+# WP2-4: typed identity reaches ROW analysis, so a metric can key on the cadastral
+# parcel id and tell one hard exclusion from another without re-reading the layers.
+
+
+def test_typed_identity_reaches_every_intersection_event() -> None:
+    forest = ConstraintFeature(
+        feature_id="restricted-1",
+        layer_type="forest",
+        geometry=Polygon([(10.0, -5.0), (40.0, -5.0), (40.0, 5.0), (10.0, 5.0)]),
+        severity="hard",
+        source_id="asset-7",
+        feature_type="forest",
+    )
+
+    result = analyse(features=(forest,))
+
+    assert len(result.intersections) == 1
+    intersection = result.intersections[0]
+    assert intersection.source_id == "asset-7"
+    assert intersection.feature_type == "forest"
+
+
+def test_geometry_repair_does_not_cost_a_feature_its_identity() -> None:
+    # A bowtie is repaired into a valid polygon on the way in; the identity must
+    # survive that rebuild.
+    bowtie = Polygon([(10.0, -5.0), (40.0, 5.0), (40.0, -5.0), (10.0, 5.0)])
+    assert not bowtie.is_valid
+
+    result = analyse(
+        features=(
+            ConstraintFeature(
+                feature_id="restricted-2",
+                layer_type="environmental",
+                geometry=bowtie,
+                severity="soft",
+                source_id="asset-9",
+                feature_type="protected_area",
+            ),
+        )
+    )
+
+    assert [i.source_id for i in result.intersections] == ["asset-9"]
+    assert [i.feature_type for i in result.intersections] == ["protected_area"]
+
+
+def test_untyped_features_keep_working_with_no_identity() -> None:
+    # V0: a caller that sends no typed identity behaves exactly as before.
+    result = analyse(
+        features=(
+            make_feature(
+                "parcel-1",
+                "parcel",
+                Polygon([(10.0, -5.0), (40.0, -5.0), (40.0, 5.0), (10.0, 5.0)]),
+                "soft",
+            ),
+        )
+    )
+
+    assert len(result.intersections) == 1
+    assert result.intersections[0].source_id is None
+    assert result.intersections[0].feature_type is None

@@ -12,6 +12,7 @@ from app.algorithms.pole_placement import (
     place_poles_on_network,
 )
 from app.algorithms.route_refinement import RefinedPhysicalRoute
+from app.contracts.request import CanonicalFeatureType
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult
 from app.gis.constraints import (
@@ -271,11 +272,13 @@ def extract_spatial_metrics(
         features=tuple(
             ConstraintFeature(
                 feature_id=layer.layer_id,
-                layer_type=_row_layer_type(layer.layer_type),
+                layer_type=_row_layer_type_for(layer),
                 geometry=effective_constraint_geometry(layer),
                 severity=(
                     "hard" if layer.mode == ConstraintMode.HARD_EXCLUSION else "soft"
                 ),
+                source_id=layer.source_id,
+                feature_type=layer.feature_type,
             )
             for layer in constraint_layers
         ),
@@ -383,3 +386,36 @@ def _row_layer_type(layer_type: ConstraintType) -> ConstraintLayerType:
         ConstraintType.RESTRICTED_AREA: "restricted",
     }
     return mapping[layer_type]
+
+
+# WP2-4: C1 identity onto the ROW analysis classes. ``forest`` and ``environmental``
+# already existed in ``ConstraintLayerType`` and nothing ever produced them, because
+# every hard exclusion arrived as ``RESTRICTED_AREA`` regardless of what it was.
+_FEATURE_TYPE_ROW_LAYERS: dict[str, ConstraintLayerType] = {
+    CanonicalFeatureType.ROAD.value: "road",
+    CanonicalFeatureType.WATERCOURSE.value: "water",
+    CanonicalFeatureType.WATER_BODY.value: "water",
+    CanonicalFeatureType.PARCEL.value: "parcel",
+    CanonicalFeatureType.FOREST.value: "forest",
+    CanonicalFeatureType.PROTECTED_AREA.value: "environmental",
+    CanonicalFeatureType.ENVIRONMENTAL.value: "environmental",
+    CanonicalFeatureType.SETTLEMENT.value: "restricted",
+    CanonicalFeatureType.AVIATION.value: "restricted",
+    CanonicalFeatureType.RESTRICTED_AREA.value: "restricted",
+}
+
+
+def _row_layer_type_for(layer: ConstraintLayer) -> ConstraintLayerType:
+    """Prefer the typed identity; fall back to the routing class.
+
+    ``HT_LINE`` is deliberately not routed through the typed table: its legacy
+    mapping onto ``environmental`` is wrong on its face, but correcting it changes
+    metric inputs for requests that send no typed identity, which is a V0 behaviour
+    change and belongs to its own task. A layer without ``feature_type`` keeps
+    exactly the mapping it had before this change.
+    """
+    if layer.feature_type is not None:
+        row_layer = _FEATURE_TYPE_ROW_LAYERS.get(layer.feature_type)
+        if row_layer is not None:
+            return row_layer
+    return _row_layer_type(layer.layer_type)
