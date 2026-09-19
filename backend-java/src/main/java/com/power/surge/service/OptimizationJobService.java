@@ -489,6 +489,10 @@ public class OptimizationJobService {
             Map<String, Object> properties = new LinkedHashMap<>();
             properties.put("constraint_id", "line-" + line.getId());
             properties.put("constraint_type", constraintType);
+            // C1 typed identity (WP2-3): the persisted asset id, and the line's own class rather
+            // than the routing treatment it happens to share with other features.
+            properties.put("source_id", String.valueOf(line.getId()));
+            properties.put("feature_type", CanonicalFeatureType.fromLineType(line.getLineType()).wireValue());
             properties.put("routing_mode", "soft");
             // Always explicit: the scenario multiplier has to be applied to a known base, and
             // sending Python's own default at a 1.0 multiplier keeps Balanced byte-identical.
@@ -506,6 +510,10 @@ public class OptimizationJobService {
             Map<String, Object> properties = new LinkedHashMap<>();
             properties.put("constraint_id", "parcel-" + parcel.getId());
             properties.put("constraint_type", "parcel");
+            // C1 requires the cadastral parcel id here, not the database id: the parcel id is the
+            // identity the landowner evidence and the land metrics are keyed on.
+            properties.put("source_id", parcel.getParcelId());
+            properties.put("feature_type", CanonicalFeatureType.PARCEL.wireValue());
             properties.put("routing_mode", "soft");
             properties.put("cost_weight", profile.parcelCost());
 
@@ -519,6 +527,12 @@ public class OptimizationJobService {
             Map<String, Object> properties = new LinkedHashMap<>();
             properties.put("constraint_id", "restricted-" + area.getId());
             properties.put("constraint_type", "restricted_area");
+            // C1 typed identity (WP2-3). constraint_type stays the generic hard-exclusion class that
+            // selects routing treatment; feature_type carries the persisted restriction type, so a
+            // reserve forest is no longer indistinguishable from a radar zone downstream (F7).
+            properties.put("source_id", String.valueOf(area.getId()));
+            properties.put("feature_type",
+                    CanonicalFeatureType.fromRestrictionType(area.getRestrictionType()).wireValue());
             properties.put("routing_mode", "hard");
             // Hard exclusions must not carry cost_weight (Python rejects it), so the environmental
             // scenario expresses its preference as extra routing clearance instead.
