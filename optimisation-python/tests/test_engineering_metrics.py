@@ -484,3 +484,109 @@ def test_hard_violation_evidence_is_unchanged_by_typed_identity() -> None:
 
     assert typed.hard_violation_ids == ("restricted-1",)
     assert typed.hard_violation_ids == untyped.hard_violation_ids
+
+
+# WP2-5 and WP2-6: the canonical land and environment quantities. Both are areas
+# computed by one union, so overlapping layers and overlapping corridors contribute
+# their shared ground once rather than once per feature or per route segment.
+
+
+def _soft(
+    layer_id: str,
+    *,
+    feature_type: str | None,
+    layer_type: ConstraintType = ConstraintType.PARCEL,
+    x_from: float,
+    x_to: float,
+    y_from: float = -5.0,
+    y_to: float = 5.0,
+) -> ConstraintLayer:
+    return ConstraintLayer(
+        layer_id=layer_id,
+        layer_type=layer_type,
+        mode=ConstraintMode.SOFT_PENALTY,
+        geometry=Polygon(
+            [(x_from, y_from), (x_to, y_from), (x_to, y_to), (x_from, y_to)]
+        ),
+        buffer_m=0.0,
+        cost_weight=2.0,
+        crs=CRS,
+        feature_type=feature_type,
+    )
+
+
+def test_affected_parcel_row_area_is_the_deterministic_clipped_area() -> None:
+    # The corridor is 20 m wide around y=0, so it spans y in [-10, 10]. A parcel
+    # 30 m long and 10 m tall sits entirely inside it: 30 x 10 = 300 m2. The metric
+    # is the ROW-clipped area, never the whole parcel.
+    spatial = _spatial(_soft("parcel-1", feature_type="parcel", x_from=10.0, x_to=40.0))
+
+    assert spatial.affected_parcel_row_area_m2 == pytest.approx(300.0)
+    assert spatial.affected_parcel_count == 1
+
+
+def test_parcel_row_area_counts_shared_ground_once() -> None:
+    # Two overlapping parcels covering x in [10, 40] and [30, 60]: the union is
+    # 50 m of corridor, not 30 + 30.
+    spatial = _spatial(
+        _soft("parcel-1", feature_type="parcel", x_from=10.0, x_to=40.0),
+        _soft("parcel-2", feature_type="parcel", x_from=30.0, x_to=60.0),
+    )
+
+    assert spatial.affected_parcel_count == 2
+    assert spatial.affected_parcel_row_area_m2 == pytest.approx(500.0)
+
+
+def test_parcel_row_area_is_area_where_the_count_is_blind() -> None:
+    # Two projects touching one parcel each, taking very different amounts of land.
+    small = _spatial(_soft("parcel-1", feature_type="parcel", x_from=10.0, x_to=20.0))
+    large = _spatial(_soft("parcel-1", feature_type="parcel", x_from=10.0, x_to=90.0))
+
+    assert small.affected_parcel_count == large.affected_parcel_count == 1
+    assert large.affected_parcel_row_area_m2 > small.affected_parcel_row_area_m2
+
+
+def test_environmental_overlap_counts_overlapping_layers_once() -> None:
+    # A forest and a protected area covering the same ground, plus an overlap.
+    spatial = _spatial(
+        _soft(
+            "restricted-1",
+            feature_type="forest",
+            layer_type=ConstraintType.RESTRICTED_AREA,
+            x_from=10.0,
+            x_to=40.0,
+        ),
+        _soft(
+            "restricted-2",
+            feature_type="protected_area",
+            layer_type=ConstraintType.RESTRICTED_AREA,
+            x_from=30.0,
+            x_to=60.0,
+        ),
+    )
+
+    assert spatial.environmental_overlap_m2 == pytest.approx(500.0)
+
+
+def test_environmental_overlap_is_zero_without_environmental_features() -> None:
+    spatial = _spatial(_soft("parcel-1", feature_type="parcel", x_from=10.0, x_to=40.0))
+    assert spatial.environmental_overlap_m2 == 0.0
+
+
+def test_both_areas_are_deterministic_across_repeated_extraction() -> None:
+    layers = (
+        _soft("parcel-1", feature_type="parcel", x_from=10.0, x_to=40.0),
+        _soft(
+            "restricted-1",
+            feature_type="forest",
+            layer_type=ConstraintType.RESTRICTED_AREA,
+            x_from=20.0,
+            x_to=50.0,
+        ),
+    )
+
+    first = _spatial(*layers)
+    second = _spatial(*reversed(layers))
+
+    assert first.affected_parcel_row_area_m2 == second.affected_parcel_row_area_m2
+    assert first.environmental_overlap_m2 == second.environmental_overlap_m2
