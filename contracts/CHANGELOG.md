@@ -2,6 +2,14 @@
 
 Every contract change after `demo-opt-base` is recorded here, newest first, with its CCR link.
 
+## Unreleased — CCR: metric registry version 2 (pack version stays 1.0.0)
+
+CCR: [#44](https://github.com/cookedaryan/surge/issues/44) (raised by L3 for WP2-5 and WP2-6). Generated artefacts only, so `CONTRACT_PACK_VERSION` does not change.
+
+- `METRIC_REGISTRY_VERSION` goes from `1` to `2`: WP2-5 adds `affected_parcel_row_area_m2` to the candidate metric set, and WP2-6 makes `environmental_overlap_m2` a deduplicated area that typed identity actually feeds. The cached evaluation payload changes shape, so older entries must not be reused.
+- Regenerated with `python -m scripts.contracts.export_contracts`: `response-rules.json`, `fixtures/response/additive-blocks.json` and `fixtures/evidence/record-example.json`, each one line, `"1"` → `"2"`.
+- No schema, code registry or behaviour change. Affects L3 (WP2-5, WP2-6) and L2, whose `search_cache.py` reads the constant by name and therefore invalidates older entries without any cache-code change. L1 is unaffected: the V0 goldens do not carry the registry version and pass before and after.
+
 ## Unreleased — CCR: S5 feeder-count seam (pack version stays 1.0.0)
 
 CCR: [#33](https://github.com/cookedaryan/surge/issues/33) (raised by L3 for WP5-3). Seam test only, so `CONTRACT_PACK_VERSION` and the exported artefacts do not change.
