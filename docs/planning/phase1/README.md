@@ -1,7 +1,7 @@
 # Phase 1 record — SURGE demo optimisation merge queue
 
-Date: 18 September 2026
-Main: `6601234` · Base tag: `demo-opt-base`
+Created: 18 September 2026 · Updated: 20 September 2026
+Main: `a0ecfc8` · Base tag: `demo-opt-base`
 Plans: [L1](../SURGE%20demo%20optimization%20L1%20worktree%20plan.md) · [L2](../SURGE%20demo%20optimization%20L2%20worktree%20plan.md) · [L3](../SURGE%20demo%20optimization%20L3%20worktree%20plan.md) · Stage 0: [stage0/README.md](../stage0/README.md) · Contracts: [contracts/README.md](../../../contracts/README.md)
 
 This is the running record of what the merge queue has actually merged, what is gate-blocked, and the assessment of the Annigeri dataset against G1. The three worktree plans are the signed-off reference and are not edited; where this record proposes a change to them, it says so and names the decision needed.
@@ -18,23 +18,27 @@ This is the running record of what the merge queue has actually merged, what is 
 | 1 | — | L2 `baseline-measurement` | — | **Not opened.** See §3 |
 | 2 | [#36](https://github.com/cookedaryan/surge/pull/36) L2 candidate truth and cache identity | `demo-opt/l2-wp1-truth` | `6601234` | **Merged** |
 | 3 | — | L2 `wp4-search`, L2 `wp4-java-timeout`, L3 `wp4-cancellation` | — | **Skipped while G2 is undecided** (L-plans §1) |
-| 4 | — | L3 `wp5-generation` | — | Branch written, unrebased. Ungated. See §3 |
-| 5, 6 | — | WP2 metrics and transport, WP3 profiles | — | **Unblocked by the G0 decision of 2026-09-18**; WP2-3 also carries G1's transport clause |
+| 4 | [#39](https://github.com/cookedaryan/surge/pull/39) L3 WP5 generation | `demo-opt/l3-wp5-generation` | `b95e6f2` | **Merged** |
+| 5, 6 | — | WP2 metrics and transport, WP3 profiles | — | **Open** since the G0 decision of 2026-09-18. No branch exists yet. WP2-3 also carries G1's transport clause |
+| — | [#38](https://github.com/cookedaryan/surge/pull/38) this record · [#40](https://github.com/cookedaryan/surge/pull/40) G0 decision | `docs/phase1-record` · `contracts/g0-claim` | `d9f5031` · `a0ecfc8` | **Merged.** Documentation branches; the ownership job does not run on them |
 
-Every merged PR was rebased onto main before merging, per the queue rule, and CI was green on the rebased head. Tasks delivered: WP2-2, WP3-2, WP4-2, WP5-1 (L1); WP0B-7, WP0B-6, WP0B-11 (L3); WP1-1 … WP1-5 (L2).
+Every merged PR was rebased onto main before merging, per the queue rule, and CI was green on the rebased head. Tasks delivered: WP2-2, WP3-2, WP4-2, WP5-1 (L1); WP0B-7, WP0B-6, WP0B-11, WP5-2, WP5-3, WP5-4 (L3); WP1-1 … WP1-5 (L2).
+
+**Phase 1 is now blocked on decisions, not engineering.** Every ungated package has merged. Slot 3 waits on G2; slots 5 and 6 are open but unstarted.
 
 ## 2. State of merged main
 
 | Check | Result |
 |---|---|
-| Python suite on merged main (`6601234`) | **1443 passed** |
+| Python suite on merged main | **1478 passed** at `b95e6f2`, the slot-4 merge. `a0ecfc8` adds documentation only |
+| Python suite after slot 2, before slot 4 | **1443 passed** at `6601234` |
 | Trial integration before any merge: all four level branches plus the CCR, merged in queue order | **1478 passed**, no textual conflict |
 | L1 ownership check | Pass, 14 paths |
 | L2 ownership check | Pass, 6 paths |
-| L3 ownership check | Pass, 6 paths |
+| L3 ownership check | Pass, 6 paths (slot 1), 7 paths (slot 4) |
 | CI on each rebased head | Python, Java, web map, container builds, ownership — all pass |
 
-The V0 goldens merged in slot 1 have since held green through two runtime PRs, which is the first live evidence that the characterisation suite does the job the L1 plan §4.1 claims for it.
+The V0 goldens merged in slot 1 have since held green through three runtime PRs, including slot 4's generation change, which is the live evidence that the characterisation suite does the job the L1 plan §4.1 claims for it. Slot 4's own claim — both flags off means the V0 schedule — rests on those goldens rather than on a test it ships itself.
 
 **One behaviour note on WP1-5.** `design_truth` is emitted only when a profile is resolved or search is enabled, so it stays absent from V0 responses and from every request the product can make today. The repair log and final installed conductors therefore remain user-invisible until slot 3 or slot 6 lands. This is consistent with L1's search-off golden, which asserts no additive block is present with both flags off, and it is recorded in #36. Java persistence of the final conductor (WP6A-6) depends on those fields.
 
@@ -42,7 +46,7 @@ The V0 goldens merged in slot 1 have since held green through two runtime PRs, w
 
 **L2 `baseline-measurement`, slot 1, not opened.** Slots 1 and 2 merged without it. Under the queue rules that is allowed — no PR may rely on a later PR, and a gated slot does not block a ready one — but it makes this PR a straggler that must rebase onto everything above it and keep the V0 goldens green. Two of its tasks need no gate and can ship now: WP0B-5, the topology fingerprint canonicaliser, and the tooling half of WP0B-8, whose harness may be built on synthetic data (only its golden runs wait on G1).
 
-**L3 `wp5-generation`, slot 4, unrebased.** Ungated, so it is the next package that can merge. It could not have passed before #34, because the old S5 seam test asserted the `NotImplementedError` that WP5-3 replaces.
+**Slots 5 and 6, open and unstarted.** G0 was decided on 18 September and no branch exists for `wp2-metrics`, `wp3-profiles`, `wp2-java-transport` or `wp3-java-profiles`. L3's chain is the long pole to FRZ-1: WP2-4 → {WP2-5, WP2-6} → WP2-7 → WP2-8, then WP3-4 → WP3-3 → WP3-1 → WP3-6a → WP3-7a → WP3-9a. **WP2-3 (L2, slot 5) is the highest-leverage single task,** because it is also the fix for G1's failed transport clause (§4).
 
 **L1's remaining Phase 1 work.** WP6A-1 was unblocked by the G0 decision of 2026-09-18 and can now be built as the `wp6a-claim-copy` PR, which merges at Stage 2 step S2-4, not in Phase 1. WP0B-1 still waits on G1. The WP6C-4 runbook skeleton and the WP7 documentation change list are drafted in the L1 worktree and stay unmerged until their Stage 2 steps.
 
@@ -55,7 +59,7 @@ The V0 goldens merged in slot 1 have since held green through two runtime PRs, w
 | G2 — runtime envelope | Project owner + engineering lead | All of slot 3 | WP4 start — **now** | Undecided |
 | G4 — cohort surface | Demo owner + engineering lead | S2-3 | WP2 start | Undecided; default is recorded evidence |
 
-G0 is now decided, so slots 5 and 6 are open and slot 4 is ungated. What remains gate-blocked is slot 3 (G2) and WP0B-1 (G1).
+With slot 4 merged, **G2 is the only gate still holding an entire slot**, and G1 the only one holding a named task (WP0B-1). Nothing has moved on G1, G2 or G4 since the G0 record landed on 18 September.
 
 **G1 is circular as written.** Its transport clause requires a probe proving Java carries parcel and forest/environment identity plus soft/hard mode. That probe failed in Stage 0 ([stage0/README.md §4](../stage0/README.md)). The fix is WP2-3, which the L2 plan gates on G1 — so G1 waits on the work that G1 gates.
 
@@ -115,7 +119,7 @@ Numbered as proposals, not plan tasks; none is authorised by this record.
 
 | Ref | Proposal | Suggested owner | Gate | Prerequisite |
 |---|---|---|---|---|
-| ANN-a | OSM `type` → `CanonicalFeatureType` mapping table, with Annigeri's real values as test vectors | L3, inside WP2-4 | G0, as WP2-4 already is | None |
+| ANN-a | OSM `type` → `CanonicalFeatureType` mapping table, with Annigeri's real values as test vectors | L3, inside WP2-4 | **G0 is now decided**, so WP2-4 and this proposal with it are ungated | None |
 | ANN-b | Annigeri-derived geometry vectors for the WP0B-7 fingerprint tests | L3 | None | None |
 | ANN-c | `ANN-1` corpus fixture: real avoidance geometry, declared-synthetic layout inside SRIPL13, provenance split per layer | Level owning the consuming task | None | **CCR for the ownership glob** (§5.5) |
 | ANN-d | Name Annigeri the candidate golden site; issue §5.3 as G1's input list | G1 owners | — | — |
@@ -126,3 +130,4 @@ Numbered as proposals, not plan tasks; none is authorised by this record.
 - The 1478-test trial integration was run before the branches were rebased; merged main is the authoritative figure.
 - The Annigeri assessment reads the shipped files only. It does not establish provenance, licensing terms as actually granted, or whether a turbine layout and cadastre exist elsewhere for the same site.
 - Gate status reflects what is recorded in the repository. An owner decision taken but not written down is not visible here.
+- This is a running record and goes stale the moment the queue moves. It is accurate as of `a0ecfc8` on 20 September 2026; none of the §5.6 proposals has been actioned.
