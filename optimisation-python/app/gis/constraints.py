@@ -13,6 +13,7 @@ from rasterio.features import rasterize
 from shapely.geometry import LineString, MultiLineString, MultiPolygon, Polygon
 from shapely.geometry.base import BaseGeometry
 
+from app.contracts.request import CanonicalFeatureType
 from app.gis.cost_surface import CostSurface
 from app.gis.crs import WGS84_CRS, get_transformer, transform_geometry
 from app.gis.geojson import parse_geojson
@@ -170,7 +171,7 @@ def parse_constraint_layers(
                 cost_weight=cost_weight,
                 crs=target_crs,
                 source_id=_optional_text(properties, "source_id"),
-                feature_type=_optional_text(properties, "feature_type"),
+                feature_type=_canonical_feature_type(properties),
             )
         )
 
@@ -180,6 +181,79 @@ def parse_constraint_layers(
 def _optional_text(properties: dict[str, Any], key: str) -> str | None:
     value = properties.get(key)
     return value if isinstance(value, str) and value.strip() else None
+
+
+# WP2-4: aliases for ``feature_type``, resolved to the C1 ``CanonicalFeatureType``.
+# ``constraint_type`` still selects routing treatment; this is the separate identity
+# the land and environment metrics read. Forest is deliberately not folded into
+# protected area, and neither is folded into restricted area: that collapse is
+# finding F7, and it is what this task exists to undo.
+_FEATURE_TYPE_ALIASES: dict[str, CanonicalFeatureType] = {
+    "road": CanonicalFeatureType.ROAD,
+    "highway": CanonicalFeatureType.ROAD,
+    "track": CanonicalFeatureType.ROAD,
+    "ht_line": CanonicalFeatureType.HT_LINE,
+    "ehv_line": CanonicalFeatureType.HT_LINE,
+    "power_line": CanonicalFeatureType.HT_LINE,
+    "transmission_line": CanonicalFeatureType.HT_LINE,
+    "watercourse": CanonicalFeatureType.WATERCOURSE,
+    "stream": CanonicalFeatureType.WATERCOURSE,
+    "nala": CanonicalFeatureType.WATERCOURSE,
+    "parcel": CanonicalFeatureType.PARCEL,
+    "land_parcel": CanonicalFeatureType.PARCEL,
+    "forest": CanonicalFeatureType.FOREST,
+    "reserve_forest": CanonicalFeatureType.FOREST,
+    "forest_land": CanonicalFeatureType.FOREST,
+    "protected_area": CanonicalFeatureType.PROTECTED_AREA,
+    "protected": CanonicalFeatureType.PROTECTED_AREA,
+    "sanctuary": CanonicalFeatureType.PROTECTED_AREA,
+    "wildlife": CanonicalFeatureType.PROTECTED_AREA,
+    "wildlife_sanctuary": CanonicalFeatureType.PROTECTED_AREA,
+    "national_park": CanonicalFeatureType.PROTECTED_AREA,
+    "environmental": CanonicalFeatureType.ENVIRONMENTAL,
+    "environment": CanonicalFeatureType.ENVIRONMENTAL,
+    "eco_sensitive": CanonicalFeatureType.ENVIRONMENTAL,
+    "eco_sensitive_zone": CanonicalFeatureType.ENVIRONMENTAL,
+    "wetland": CanonicalFeatureType.ENVIRONMENTAL,
+    "water_body": CanonicalFeatureType.WATER_BODY,
+    "water": CanonicalFeatureType.WATER_BODY,
+    "river": CanonicalFeatureType.WATER_BODY,
+    "reservoir": CanonicalFeatureType.WATER_BODY,
+    "canal": CanonicalFeatureType.WATER_BODY,
+    "tank": CanonicalFeatureType.WATER_BODY,
+    "lake": CanonicalFeatureType.WATER_BODY,
+    "pond": CanonicalFeatureType.WATER_BODY,
+    "settlement": CanonicalFeatureType.SETTLEMENT,
+    "village": CanonicalFeatureType.SETTLEMENT,
+    "habitation": CanonicalFeatureType.SETTLEMENT,
+    "residential": CanonicalFeatureType.SETTLEMENT,
+    "aviation": CanonicalFeatureType.AVIATION,
+    "airport": CanonicalFeatureType.AVIATION,
+    "airstrip": CanonicalFeatureType.AVIATION,
+    "helipad": CanonicalFeatureType.AVIATION,
+    "radar": CanonicalFeatureType.AVIATION,
+    "restricted_area": CanonicalFeatureType.RESTRICTED_AREA,
+    "restricted": CanonicalFeatureType.RESTRICTED_AREA,
+    "general_restriction": CanonicalFeatureType.RESTRICTED_AREA,
+    "general_exclusion": CanonicalFeatureType.RESTRICTED_AREA,
+    "no_go": CanonicalFeatureType.RESTRICTED_AREA,
+    "no_go_zone": CanonicalFeatureType.RESTRICTED_AREA,
+}
+
+
+def _canonical_feature_type(properties: dict[str, Any]) -> str | None:
+    """Resolve ``feature_type`` to a canonical value, or ``None`` when absent.
+
+    An unrecognised value resolves to ``None`` rather than to a guess, so the
+    consumer falls back to the V0 behaviour it had before typed identity existed.
+    WP3-1 (L1, G0) turns an unknown explicit value into a stable error; until then
+    a bad value must not silently become a specific environmental class.
+    """
+    raw = _optional_text(properties, "feature_type")
+    if raw is None:
+        return None
+    canonical = _FEATURE_TYPE_ALIASES.get(_normalize_token(raw))
+    return canonical.value if canonical is not None else None
 
 
 def effective_constraint_geometry(layer: ConstraintLayer) -> BaseGeometry:

@@ -5,20 +5,23 @@ from dataclasses import replace
 import networkx as nx
 import pyproj
 import pytest
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, Polygon
 
 from app.algorithms.pole_placement import PolePlacementConfig
 from app.algorithms.wtg_grouping import GroupingObjective
 from app.electrical.load_flow.config import LoadFlowCableType, LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult
+from app.gis.constraints import ConstraintLayer, ConstraintMode, ConstraintType
 from app.optimisation.engineering_metric_models import (
     CandidateSpatialResult,
     EngineeringMetricFailureCode,
     ParcelEngineeringExposure,
 )
 from app.optimisation.engineering_metrics import (
+    _row_layer_type_for,
     build_candidate_engineering_metrics,
     calculate_voltage_margin,
+    extract_spatial_metrics,
 )
 from app.optimisation.scenario_models import (
     PNCScenario,
@@ -344,3 +347,140 @@ def test_results_are_deterministic_and_candidate_isolated(
 def test_voltage_margin_uses_the_tighter_limit() -> None:
     assert calculate_voltage_margin(0.98, 1.01, 0.95, 1.05) == pytest.approx(0.03)
     assert calculate_voltage_margin(0.94, 1.01, 0.95, 1.05) == pytest.approx(-0.01)
+
+
+# WP2-4: typed identity reaches the metric inputs. Before this, every hard exclusion
+# arrived as RESTRICTED_AREA and collapsed onto the ROW class "restricted", so a
+# reserve forest and a radar zone were one thing to every metric (finding F7). The
+# ROW classes "forest" and "environmental" existed and nothing ever produced them.
+
+
+def _layer(
+    layer_id: str,
+    *,
+    mode: ConstraintMode,
+    feature_type: str | None,
+    layer_type: ConstraintType = ConstraintType.RESTRICTED_AREA,
+    source_id: str | None = None,
+    x_from: float = 10.0,
+    x_to: float = 40.0,
+) -> ConstraintLayer:
+    return ConstraintLayer(
+        layer_id=layer_id,
+        layer_type=layer_type,
+        mode=mode,
+        geometry=Polygon([(x_from, -5.0), (x_to, -5.0), (x_to, 5.0), (x_from, 5.0)]),
+        buffer_m=0.0,
+        cost_weight=2.0 if mode == ConstraintMode.SOFT_PENALTY else None,
+        crs=CRS,
+        source_id=source_id,
+        feature_type=feature_type,
+    )
+
+
+def _spatial(*layers: ConstraintLayer) -> CandidateSpatialResult:
+    return extract_spatial_metrics(
+        _scenario().network, layers, row_corridor_width_m=20.0
+    )
+
+
+def test_soft_forest_now_reaches_the_environmental_overlap_metric() -> None:
+    # The same feature, with and without its identity. Environmental overlap counts
+    # the ROW classes "environmental" and "forest"; without typed identity a forest
+    # was "restricted" and therefore invisible to the environmental metric.
+    typed = _spatial(
+        _layer("restricted-1", mode=ConstraintMode.SOFT_PENALTY, feature_type="forest")
+    )
+    untyped = _spatial(
+        _layer("restricted-1", mode=ConstraintMode.SOFT_PENALTY, feature_type=None)
+    )
+
+    assert typed.environmental_overlap_m2 > 0.0
+    assert untyped.environmental_overlap_m2 == 0.0
+
+
+def test_aviation_and_settlement_are_not_counted_as_environmental() -> None:
+    # Identity is not a licence to reclassify everything as environmental: a radar
+    # zone and a village stay in the generic class.
+    for feature_type in ("aviation", "settlement", "restricted_area"):
+        spatial = _spatial(
+            _layer(
+                "restricted-1",
+                mode=ConstraintMode.SOFT_PENALTY,
+                feature_type=feature_type,
+            )
+        )
+        assert spatial.environmental_overlap_m2 == 0.0, feature_type
+
+
+def test_row_layer_type_prefers_identity_and_falls_back_to_the_routing_class() -> None:
+    mapped = {
+        feature_type: _row_layer_type_for(
+            _layer("l", mode=ConstraintMode.HARD_EXCLUSION, feature_type=feature_type)
+        )
+        for feature_type in (
+            "forest",
+            "protected_area",
+            "environmental",
+            "water_body",
+            "parcel",
+            "road",
+            "settlement",
+            "aviation",
+            "restricted_area",
+        )
+    }
+
+    assert mapped["forest"] == "forest"
+    assert mapped["protected_area"] == "environmental"
+    assert mapped["environmental"] == "environmental"
+    assert mapped["water_body"] == "water"
+    assert mapped["parcel"] == "parcel"
+    assert mapped["road"] == "road"
+    # No environmental meaning, so these stay generic rather than being invented into
+    # a class that would move an environmental metric.
+    assert mapped["settlement"] == "restricted"
+    assert mapped["aviation"] == "restricted"
+    assert mapped["restricted_area"] == "restricted"
+
+
+def test_v0_row_classes_are_unchanged_without_typed_identity() -> None:
+    for layer_type, expected in (
+        (ConstraintType.ROAD, "road"),
+        (ConstraintType.HT_LINE, "environmental"),
+        (ConstraintType.WATERCOURSE, "water"),
+        (ConstraintType.PARCEL, "parcel"),
+        (ConstraintType.RESTRICTED_AREA, "restricted"),
+    ):
+        layer = _layer(
+            "l",
+            mode=ConstraintMode.SOFT_PENALTY,
+            feature_type=None,
+            layer_type=layer_type,
+        )
+        assert _row_layer_type_for(layer) == expected, layer_type
+
+
+def test_an_unrecognised_identity_falls_back_rather_than_guessing() -> None:
+    layer = _layer(
+        "l", mode=ConstraintMode.HARD_EXCLUSION, feature_type="not_a_canonical_value"
+    )
+    assert _row_layer_type_for(layer) == "restricted"
+
+
+def test_hard_violation_evidence_is_unchanged_by_typed_identity() -> None:
+    # Disclosed in the plan: the centreline-only hard-violation rule is untouched.
+    typed = _spatial(
+        _layer(
+            "restricted-1",
+            mode=ConstraintMode.HARD_EXCLUSION,
+            feature_type="forest",
+            source_id="asset-1",
+        )
+    )
+    untyped = _spatial(
+        _layer("restricted-1", mode=ConstraintMode.HARD_EXCLUSION, feature_type=None)
+    )
+
+    assert typed.hard_violation_ids == ("restricted-1",)
+    assert typed.hard_violation_ids == untyped.hard_violation_ids

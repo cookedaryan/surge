@@ -87,6 +87,12 @@ class ConstraintFeature:
     layer_type: ConstraintLayerType
     geometry: BaseGeometry
     severity: ConstraintSeverity | None = None
+    # WP2-4: C1 typed identity, carried beside the routing-derived ``layer_type``.
+    # ``source_id`` is the upstream identity (the cadastral parcel id for parcels),
+    # ``feature_type`` the canonical class. Both default to ``None``, which is the
+    # V0 state: a caller that sends no typed identity behaves exactly as before.
+    source_id: str | None = None
+    feature_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -127,6 +133,11 @@ class RowIntersection:
     route_overlap_length_m: float
     constraint_length_within_corridor_m: float
     touches_only: bool
+    # WP2-4: the intersecting feature's typed identity, so a metric can key on the
+    # cadastral parcel id and tell a forest from a radar zone without re-reading the
+    # constraint layers.
+    source_id: str | None = None
+    feature_type: str | None = None
 
     @property
     def intersection_length_m(self) -> float:
@@ -377,6 +388,9 @@ def _validate_and_repair_constraints(
                 layer_type=feature.layer_type,
                 geometry=repaired_geometry,
                 severity=feature.severity,
+                # Repairing geometry must not cost the feature its identity.
+                source_id=feature.source_id,
+                feature_type=feature.feature_type,
             )
         )
 
@@ -505,6 +519,8 @@ def _intersect_corridor(
         route_overlap_length_m=route_overlap_length,
         constraint_length_within_corridor_m=constraint_length,
         touches_only=touches_only,
+        source_id=feature.source_id,
+        feature_type=feature.feature_type,
     )
 
 
