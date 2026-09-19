@@ -253,15 +253,16 @@ class OptimizationJobServiceTest {
     }
 
     /**
-     * Stage 0 WP2-1 probe (G1): what forest/environment and parcel identity Java sends to Python today.
+     * WP2-3 (L2): typed identity reaches Python, replacing the Stage 0 WP2-1 probe.
      *
-     * <p>Routing mode survives. The persisted restriction type and the cadastral parcel id do not: every
-     * restricted area is sent as the generic {@code restricted_area}, and a parcel is named only by its
-     * database id. The probe therefore fails G1's transport requirement and activates WP2-3 (L2), which
-     * replaces this test with the contract C1 {@code source_id} and {@code feature_type} properties.
+     * <p>The probe recorded that routing mode survived while the persisted restriction type and the
+     * cadastral parcel id did not: every restricted area arrived as the generic {@code restricted_area}
+     * and a parcel was named only by its database id. Each avoidance feature now also carries the C1
+     * {@code source_id} and {@code feature_type}, while {@code constraint_type} keeps selecting routing
+     * treatment exactly as before.
      */
     @Test
-    void stage0TransportProbe_modeSurvivesButTypedIdentityIsNotSent() {
+    void typedIdentityReachesPythonOnEveryAvoidanceFeature() {
         UUID projectId = UUID.randomUUID();
         Project project = new Project("Probe", "WP2-1");
         org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
@@ -274,6 +275,8 @@ class OptimizationJobServiceTest {
                 new BigDecimal("100.00"), squareAt(77.15, 14.35));
         RestrictedArea forest = new RestrictedArea(project, "Reserve Forest", "PROTECTED_AREA",
                 new BigDecimal("30.00"), squareAt(77.20, 14.38));
+        UUID forestId = UUID.randomUUID();
+        org.springframework.test.util.ReflectionTestUtils.setField(forest, "id", forestId);
 
         when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
         when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
@@ -296,13 +299,61 @@ class OptimizationJobServiceTest {
         Map<String, Object> forestProperties = constraintProperties(sent, "restricted_area");
         Map<String, Object> parcelProperties = constraintProperties(sent, "parcel");
 
+        // Unchanged by WP2-3: mode still survives, and routing treatment is still chosen by
+        // constraint_type, so the hard exclusion stays a hard exclusion.
         assertThat(forestProperties).containsEntry("routing_mode", "hard");
         assertThat(parcelProperties).containsEntry("routing_mode", "soft");
+        assertThat(forestProperties).containsEntry("constraint_type", "restricted_area");
+        assertThat(parcelProperties).containsEntry("constraint_type", "parcel");
 
-        assertThat(forestProperties).doesNotContainKeys("source_id", "feature_type");
-        assertThat(parcelProperties).doesNotContainKeys("source_id", "feature_type");
-        assertThat(forestProperties.values()).doesNotContain("PROTECTED_AREA");
-        assertThat(parcelProperties.values()).doesNotContain("P-CADASTRAL-001");
+        // What the probe proved missing.
+        assertThat(forestProperties).containsEntry("feature_type", "protected_area");
+        assertThat(forestProperties).containsEntry("source_id", forestId.toString());
+        assertThat(parcelProperties).containsEntry("feature_type", "parcel");
+        assertThat(parcelProperties).containsEntry("source_id", "P-CADASTRAL-001");
+    }
+
+    /**
+     * The identity is the persisted restriction type, not a guess from the routing class: two hard
+     * exclusions that route identically must still be distinguishable downstream (F7).
+     */
+    @Test
+    void restrictedAreasOfDifferentTypesCarryDifferentIdentities() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Types", "WP2-3");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.10, 14.30)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 14.40)));
+        RestrictedArea forest = new RestrictedArea(project, "Reserve Forest", "RESERVE_FOREST",
+                new BigDecimal("30.00"), squareAt(77.20, 14.38));
+        RestrictedArea radar = new RestrictedArea(project, "Radar", "AVIATION",
+                new BigDecimal("30.00"), squareAt(77.30, 14.48));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
+        when(restrictedAreaRepository.findAllByProjectIdOrderByNameAsc(projectId)).thenReturn(List.of(forest, radar));
+        stubJobPersistence();
+        when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
+                new PythonOptimisationResponse("job-1", "success", "Balanced", Map.of(), Map.of(),
+                        Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                        "SUCCESS", List.of(), Map.of(), Map.of(), List.of()));
+
+        jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", ScenarioProfile.BALANCED, null, null, null, null, null, null, null));
+
+        ArgumentCaptor<PythonOptimisationRequest> captor = ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(captor.capture());
+
+        List<String> featureTypes = avoidanceFeatures(captor.getValue()).stream()
+                .map(feature -> String.valueOf(propertiesOf(feature).get("feature_type")))
+                .toList();
+
+        assertThat(featureTypes).containsExactlyInAnyOrder("forest", "aviation");
     }
 
     private Polygon squareAt(double lon, double lat) {
@@ -323,6 +374,16 @@ class OptimizationJobServiceTest {
 
     private static double restrictedBufferIn(PythonOptimisationRequest request) {
         return (Double) constraintProperties(request, "restricted_area").get("buffer_m");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> avoidanceFeatures(PythonOptimisationRequest request) {
+        return (List<Map<String, Object>>) request.avoidanceGeojson().get("features");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> propertiesOf(Map<String, Object> feature) {
+        return (Map<String, Object>) feature.get("properties");
     }
 
     @SuppressWarnings("unchecked")
