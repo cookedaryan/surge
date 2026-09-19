@@ -58,7 +58,7 @@
   "effective_profile": {
     "definition_hash": "1111111111111111111111111111111111111111111111111111111111111111",
     "generation_settings_hash": "2222222222222222222222222222222222222222222222222222222222222222",
-    "metric_registry_version": "1",
+    "metric_registry_version": "2",
     "policy_hash": "0000000000000000000000000000000000000000000000000000000000000000",
     "profile_id": "balanced",
     "profile_version": "1",

@@ -13,5 +13,5 @@
     "search_evidence.routing_time_s",
     "solver_runs[].wall_time_s"
   ],
-  "metric_registry_version": "1"
+  "metric_registry_version": "2"
 }
