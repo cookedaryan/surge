@@ -9,9 +9,9 @@ own minimum and maximum. A cohort min-max would let removing a losing candidate
 change every other candidate's score, which WP3-3's remove-a-loser invariant forbids.
 
 The block stays absent for V0: without a resolved profile there is no set of terms
-to explain against. Until WP3-4 lands a profile registry, no definition is available
-for any profile, so the hook returns ``None`` on every request the product can make
-today. WP3-4 plugs its registry in through ``definitions``.
+to explain against. Definitions come from the WP3-4 registry. Resolution still refuses
+every explicit profile until a profile drives winner selection (WP3-3) and invalid
+inputs map to stable errors (WP3-1), so today no request reaches this with a profile.
 """
 
 from collections.abc import Callable, Sequence
@@ -26,6 +26,8 @@ from app.contracts.response import (
     ScoringExplanation,
 )
 from app.optimisation.engineering_metric_models import CandidateEngineeringMetrics
+from app.optimisation.profiles import registry
+from app.optimisation.profiles.metrics import KNOWN_METRICS, LIFECYCLE_COST
 from app.optimisation.workflow_models import (
     CandidateWorkflowResult,
     OptimisationWorkflowResult,
@@ -33,41 +35,21 @@ from app.optimisation.workflow_models import (
 
 DefinitionLookup = Callable[[str, str], ProfileDefinition | None]
 
-# A metric name in a profile term is the field name of the evidence it reads, so the
-# explanation, the metric registry and the evidence record share one vocabulary and
-# nothing has to be registered in the V0 ``ScoringMetric`` enum. Registering there
-# would change the V0 response's key set, which the V0 goldens forbid.
-_ENGINEERING_METRICS: frozenset[str] = frozenset(
-    {
-        "total_route_length_m",
-        "total_traversal_cost",
-        "affected_parcel_count",
-        "owner_interaction_count",
-        "road_crossing_count",
-        "soft_constraint_overlap_length_m",
-        "environmental_overlap_m2",
-        "affected_parcel_row_area_m2",
-        "physical_pole_count",
-        "total_active_loss_mw",
-        "maximum_loading_percent",
-        "voltage_margin_pu",
-    }
-)
-_LIFECYCLE_COST = "lifecycle_cost"
-
-KNOWN_METRICS: frozenset[str] = _ENGINEERING_METRICS | {_LIFECYCLE_COST}
-
-
-def _no_registered_definitions(profile_id: str, version: str) -> None:
-    """Stand-in until WP3-4's registry exists: no profile has a definition yet."""
-    return None
+# The metric vocabulary lives in profiles.metrics so the registry can share it
+# without importing this module. Re-exported here for callers of WP2-7.
+__all__ = [
+    "KNOWN_METRICS",
+    "build_scoring_explanation",
+    "explain_candidates",
+    "normalise",
+]
 
 
 def build_scoring_explanation(
     workflow_result: OptimisationWorkflowResult,
     context: ResponseContext,
     *,
-    definitions: DefinitionLookup = _no_registered_definitions,
+    definitions: DefinitionLookup = registry.definition_for,
 ) -> ScoringExplanation | None:
     profile = context.profile
     if profile.profile_id is None or profile.profile_version is None:
@@ -213,7 +195,7 @@ def _raw_value(
     ``None`` means the candidate could not supply the evidence, for example because
     its metrics failed to extract. It is not a zero and is never scored as one.
     """
-    if metric == _LIFECYCLE_COST:
+    if metric == LIFECYCLE_COST:
         return lifecycle_cost
     if metrics is None:
         return None
