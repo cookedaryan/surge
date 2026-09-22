@@ -340,11 +340,22 @@ def test_the_block_stays_absent_for_v0() -> None:
     assert result is None
 
 
-def test_the_block_stays_absent_until_a_registry_supplies_a_definition() -> None:
-    # Today's state: WP3-4 has not landed a registry, so no profile has terms.
+def test_the_default_definitions_come_from_the_registry() -> None:
+    # WP3-4 landed the registry, so a resolved allow-listed profile now has terms by
+    # default. Resolution still refuses explicit profiles, so no live request gets
+    # here yet; this proves the wiring, not a user-visible change.
     result = build_scoring_explanation(
         _workflow(_candidate("A", _metrics())),
         _context(ProfileResolution(profile_id="balanced", profile_version="1")),
+    )
+    assert result is not None
+    assert result.profile_id == "balanced"
+
+
+def test_an_unknown_profile_version_yields_no_block_rather_than_a_fallback() -> None:
+    result = build_scoring_explanation(
+        _workflow(_candidate("A", _metrics())),
+        _context(ProfileResolution(profile_id="balanced", profile_version="99")),
     )
     assert result is None
 
