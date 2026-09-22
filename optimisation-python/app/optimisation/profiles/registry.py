@@ -24,7 +24,7 @@ definition that names an unknown metric, or leaves an allow-listed profile versi
 without a definition, fails loudly before any request is served.
 """
 
-from app.contracts.codes import MetricDirection, ProfilePolicyMode
+from app.contracts.codes import ProfilePolicyMode
 from app.contracts.profiles import (
     ALLOWED_PROFILE_VERSIONS,
     MetricTerm,
@@ -33,10 +33,7 @@ from app.contracts.profiles import (
     ProfileId,
     definition_set_hash,
 )
-from app.optimisation.profiles.metrics import KNOWN_METRICS
-
-_MINIMISE = MetricDirection.MINIMISE
-_MAXIMISE = MetricDirection.MAXIMISE
+from app.optimisation.profiles.metrics import KNOWN_METRICS, direction_of
 
 # Placeholder reference ranges, one per metric, shared by every profile that scores
 # it so the same raw value normalises identically everywhere. Round numbers chosen
@@ -56,9 +53,6 @@ _RANGES: dict[str, tuple[str, str]] = {
     "lifecycle_cost": ("0", "1000000000"),
 }
 
-# Higher is better only for voltage margin; every other metric is a cost or impact.
-_DIRECTIONS: dict[str, MetricDirection] = {"voltage_margin_pu": _MAXIMISE}
-
 _ENGINEERING_TIE_BREAKS = ["total_route_length_m", "candidate_id"]
 
 
@@ -72,7 +66,7 @@ def _term(
     reference_min, reference_max = _RANGES[metric]
     return MetricTerm(
         metric=metric,
-        direction=_DIRECTIONS.get(metric, _MINIMISE),
+        direction=direction_of(metric),
         weight=weight,
         reference_min=reference_min,
         reference_max=reference_max,

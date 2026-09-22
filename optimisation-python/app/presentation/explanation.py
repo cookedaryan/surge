@@ -17,7 +17,6 @@ inputs map to stable errors (WP3-1), so today no request reaches this with a pro
 from collections.abc import Callable, Sequence
 from decimal import Decimal
 
-from app.contracts.codes import MetricDirection
 from app.contracts.profiles import MetricTerm, ProfileDefinition
 from app.contracts.resolution import ResponseContext
 from app.contracts.response import (
@@ -25,9 +24,8 @@ from app.contracts.response import (
     MetricContribution,
     ScoringExplanation,
 )
-from app.optimisation.engineering_metric_models import CandidateEngineeringMetrics
-from app.optimisation.profiles import registry
-from app.optimisation.profiles.metrics import KNOWN_METRICS, LIFECYCLE_COST
+from app.optimisation.profiles import registry, selection
+from app.optimisation.profiles.metrics import KNOWN_METRICS, raw_value
 from app.optimisation.workflow_models import (
     CandidateWorkflowResult,
     OptimisationWorkflowResult,
@@ -66,28 +64,17 @@ def explain_candidates(
 ) -> ScoringExplanation:
     """Explain every candidate against one profile definition.
 
-    Eligible candidates with a complete score are ranked by total score, highest
-    first. Ties are broken by candidate ID so the ranking is deterministic; the
-    profile's own ``tie_breaks`` are policy values that FRZ-1 freezes and that
-    WP3-3 applies.
+    Ranks are the order profile selection (WP3-3) puts candidates in, so the block
+    explains the ranking that actually happened. For a weighted profile that is
+    highest total first; for a lexicographic profile it follows the ranked terms and
+    their tolerance bands, so a lower ``total_score`` can legitimately rank higher.
+    Ties fall to the definition's ``tie_breaks`` and finally to candidate ID.
     """
     _validate_terms(definition.terms)
 
-    explained = [
-        _explain_candidate(candidate, definition.terms) for candidate in candidates
-    ]
-    ranked_ids = [
-        item.candidate_id
-        for item in sorted(
-            (
-                item
-                for item in explained
-                if item.eligible and item.total_score is not None
-            ),
-            key=lambda item: (-(item.total_score or 0.0), item.candidate_id),
-        )
-    ]
-    ranks = {candidate_id: rank for rank, candidate_id in enumerate(ranked_ids, 1)}
+    evidence = [_evidence(candidate) for candidate in candidates]
+    explained = [_explain_candidate(item, definition.terms) for item in evidence]
+    ranks = selection.rank_candidates(evidence, definition)
 
     return ScoringExplanation(
         profile_id=definition.profile_id.value,
@@ -108,25 +95,12 @@ def normalise(raw_value: float, term: MetricTerm) -> float:
     """Map a raw value onto [0, 1] against the term's fixed reference range.
 
     One is best. Values outside the range are clamped rather than extrapolated, so a
-    single outlier cannot dominate a weighted sum.
+    single outlier cannot dominate a weighted sum. Arithmetic is Decimal, converting
+    to float only here at the boundary: the profile stores weights and ranges as
+    decimal strings so hashing is exact, and binary floats would publish values such
+    as 0.15000000000000002 that disagree with a recomputation from their own inputs.
     """
-    return float(_normalise(_decimal(raw_value), term))
-
-
-def _normalise(raw_value: Decimal, term: MetricTerm) -> Decimal:
-    # Decimal throughout, converting to float only at the response boundary. The
-    # profile stores weights and ranges as decimal strings so that hashing is exact;
-    # doing the arithmetic in binary floats would publish contributions such as
-    # 0.15000000000000002 that disagree with a recomputation from their own inputs,
-    # and the G0 claim is that every recommendation reproduces from its evidence.
-    minimum = Decimal(term.reference_min)
-    maximum = Decimal(term.reference_max)
-    span = maximum - minimum
-    if term.direction == MetricDirection.MINIMISE:
-        normalised = (maximum - raw_value) / span
-    else:
-        normalised = (raw_value - minimum) / span
-    return max(Decimal(0), min(Decimal(1), normalised))
+    return float(selection.normalise(_decimal(raw_value), term))
 
 
 def _decimal(value: float) -> Decimal:
@@ -134,30 +108,38 @@ def _decimal(value: float) -> Decimal:
     return Decimal(repr(value))
 
 
+def _evidence(candidate: CandidateWorkflowResult) -> selection.CandidateEvidence:
+    evaluation = candidate.evaluation
+    return selection.CandidateEvidence(
+        candidate_id=candidate.scenario.scenario_id,
+        eligible=evaluation is not None and evaluation.assessment.eligible,
+        metrics=evaluation.assessment.metrics if evaluation is not None else None,
+        lifecycle_cost=evaluation.lifecycle_cost if evaluation is not None else None,
+    )
+
+
 def _explain_candidate(
-    candidate: CandidateWorkflowResult,
+    evidence: selection.CandidateEvidence,
     terms: Sequence[MetricTerm],
 ) -> CandidateExplanation:
-    evaluation = candidate.evaluation
-    eligible = evaluation is not None and evaluation.assessment.eligible
-    metrics = evaluation.assessment.metrics if evaluation is not None else None
-    lifecycle_cost = evaluation.lifecycle_cost if evaluation is not None else None
-
     scored = [
-        _contribution(term, _raw_value(term.metric, metrics, lifecycle_cost))
+        _contribution(
+            term,
+            raw_value(term.metric, evidence.metrics, evidence.lifecycle_cost),
+        )
         for term in terms
     ]
     contributions = [contribution for contribution, _ in scored]
     weighted = [value for _, value in scored]
-    complete = eligible and all(value is not None for value in weighted)
+    complete = evidence.eligible and all(value is not None for value in weighted)
     total_score = (
         float(sum((value for value in weighted if value is not None), Decimal(0)))
         if complete
         else None
     )
     return CandidateExplanation(
-        candidate_id=candidate.scenario.scenario_id,
-        eligible=eligible,
+        candidate_id=evidence.candidate_id,
+        eligible=evidence.eligible,
         total_score=total_score,
         contributions=contributions,
     )
@@ -169,7 +151,9 @@ def _contribution(
     """One published contribution, plus its exact weighted value for the total."""
     weight = Decimal(term.weight)
     normalised = (
-        _normalise(_decimal(raw_value), term) if raw_value is not None else None
+        selection.normalise(_decimal(raw_value), term)
+        if raw_value is not None
+        else None
     )
     weighted = normalised * weight if normalised is not None else None
     contribution = MetricContribution(
@@ -183,23 +167,6 @@ def _contribution(
         weighted_contribution=float(weighted) if weighted is not None else None,
     )
     return contribution, weighted
-
-
-def _raw_value(
-    metric: str,
-    metrics: CandidateEngineeringMetrics | None,
-    lifecycle_cost: float | None,
-) -> float | None:
-    """The candidate's value for ``metric``, or ``None`` when it has none.
-
-    ``None`` means the candidate could not supply the evidence, for example because
-    its metrics failed to extract. It is not a zero and is never scored as one.
-    """
-    if metric == LIFECYCLE_COST:
-        return lifecycle_cost
-    if metrics is None:
-        return None
-    return float(getattr(metrics, metric))
 
 
 def _validate_terms(terms: Sequence[MetricTerm]) -> None:
