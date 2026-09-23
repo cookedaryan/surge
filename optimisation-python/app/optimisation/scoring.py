@@ -5,8 +5,10 @@ import json
 import math
 from dataclasses import replace
 
+from app.contracts.profiles import ProfileDefinition
 from app.costing.models import CandidateCostAssessment
 from app.optimisation.engineering_metric_models import CandidateEngineeringMetrics
+from app.optimisation.profiles.selection import CandidateEvidence, ordering_key
 from app.optimisation.scenario_models import ScenarioStrategy
 from app.optimisation.scoring_models import (
     CandidateAssessment,
@@ -267,6 +269,21 @@ def evaluate_cohort(
     candidate_costs: dict[str, float] = {}
     complete_cost_assessments: dict[str, CandidateCostAssessment] = {}
 
+    # A profile may weight lifecycle cost while the V0 policy is not cost-aware, and
+    # then the cost evidence exists on the candidate but never reaches the
+    # evaluation. Collected separately so V0 keeps its own rule exactly: under
+    # COST_AWARE a missing cost disqualifies a candidate, and that is untouched here.
+    profile_costs: dict[str, float] = {}
+    if scoring_config.profile is not None and not is_cost_aware:
+        for wrapper, assessment in zip(wrappers, assessments, strict=True):
+            cost_assessment = wrapper.cost_assessment
+            if cost_assessment is None and cost_assessments is not None:
+                cost_assessment = cost_assessments.get(assessment.scenario_id)
+            if cost_assessment is not None and cost_assessment.cost is not None:
+                profile_costs[assessment.scenario_id] = float(
+                    cost_assessment.cost.lifecycle_cost
+                )
+
     if is_cost_aware:
         economic_contexts: set[str] = set()
         for index, (wrapper, assessment) in enumerate(
@@ -432,7 +449,9 @@ def evaluate_cohort(
                 economic_benefit_score=economic_score if is_cost_aware else None,
                 final_benefit_score=final_score if is_cost_aware else None,
                 total_benefit_score=eng_total,
-                lifecycle_cost=l_cost,
+                lifecycle_cost=(
+                    l_cost if l_cost is not None else profile_costs.get(a.scenario_id)
+                ),
                 rank=None,
             )
         )
@@ -483,6 +502,19 @@ def evaluate_cohort(
         )
 
     eligible_evals.sort(key=sort_key)
+    if scoring_config.profile is not None:
+        # A profile decides the order, and therefore the winner. Without this the
+        # response would recommend the V0 winner while the explanation block ranked
+        # by the profile: two answers to the same question.
+        eligible_evals = _order_by_profile(eligible_evals, scoring_config.profile)
+        if not _any_orderable(eligible_evals, scoring_config.profile):
+            # The profile cannot rank a single candidate, because none carries the
+            # evidence its terms need. Returning the V0 winner here would be the
+            # silent fallback WP3-1 exists to prevent: the client asked for this
+            # profile's answer, and there isn't one. The candidates stay in the
+            # response, unranked, so an operator can see what was evaluated.
+            ineligible_evals = [*eligible_evals, *ineligible_evals]
+            eligible_evals = []
     ineligible_evals.sort(key=lambda e: e.assessment.scenario_id)
 
     engineering_best_sid = None
@@ -806,7 +838,72 @@ def evaluate_cohort(
         economic_context_id=economic_context_id,
         evaluations=tuple(ranked_evals),
         normalization_ranges=ranges_tuple,
-        reasons=tuple(reasons),
+        reasons=_reasons_for(reasons, scoring_config.profile),
         baseline_comparison_status=comp_status,
         baseline_comparisons=tuple(comp_list),
+    )
+
+
+def _order_by_profile(
+    evaluations: list[CandidateEvaluation],
+    definition: ProfileDefinition,
+) -> list[CandidateEvaluation]:
+    """Reorder eligible candidates by the profile's ordering (WP3-3).
+
+    A candidate the profile cannot order - missing evidence for one of its terms -
+    keeps its V0 position behind every candidate the profile can order, so missing
+    evidence never wins but never disappears either.
+    """
+    keyed = []
+    for position, evaluation in enumerate(evaluations):
+        evidence = CandidateEvidence(
+            candidate_id=evaluation.assessment.scenario_id,
+            eligible=evaluation.assessment.eligible,
+            metrics=evaluation.assessment.metrics,
+            lifecycle_cost=evaluation.lifecycle_cost,
+        )
+        key = ordering_key(evidence, definition)
+        keyed.append((key is None, key, position, evaluation))
+    keyed.sort(key=lambda item: (item[0], item[1] or (), item[2]))
+    return [item[3] for item in keyed]
+
+
+def _any_orderable(
+    evaluations: list[CandidateEvaluation],
+    definition: ProfileDefinition,
+) -> bool:
+    """Whether the profile can order at least one candidate."""
+    return any(
+        ordering_key(
+            CandidateEvidence(
+                candidate_id=evaluation.assessment.scenario_id,
+                eligible=evaluation.assessment.eligible,
+                metrics=evaluation.assessment.metrics,
+                lifecycle_cost=evaluation.lifecycle_cost,
+            ),
+            definition,
+        )
+        is not None
+        for evaluation in evaluations
+    )
+
+
+def _reasons_for(
+    reasons: list[RecommendationReason],
+    definition: ProfileDefinition | None,
+) -> tuple[RecommendationReason, ...]:
+    """V0 reasons, or only the ones still true under a profile.
+
+    Every code except ``ONLY_ELIGIBLE_CANDIDATE`` describes V0 scoring - highest
+    total benefit, highest spatial score - which is not what ranked a profile-driven
+    run. Publishing them would explain a ranking that did not happen. Under a
+    profile the reasoning belongs to the C2 ``scoring_explanation`` block, which
+    carries every metric's contribution.
+    """
+    if definition is None:
+        return tuple(reasons)
+    return tuple(
+        reason
+        for reason in reasons
+        if reason.code == RecommendationReasonCode.ONLY_ELIGIBLE_CANDIDATE
     )

@@ -10,13 +10,14 @@ code before anything is parsed or optimised. Then:
   version, scenario label that does not match the profile, then a definition naming
   an unknown metric - so a client learns exactly what is wrong. Nothing ever
   substitutes Balanced for a profile it does not know.
-- **A valid profile is still refused**, with ``PROFILE_NOT_SUPPORTED``. Accepting one
-  means the recommendation must come from profile selection (WP3-3), and today it
-  still comes from the V0 scorer. Accepting first would answer "Minimum Land
-  Impact" with the V0 winner and a Minimum Land explanation attached, which explains
-  a ranking that did not happen.
+- **A valid profile resolves** when the C5 profiles flag is on, attaching its
+  definition to the scoring config so the recommendation comes from profile
+  selection (WP3-3) and the explanation (WP2-7) describes that same ranking. With
+  the flag off it is still refused with ``PROFILE_NOT_SUPPORTED``, so V0 deployments
+  are unchanged.
 """
 
+from collections.abc import Callable
 from dataclasses import replace
 
 from app.contracts.codes import ContractErrorCode
@@ -64,15 +65,40 @@ def resolve_profile(
             return V0_PROFILE_WITH_V1_SCHEDULE
         return V0_PROFILE_RESOLUTION
 
-    definition_for_request(payload.profile, payload.scenario)
+    definition = definition_for_request(payload.profile, payload.scenario)
     if not settings.surge_profiles_enabled:
-        message = "Versioned profiles are not enabled on this deployment."
-    else:
-        message = (
-            "Versioned profiles are valid but not yet selectable: the recommendation "
-            "does not come from profile selection."
+        raise ContractError(
+            ContractErrorCode.PROFILE_NOT_SUPPORTED,
+            "Versioned profiles are not enabled on this deployment.",
         )
-    raise ContractError(ContractErrorCode.PROFILE_NOT_SUPPORTED, message)
+    return ProfileResolution(
+        profile_id=definition.profile_id.value,
+        profile_version=definition.version,
+        configure=_apply_profile(definition),
+    )
+
+
+def _apply_profile(
+    definition: ProfileDefinition,
+) -> Callable[[OptimisationConfig], OptimisationConfig]:
+    """Attach the profile to the scoring config, and change nothing else.
+
+    The profile has to reach the recommendation, and the only route that stays
+    inside L3's paths is the scoring config: ``OptimisationConfig`` is frozen and
+    the orchestrator belongs to L2. ``evaluate_cohort`` reads it and orders the
+    cohort by profile selection instead of the V0 weights.
+    """
+
+    def configure(config: OptimisationConfig) -> OptimisationConfig:
+        return replace(
+            config,
+            scenario=replace(
+                config.scenario, generation_schedule=GenerationSchedule.V1
+            ),
+            scoring=replace(config.scoring, profile=definition),
+        )
+
+    return configure
 
 
 def definition_for_request(
