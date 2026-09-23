@@ -5,7 +5,6 @@ receives: HTTP status plus the C3 ``{"code", "message"}`` detail, not an interna
 exception type.
 """
 
-import copy
 import json
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -275,6 +274,9 @@ def test_a_payload_over_the_limit_when_serialised_is_refused_with_413(
     client: TestClient,
 ) -> None:
     payload = _request()
+    # Refused by ``RequestSizeLimitMiddleware`` on the raw body, before the
+    # canonical-form check in ``_check_size`` is ever reached. What matters to a
+    # client is unchanged: 413 with the C1 code, whichever layer answers.
     # One turbine carrying an oversized property: padding with extra features would
     # trip the 500-turbine limit long before the size limit.
     padding = "x" * (MAX_V1_REQUEST_BYTES + 1024)
@@ -283,34 +285,6 @@ def test_a_payload_over_the_limit_when_serialised_is_refused_with_413(
     status, detail = _post(client, payload)
     assert status == 413
     _assert_code(detail, ContractErrorCode.PAYLOAD_TOO_LARGE)
-
-
-def test_known_gap_a_raw_body_over_the_limit_can_still_be_accepted(
-    client: TestClient,
-) -> None:
-    """Pins the hole WP3-1 cannot close from inside ``resolve_profile``.
-
-    The C1 limit is on the raw body, but the body is parsed before the endpoint
-    runs, so the only size available is the re-serialised payload, which is
-    smaller. This request's body is over the limit and its canonical form is under
-    it, so the size check passes and it is rejected later for an unrelated reason.
-
-    When app-level middleware enforces the raw limit, this test should start
-    failing with 413, and that is the signal to delete it.
-    """
-    payload = _request()
-    template = copy.deepcopy(payload["wtg_geojson"]["features"][0])
-    features = payload["wtg_geojson"]["features"]
-    while len(json.dumps(payload).encode("utf-8")) <= MAX_V1_REQUEST_BYTES:
-        for _ in range(2000):
-            clone = copy.deepcopy(template)
-            clone["properties"]["turbine_id"] = f"T{len(features):07d}"
-            features.append(clone)
-
-    assert len(json.dumps(payload).encode("utf-8")) > MAX_V1_REQUEST_BYTES
-    status, detail = _post(client, payload)
-    assert status == 422
-    assert "Maximum WTG limit exceeded" in str(detail)
 
 
 # --- Precedence --------------------------------------------------------------------

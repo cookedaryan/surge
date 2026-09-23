@@ -12,12 +12,13 @@ later as a free-text message, a silent acceptance or a server error. Before WP3-
 - an unknown ``feature_type`` or an empty ``source_id`` was accepted silently;
 - out-of-range coordinates and negative buffers returned a free-text 422.
 
-What this layer cannot reach. Pydantic validates the declared request fields before
-the endpoint runs, so a field that breaks its own declared constraint still gets
-FastAPI's default validation response rather than a C3 code, and the body is fully
-read before any size check can run. Both need the application-level handler in
-``app/main.py``, which no level owns. Stable codes here cover everything that
-reaches the endpoint; the rest is recorded as a gap, not claimed.
+What this layer cannot reach, and where it is now covered. Pydantic validates the
+declared request fields before the endpoint runs, so a field that breaks its own
+declared constraint never reaches this module, and the body is fully read before
+any size check here can run. Both are handled in ``app/main.py``: a
+``RequestValidationError`` handler maps pydantic's rejection onto the same C3
+codes, and ASGI middleware enforces the raw-body limit before the body is parsed.
+Stable codes here cover everything that reaches the endpoint.
 
 Checks run in a fixed order, so a request with several defects always reports the
 same one: size, then non-finite values, then coordinate ranges, then avoidance
@@ -49,12 +50,13 @@ def validate_request(payload: OptimisationRequest) -> None:
 def _check_size(payload: OptimisationRequest) -> None:
     """Refuse a request whose canonical form exceeds the C1 limit.
 
-    **This is not the C1 raw-body limit, and does not replace it.** The body is
-    parsed before the endpoint runs, so the only size available here is the
-    re-serialised payload, which is smaller than the body it came from: a 10.58 MB
-    body measured 9.62 MB re-serialised and passed. A raw body over the limit can
-    still be accepted, and nothing here protects the parser from reading it. Both
-    need app-level middleware in ``app/main.py``, which no level owns.
+    **This is not the C1 raw-body limit.** The body is parsed before the endpoint
+    runs, so the only size available here is the re-serialised payload, which is
+    smaller than the body it came from: a 10.58 MB body measures 9.62 MB
+    re-serialised. ``RequestSizeLimitMiddleware`` in ``app/main.py`` is what
+    enforces the raw limit, and it runs before the parser reads anything. This
+    check stays as the layer behind it, and for callers that reach
+    ``validate_request`` without going through the endpoint.
     """
     size = len(payload.model_dump_json().encode("utf-8"))
     if size > MAX_V1_REQUEST_BYTES:
