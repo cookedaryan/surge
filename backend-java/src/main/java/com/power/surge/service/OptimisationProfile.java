@@ -35,6 +35,13 @@ public enum OptimisationProfile {
     BALANCED("balanced", ScenarioProfile.BALANCED);
 
     /**
+     * The C5 flag, as a property expression, so every place that needs to know whether profiles are
+     * on reads the same one. Two spellings of this string is how a service starts sending profiles
+     * that startup never verified.
+     */
+    public static final String ENABLED_PROPERTY = "${surge.profiles.enabled:${SURGE_PROFILES_ENABLED:false}}";
+
+    /**
      * The versions a client may be served, newest last. A version joins or leaves this list only
      * through a contract change request; an explicit unknown version is rejected, never rounded to
      * the nearest known one.

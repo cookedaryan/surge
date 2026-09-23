@@ -39,7 +39,7 @@ public class ProfileDefinitionHandshake implements InitializingBean {
     public ProfileDefinitionHandshake(
             PythonProfileClient profileClient,
             // The same switch Python reads (C5). One deployment, one answer to "are profiles on".
-            @Value("${surge.profiles.enabled:${SURGE_PROFILES_ENABLED:false}}") boolean profilesEnabled,
+            @Value(OptimisationProfile.ENABLED_PROPERTY) boolean profilesEnabled,
             // No default, deliberately. FRZ-1 sets this; until then, a deployment that turns
             // profiles on has nothing to verify against, and starting anyway would be the silent
             // half of exactly the failure this class exists to prevent.
