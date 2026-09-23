@@ -16,6 +16,22 @@ surge:
   python-engine:
     url: ${PYTHON_ENGINE_URL:http://localhost:8000}
 
+  # Contract C7: the profile definition-hash handshake.
+  #
+  # Python owns the profile definitions and Java holds only a hash of them. When profiles are on,
+  # startup compares this value with what the engine publishes, and refuses to start on a mismatch
+  # or an unreachable engine. A disagreement here would otherwise produce results ranked under a
+  # policy this service does not know about — plausible-looking numbers attributed to the wrong
+  # policy, which nothing downstream could detect.
+  #
+  # The expected hash has no default: it is set at the FRZ-1 policy freeze, and a deployment that
+  # enables profiles without it has nothing to verify against. Turning profiles on before FRZ-1 is
+  # therefore not a supported configuration, and fails loudly rather than silently.
+  profiles:
+    enabled: ${SURGE_PROFILES_ENABLED:false}
+    expected-definition-hash: ${SURGE_PROFILE_DEFINITION_HASH:}
+    handshake-timeout-ms: ${SURGE_PROFILE_HANDSHAKE_TIMEOUT_MS:5000}
+
   # The single administrator created on a fresh database. Every other account is provisioned by an
   # administrator; nothing here ever overwrites an existing password, so credentials changed later
   # survive a restart.
