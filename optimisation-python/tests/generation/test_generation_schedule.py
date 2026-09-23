@@ -147,11 +147,31 @@ def test_either_flag_selects_the_v1_schedule_and_nothing_else(
     )
 
 
-def test_explicit_profile_is_still_refused_with_flags_on() -> None:
-    settings = Settings(surge_profiles_enabled=True, surge_search_enabled=True)
+def test_an_explicit_profile_is_refused_while_the_profiles_flag_is_off() -> None:
+    settings = Settings(surge_profiles_enabled=False, surge_search_enabled=True)
     with pytest.raises(ContractError) as raised:
         resolve_profile(_request(profile={"id": "balanced", "version": "1"}), settings)
     assert raised.value.code == ContractErrorCode.PROFILE_NOT_SUPPORTED
+
+
+def test_an_explicit_profile_resolves_and_still_selects_the_v1_schedule() -> None:
+    # WP5-2 asserted a refusal here, which was true while nothing consumed a
+    # resolved profile. Now selection drives the recommendation, so the profile
+    # resolves - and it must still switch the generation schedule, because the C5
+    # gate is what the profiles flag turns on.
+    settings = Settings(surge_profiles_enabled=True, surge_search_enabled=True)
+
+    resolution = resolve_profile(
+        _request(profile={"id": "balanced", "version": "1"}), settings
+    )
+
+    assert resolution.profile_id == "balanced"
+    assert resolution.profile_version == "1"
+    config = _workflow_config()
+    configured = resolution.configure(config)
+    assert configured.scenario.generation_schedule == GenerationSchedule.V1
+    assert configured.scoring.profile is not None
+    assert configured.scoring.profile.profile_id.value == "balanced"
 
 
 def _workflow_config() -> OptimisationConfig:
