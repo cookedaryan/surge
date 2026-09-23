@@ -734,7 +734,8 @@ class OptimizationJobServiceTest {
                         Map.of("feeder_count", 1, "total_length_m", 1500.0),
                         "SUCCESS", List.of(), Map.of(), Map.of(), List.of(),
                         new PythonEffectiveProfile(echoedProfileId, "1", "a".repeat(64),
-                                "b".repeat(64), "2", "c".repeat(64), true, false)));
+                                "b".repeat(64), "2", "c".repeat(64), true, false),
+                        null, null, null, null, null));
 
         return projectId;
     }
