@@ -2,6 +2,13 @@
 
 Every contract change after `demo-opt-base` is recorded here, newest first, with its CCR link.
 
+## Unreleased — CCR: S7 definition-hash reserved-route seam (pack version stays 1.0.0)
+
+CCR: [#55](https://github.com/cookedaryan/surge/issues/55) (raised by L3 for WP3-6a). Seam test only, so `CONTRACT_PACK_VERSION` and the exported artefacts do not change.
+
+- `tests/contracts/test_seams.py`: `test_reserved_routes_answer_not_implemented` asserted that both reserved routes answer 501, so WP3-6a could never implement `GET /api/v1/profiles/definition-hash`, whose C7 body is fixed as `{"definition_hash", "metric_registry_version", "contract_pack_version"}`. It is split in two. The cancel route keeps the 501 assertion, because WP4-9a implements it and slot 3 is deferred while G2 is undecided. The definition-hash route is now covered by `test_the_definition_hash_route_is_registered_and_keeps_the_c7_shape`, which fixes what holds before and after WP3-6a: the route is registered, never a 404, and it answers either 501 `NOT_IMPLEMENTED` or 200 with exactly the three C7 keys.
+- No schema, fixture, code registry or generated artefact changes. Affects L3 (WP3-6a); L1 and L2 are unaffected, and the cancel-route assertion is unchanged.
+
 ## Unreleased — CCR: metric registry version 2 (pack version stays 1.0.0)
 
 CCR: [#44](https://github.com/cookedaryan/surge/issues/44) (raised by L3 for WP2-5 and WP2-6). Generated artefacts only, so `CONTRACT_PACK_VERSION` does not change.

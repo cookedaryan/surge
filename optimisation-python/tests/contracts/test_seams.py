@@ -240,17 +240,32 @@ def test_cancelled_run_answers_409(monkeypatch: pytest.MonkeyPatch) -> None:
     assert response.json()["detail"]["code"] == "CANCELLED"
 
 
-@pytest.mark.parametrize(
-    ("method", "path"),
-    [
-        ("post", "/api/v1/runs/job-1/cancel"),
-        ("get", "/api/v1/profiles/definition-hash"),
-    ],
-)
-def test_reserved_routes_answer_not_implemented(method: str, path: str) -> None:
-    response = getattr(client, method)(path)
+def test_the_cancel_route_answers_not_implemented() -> None:
+    # Still a reserved route: WP4-9a implements it, and slot 3 is deferred while
+    # G2 is undecided.
+    response = client.post("/api/v1/runs/job-1/cancel")
     assert response.status_code == 501
     assert response.json()["detail"]["code"] == "NOT_IMPLEMENTED"
+
+
+def test_the_definition_hash_route_is_registered_and_keeps_the_c7_shape() -> None:
+    """The seam, rather than the Stage 0 placeholder (CCR #55).
+
+    WP3-6a replaces the 501 with the C7 body, so asserting the placeholder would
+    block it. What holds before and after is that the route is registered - never a
+    404 - and that when it answers it answers in the shape C7 fixes.
+    """
+    response = client.get("/api/v1/profiles/definition-hash")
+
+    assert response.status_code in (200, 501)
+    if response.status_code == 501:
+        assert response.json()["detail"]["code"] == "NOT_IMPLEMENTED"
+    else:
+        assert set(response.json()) == {
+            "definition_hash",
+            "metric_registry_version",
+            "contract_pack_version",
+        }
 
 
 # --- S1 typed identity and C5 flags -------------------------------------------
