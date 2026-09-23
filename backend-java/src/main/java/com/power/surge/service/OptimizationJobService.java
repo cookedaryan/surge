@@ -133,6 +133,13 @@ public class OptimizationJobService {
                 "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null
         );
 
+        // Fail closed, and fail here. An unrecognised profile is refused before a job row exists,
+        // so the caller is told at once instead of watching a job queue, run and then be rejected
+        // by Python. Never defaulted to Balanced: see OptimisationProfile.
+        if (req.profileId() != null) {
+            OptimisationProfile.fromClientId(req.profileId());
+        }
+
         OptimizationJob job = new OptimizationJob(
                 project,
                 req.algorithmType() != null ? req.algorithmType() : "MULTI_OBJECTIVE_A_STAR",
@@ -237,6 +244,10 @@ public class OptimizationJobService {
                     "job-" + job.getId(),
                     projectId.toString(),
                     scenario,
+                    // Absent means V0 (C1). The client's profile choice is validated at createJob
+                    // but has nowhere to live until WP3-7b adds the V23 columns, and a queued job
+                    // is rebuilt from its row, so nothing can be carried here yet.
+                    null,
                     wtgGeoJson,
                     subGeoJson,
                     electricalParams,

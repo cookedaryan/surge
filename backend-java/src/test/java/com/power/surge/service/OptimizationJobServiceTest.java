@@ -481,6 +481,61 @@ class OptimizationJobServiceTest {
     }
 
     /**
+     * WP3-5: a profile the allow-list does not hold is refused, and refused here.
+     *
+     * <p>The neighbouring scenario selector defaults an unknown label to Balanced, which is right
+     * for a display string. A profile decides which design is recommended, so the same default
+     * would hand back Balanced's winner as though it came from the policy that was asked for.
+     */
+    @Test
+    void createJob_refusesAnUnknownProfileRatherThanFallingBackToBalanced() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Uravakonda", null);
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.10, 14.30)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 14.40)));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+
+        assertThatThrownBy(() -> jobService.createJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null,
+                "minimum_carbon")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("minimum_carbon");
+
+        // No row written. The caller is told at once rather than watching a job queue, start and
+        // then be rejected by Python seconds later.
+        verify(jobRepository, never()).save(any(OptimizationJob.class));
+    }
+
+    /**
+     * The boundary WP3-5 stops at, pinned so that WP3-7b moving it is visible.
+     *
+     * <p>A queued job is rebuilt from its row, and the row has nowhere to keep a profile until
+     * WP3-7b adds the V23 columns. So an allowed profile is validated and then not sent — which is
+     * also what makes this change invisible to every run that exists today.
+     */
+    @Test
+    void anAllowedProfileIsAcceptedAndDoesNotYetReachPython() {
+        UUID projectId = successfulRunFixture();
+
+        jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null,
+                "balanced"));
+
+        ArgumentCaptor<PythonOptimisationRequest> captor =
+                ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(captor.capture());
+
+        assertThat(captor.getValue().profile()).isNull();
+    }
+
+    /**
      * The whole pipeline runs in one transaction, so the routes and poles it writes are invisible to
      * every other connection until it commits. Announcing completion from inside that transaction
      * sent the browser off to fetch results nobody else could see yet: it got zero features back,
