@@ -244,13 +244,21 @@ _FEATURE_TYPE_ALIASES: dict[str, CanonicalFeatureType] = {
 def _canonical_feature_type(properties: dict[str, Any]) -> str | None:
     """Resolve ``feature_type`` to a canonical value, or ``None`` when absent.
 
-    An unrecognised value resolves to ``None`` rather than to a guess, so the
-    consumer falls back to the V0 behaviour it had before typed identity existed.
-    WP3-1 (L1, G0) turns an unknown explicit value into a stable error; until then
-    a bad value must not silently become a specific environmental class.
+    An unrecognised value resolves to ``None`` rather than to a guess. Since WP3-1,
+    request validation rejects an unknown explicit value with
+    ``INVALID_TYPED_IDENTITY`` before parsing, so on the V1 path this only ever
+    sees absent or resolvable values.
     """
-    raw = _optional_text(properties, "feature_type")
-    if raw is None:
+    return canonical_feature_type(properties.get("feature_type"))
+
+
+def canonical_feature_type(raw: object) -> str | None:
+    """Resolve one ``feature_type`` value, or ``None`` if absent or unrecognised.
+
+    Public so that request validation (WP3-1) rejects exactly the values this
+    parser cannot resolve, from the same alias table, and the two cannot drift.
+    """
+    if not isinstance(raw, str) or not raw.strip():
         return None
     canonical = _FEATURE_TYPE_ALIASES.get(_normalize_token(raw))
     return canonical.value if canonical is not None else None
