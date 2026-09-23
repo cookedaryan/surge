@@ -10,8 +10,10 @@ import com.power.surge.domain.RestrictedArea;
 import com.power.surge.domain.Substation;
 import com.power.surge.domain.WtgLocation;
 import com.power.surge.domain.WtgStatus;
+import com.power.surge.dto.client.python.PythonEffectiveProfile;
 import com.power.surge.dto.client.python.PythonOptimisationRequest;
 import com.power.surge.dto.client.python.PythonOptimisationResponse;
+import com.power.surge.dto.client.python.PythonProfileSelection;
 import com.power.surge.dto.job.CreateOptimizationJobRequest;
 import com.power.surge.dto.job.OptimizationJobResponse;
 import com.power.surge.repository.CadastralParcelRepository;
@@ -122,7 +124,9 @@ class OptimizationJobServiceTest {
                 sseProgressService,
                 auditLogService,
                 cableCatalogueService,
-                costCatalogueService
+                costCatalogueService,
+                // Profiles on, so these tests exercise the profiled path as well as V0.
+                true
         );
     }
 
@@ -514,15 +518,12 @@ class OptimizationJobServiceTest {
     }
 
     /**
-     * The boundary WP3-5 stops at, pinned so that WP3-7b moving it is visible.
-     *
-     * <p>A queued job is rebuilt from its row, and the row has nowhere to keep a profile until
-     * WP3-7b adds the V23 columns. So an allowed profile is validated and then not sent — which is
-     * also what makes this change invisible to every run that exists today.
+     * The boundary WP3-5 stopped at, now closed. V23 gives a queued job somewhere to keep the
+     * client's choice, so it survives the wait and reaches the engine.
      */
     @Test
-    void anAllowedProfileIsAcceptedAndDoesNotYetReachPython() {
-        UUID projectId = successfulRunFixture();
+    void anAllowedProfileSurvivesTheQueueAndReachesPython() {
+        UUID projectId = profiledRunFixture("balanced");
 
         jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
                 "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null,
@@ -532,7 +533,121 @@ class OptimizationJobServiceTest {
                 ArgumentCaptor.forClass(PythonOptimisationRequest.class);
         verify(pythonClient).runOptimization(captor.capture());
 
+        // Java pins the version; the client named only the profile.
+        assertThat(captor.getValue().profile())
+                .isEqualTo(new PythonProfileSelection("balanced", "1"));
+    }
+
+    @Test
+    void aV0RunStillSendsNoProfileAtAll() {
+        UUID projectId = successfulRunFixture();
+
+        jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+        ArgumentCaptor<PythonOptimisationRequest> captor =
+                ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(captor.capture());
+
         assertThat(captor.getValue().profile()).isNull();
+    }
+
+    /** WP3-7b: the engine's echo is what the job keeps, and what the API returns. */
+    @Test
+    void theEffectiveProfileIsPersistedAndReturned() {
+        UUID projectId = profiledRunFixture("minimum_cost");
+
+        OptimizationJobResponse response = jobService.createAndRunJob(
+                projectId, new CreateOptimizationJobRequest(
+                        "MULTI_OBJECTIVE_A_STAR", null, null, null, null, null, null, null, null,
+                        "minimum_cost"));
+
+        assertThat(response.effectiveProfile()).isNotNull();
+        assertThat(response.effectiveProfile().profileId()).isEqualTo("minimum_cost");
+        assertThat(response.effectiveProfile().profileVersion()).isEqualTo("1");
+        assertThat(response.effectiveProfile().policyHash()).isEqualTo("a".repeat(64));
+        assertThat(response.effectiveProfile().definitionHash()).isEqualTo("b".repeat(64));
+        assertThat(response.effectiveProfile().metricRegistryVersion()).isEqualTo("2");
+        assertThat(response.effectiveProfile().generationSettingsHash()).isEqualTo("c".repeat(64));
+        assertThat(response.effectiveProfile().profilesEnabled()).isTrue();
+        assertThat(response.effectiveProfile().searchEnabled()).isFalse();
+    }
+
+    /**
+     * A scenario is a label; a profile is a policy. Sending one profile and having another applied
+     * would attribute a recommendation to a policy nobody chose, so the run fails instead.
+     */
+    @Test
+    void anEngineThatAppliesADifferentProfileFailsTheRun() {
+        UUID projectId = profiledRunFixture("balanced");
+
+        OptimizationJobResponse response = jobService.createAndRunJob(
+                projectId, new CreateOptimizationJobRequest(
+                        "MULTI_OBJECTIVE_A_STAR", "Minimum Cost", null, null, null, null, null,
+                        null, null, "minimum_cost"));
+
+        // Failed, not completed-with-a-note: a recommendation nobody can attribute to a policy is
+        // not a result, and the routes are never written.
+        assertThat(response.status()).isEqualTo(JobStatus.FAILED);
+        assertThat(response.errorMessage()).contains("minimum_cost").contains("balanced");
+        verify(routeService, never()).saveRoutesFromGeoJson(any(), any(), any(), any());
+    }
+
+    @Test
+    void anEngineThatReportsNoProfileAtAllFailsTheRun() {
+        // The V0 fixture answers without an effective_profile block. Against a profile request
+        // that means the ranking came from somewhere this service cannot name.
+        UUID projectId = successfulRunFixture();
+
+        OptimizationJobResponse response = jobService.createAndRunJob(
+                projectId, new CreateOptimizationJobRequest(
+                        "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null,
+                        null, "balanced"));
+
+        assertThat(response.status()).isEqualTo(JobStatus.FAILED);
+        assertThat(response.errorMessage()).contains("no effective profile");
+    }
+
+    @Test
+    void theScenarioIsDerivedFromTheProfileWhenTheClientSendsNone() {
+        UUID projectId = profiledRunFixture("minimum_land_impact");
+
+        jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", null, null, null, null, null, null, null, null,
+                "minimum_land_impact"));
+
+        ArgumentCaptor<PythonOptimisationRequest> captor =
+                ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(captor.capture());
+
+        // C1 refuses a profile paired with the wrong scenario, so Java supplies the right one
+        // rather than leaving the default to be rejected at the far end.
+        assertThat(captor.getValue().scenario()).isEqualTo("Minimum Land Impact");
+    }
+
+    @Test
+    void aProfilePairedWithTheWrongScenarioIsRefusedBeforeAnyRun() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Uravakonda", null);
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.10, 14.30)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 14.40)));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+
+        assertThatThrownBy(() -> jobService.createJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null,
+                "minimum_cost")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Minimum Cost")
+                .hasMessageContaining("Balanced");
+
+        verify(jobRepository, never()).save(any(OptimizationJob.class));
     }
 
     /**
@@ -589,6 +704,39 @@ class OptimizationJobServiceTest {
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
+    }
+
+    /**
+     * The same project, run with profiles on, with the engine echoing the profile it was given.
+     *
+     * <p>Takes the echoed ID rather than assuming agreement, so a test can also stage the
+     * disagreement the service is supposed to refuse.
+     */
+    private UUID profiledRunFixture(String echoedProfileId) {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Test Project", "Description");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.23, 28.63)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 28.64)));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+
+        stubJobPersistence();
+
+        when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
+                new PythonOptimisationResponse(
+                        "job-123", "success", "Balanced", Map.of(), Map.of(),
+                        Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                        "SUCCESS", List.of(), Map.of(), Map.of(), List.of(),
+                        new PythonEffectiveProfile(echoedProfileId, "1", "a".repeat(64),
+                                "b".repeat(64), "2", "c".repeat(64), true, false)));
+
+        return projectId;
     }
 
     /** A project the optimiser will run to completion over, returning one feeder. */

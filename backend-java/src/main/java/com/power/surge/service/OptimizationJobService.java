@@ -10,8 +10,10 @@ import com.power.surge.domain.ReferenceLine;
 import com.power.surge.domain.RestrictedArea;
 import com.power.surge.domain.Substation;
 import com.power.surge.domain.WtgLocation;
+import com.power.surge.dto.client.python.PythonEffectiveProfile;
 import com.power.surge.dto.client.python.PythonOptimisationRequest;
 import com.power.surge.dto.client.python.PythonOptimisationResponse;
+import com.power.surge.dto.client.python.PythonProfileSelection;
 import com.power.surge.dto.job.CreateOptimizationJobRequest;
 import com.power.surge.dto.job.OptimizationJobResponse;
 import com.power.surge.repository.CadastralParcelRepository;
@@ -26,6 +28,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Polygon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -62,6 +65,16 @@ public class OptimizationJobService {
     private final CableCatalogueService cableCatalogueService;
     private final CostCatalogueService costCatalogueService;
 
+    /**
+     * C5: whether this deployment serves profiles at all.
+     *
+     * <p>Gates sending one, not just accepting one. With profiles off the startup handshake does
+     * not run (WP3-6b), so this service has no verified agreement with the engine about which
+     * definitions are in force — sending a profile then would be exactly the unchecked ranking the
+     * handshake exists to prevent.
+     */
+    private final boolean profilesEnabled;
+
     public OptimizationJobService(
             ProjectRepository projectRepository,
             OptimizationJobRepository jobRepository,
@@ -78,7 +91,8 @@ public class OptimizationJobService {
             SseProgressService sseProgressService,
             AuditLogService auditLogService,
             CableCatalogueService cableCatalogueService,
-            CostCatalogueService costCatalogueService
+            CostCatalogueService costCatalogueService,
+            @Value(OptimisationProfile.ENABLED_PROPERTY) boolean profilesEnabled
     ) {
         this.projectRepository = projectRepository;
         this.jobRepository = jobRepository;
@@ -96,6 +110,7 @@ public class OptimizationJobService {
         this.auditLogService = auditLogService;
         this.cableCatalogueService = cableCatalogueService;
         this.costCatalogueService = costCatalogueService;
+        this.profilesEnabled = profilesEnabled;
     }
 
     /**
@@ -136,14 +151,35 @@ public class OptimizationJobService {
         // Fail closed, and fail here. An unrecognised profile is refused before a job row exists,
         // so the caller is told at once instead of watching a job queue, run and then be rejected
         // by Python. Never defaulted to Balanced: see OptimisationProfile.
-        if (req.profileId() != null) {
-            OptimisationProfile.fromClientId(req.profileId());
+        OptimisationProfile profile = req.profileId() == null
+                ? null
+                : OptimisationProfile.fromClientId(req.profileId());
+
+        if (profile != null && !profilesEnabled) {
+            throw new IllegalArgumentException(
+                    "Optimisation profiles are not enabled on this deployment, so '" + req.profileId()
+                            + "' cannot be honoured. Running it as an ordinary scenario instead would "
+                            + "return a recommendation from a different policy than the one asked for.");
+        }
+
+        // C1 pairs the profile with its scenario label and the engine refuses a mismatch. Settling
+        // it here means one refusal with both values in it, rather than a queued job that dies at
+        // the far end with a contract code.
+        String scenario = req.scenario();
+        if (profile != null) {
+            if (scenario == null) {
+                scenario = profile.scenarioLabel();
+            } else if (!profile.scenarioLabel().equals(scenario)) {
+                throw new IllegalArgumentException(
+                        "Profile '" + profile.wireId() + "' must be run as scenario '"
+                                + profile.scenarioLabel() + "', but '" + scenario + "' was requested.");
+            }
         }
 
         OptimizationJob job = new OptimizationJob(
                 project,
                 req.algorithmType() != null ? req.algorithmType() : "MULTI_OBJECTIVE_A_STAR",
-                req.scenario() != null ? req.scenario() : "Balanced",
+                scenario != null ? scenario : "Balanced",
                 req.capexWeight() != null ? req.capexWeight() : new BigDecimal("0.5000"),
                 req.lossesWeight() != null ? req.lossesWeight() : new BigDecimal("0.5000"),
                 req.maxSpanMeters() != null ? req.maxSpanMeters() : new BigDecimal("150.00"),
@@ -152,6 +188,11 @@ public class OptimizationJobService {
                 req.maxVoltageDropPct(),
                 req.rowWidthM()
         );
+
+        if (profile != null) {
+            // Java pins the version: the client named a profile, not a policy revision.
+            job.requestProfile(profile.wireId(), profile.currentVersion());
+        }
 
         return OptimizationJobResponse.fromEntity(jobRepository.save(job));
     }
@@ -240,14 +281,21 @@ public class OptimizationJobService {
 
             Map<String, Object> avoidanceGeoJson = buildAvoidanceGeoJson(projectId, profile);
 
+            // The profile the job was queued with, read back off the row (V23). Absent means V0.
+            // Gated on the flag as well as on the row: with profiles off the startup handshake did
+            // not run, so this service has no confirmed agreement with the engine about which
+            // definitions are in force, and must not ask it to rank under one.
+            PythonProfileSelection profileSelection = null;
+            if (profilesEnabled && job.getProfileId() != null) {
+                profileSelection = new PythonProfileSelection(
+                        job.getProfileId(), job.getProfileVersion());
+            }
+
             PythonOptimisationRequest pythonReq = new PythonOptimisationRequest(
                     "job-" + job.getId(),
                     projectId.toString(),
                     scenario,
-                    // Absent means V0 (C1). The client's profile choice is validated at createJob
-                    // but has nowhere to live until WP3-7b adds the V23 columns, and a queued job
-                    // is rebuilt from its row, so nothing can be carried here yet.
-                    null,
+                    profileSelection,
                     wtgGeoJson,
                     subGeoJson,
                     electricalParams,
@@ -261,6 +309,8 @@ public class OptimizationJobService {
             );
 
             PythonOptimisationResponse pythonResp = pythonClient.runOptimization(pythonReq);
+
+            recordEffectiveProfile(job, profileSelection, pythonResp.effectiveProfile());
 
             sseProgressService.emitProgress(job.getId(), 70, "Processing radial feeder topology and route outputs", com.power.surge.domain.JobStatus.RUNNING);
             String summaryJson = objectMapper.writeValueAsString(buildResultSummary(pythonResp));
@@ -609,6 +659,48 @@ public class OptimizationJobService {
      * and electrical/network/pole summaries Python already computes but the old integration
      * silently discarded, so the UI can answer "why this route" instead of showing a bare line.
      */
+    /**
+     * Records the policy the engine says it applied (C2 {@code effective_profile}, C9 V23).
+     *
+     * <p>Also the point where a disagreement is caught. If this service asked for a profile and the
+     * engine came back reporting a different one — or none — then the recommendation was produced
+     * under a policy nobody chose. That is the silent substitution the contract forbids end to end,
+     * and it is refused here rather than recorded as though it were the answer.
+     */
+    private static void recordEffectiveProfile(
+            OptimizationJob job,
+            PythonProfileSelection requested,
+            PythonEffectiveProfile effective
+    ) {
+        if (effective == null) {
+            // C2 blocks are absent when not produced. With both flags off that is the normal
+            // answer, and the job keeps whatever it was queued with.
+            if (requested != null) {
+                throw new IllegalStateException(
+                        "Profile '" + requested.id() + "' was requested but the engine reported no "
+                                + "effective profile, so the ranking it returned came from an "
+                                + "unknown policy.");
+            }
+            return;
+        }
+
+        if (requested != null && !requested.id().equals(effective.profileId())) {
+            throw new IllegalStateException(
+                    "Profile mismatch: requested '" + requested.id() + "' but the engine applied '"
+                            + effective.profileId() + "'.");
+        }
+
+        job.applyEffectiveProfile(
+                effective.profileId(),
+                effective.profileVersion(),
+                effective.policyHash(),
+                effective.definitionHash(),
+                effective.metricRegistryVersion(),
+                effective.generationSettingsHash(),
+                effective.profilesEnabled(),
+                effective.searchEnabled());
+    }
+
     private Map<String, Object> buildResultSummary(PythonOptimisationResponse pythonResp) {
         Map<String, Object> summary = new LinkedHashMap<>();
         summary.put("metrics", pythonResp.metrics() != null ? pythonResp.metrics() : Map.of());
@@ -633,6 +725,9 @@ public class OptimizationJobService {
         // Stored with the run rather than looked up later, because the catalogue can be re-rated
         // afterwards and a cost is only interpretable against the rates that produced it.
         summary.put("costProvenance", costCatalogueService.describeProvenance());
+        // The policy behind the ranking, for the same reason: definitions can be redeployed, and a
+        // recommendation is only interpretable against the policy that produced it.
+        putIfPresent(summary, "effectiveProfile", pythonResp.effectiveProfile());
         return summary;
     }
 

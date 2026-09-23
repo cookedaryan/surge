@@ -16,6 +16,31 @@ public record PythonOptimisationResponse(
         @JsonProperty("candidates") List<Map<String, Object>> candidates,
         @JsonProperty("recommendation") Map<String, Object> recommendation,
         @JsonProperty("recommended_result") Map<String, Object> recommendedResult,
-        @JsonProperty("failures") List<Map<String, Object>> failures
+        @JsonProperty("failures") List<Map<String, Object>> failures,
+        /**
+         * C2 {@code effective_profile}, or {@code null} for a V0 response.
+         *
+         * <p>A C2 block is absent when it was not produced, so null here is the normal answer with
+         * both flags off, not a missing field.
+         */
+        @JsonProperty("effective_profile") PythonEffectiveProfile effectiveProfile
 ) {
+
+    /** A V0 response: everything the engine returned before the additive blocks existed. */
+    public PythonOptimisationResponse(
+            String requestId,
+            String status,
+            String scenario,
+            Map<String, Object> feederRoutesGeojson,
+            Map<String, Object> polesGeojson,
+            Map<String, Object> metrics,
+            String workflowStatus,
+            List<Map<String, Object>> candidates,
+            Map<String, Object> recommendation,
+            Map<String, Object> recommendedResult,
+            List<Map<String, Object>> failures
+    ) {
+        this(requestId, status, scenario, feederRoutesGeojson, polesGeojson, metrics,
+                workflowStatus, candidates, recommendation, recommendedResult, failures, null);
+    }
 }
