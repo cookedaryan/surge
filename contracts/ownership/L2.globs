@@ -41,4 +41,6 @@ optimisation-python/tests/test_optimisation_orchestrator.py
 optimisation-python/tests/api/**
 optimisation-python/tests/evidence/test_topology*.py
 optimisation-python/tests/evidence/test_cost_recompute*.py
+optimisation-python/tests/evidence/test_measure*.py
+optimisation-python/tests/evidence/test_baseline*.py
 optimisation-python/tests/search/**
