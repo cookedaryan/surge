@@ -2,6 +2,13 @@
 
 Every contract change after `demo-opt-base` is recorded here, newest first, with its CCR link.
 
+## Unreleased — CCR: L2 test paths for the evidence harness (pack version stays 1.0.0)
+
+CCR: [#67](https://github.com/cookedaryan/surge/issues/67) (raised by L2 for WP0B-8 and WP0B-9). Ownership only, so `CONTRACT_PACK_VERSION` and the exported artefacts do not change.
+
+- `ownership/L2.globs`: C10 gave L2 `optimisation-python/scripts/evidence/**` for the WP0B-8 measurement harness and the WP0B-9 baseline reconciliation, but no test path for them. CI collects only `tests/`, and in `tests/evidence/` L2 owned only `test_topology*.py` and `test_cost_recompute*.py`. L2 now also owns `tests/evidence/test_measure*.py` and `tests/evidence/test_baseline*.py`.
+- Neither glob overlaps L1 or L3. No schema, fixture, code registry or generated artefact changes. Affects L2 only.
+
 ## Unreleased — CCR: S7 definition-hash reserved-route seam (pack version stays 1.0.0)
 
 CCR: [#55](https://github.com/cookedaryan/surge/issues/55) (raised by L3 for WP3-6a). Seam test only, so `CONTRACT_PACK_VERSION` and the exported artefacts do not change.
