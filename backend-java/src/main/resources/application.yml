@@ -15,6 +15,10 @@ spring:
 surge:
   python-engine:
     url: ${PYTHON_ENGINE_URL:http://localhost:8000}
+    # A whole solve must finish inside the read timeout or the job fails; without a bound a hung
+    # solve holds a worker thread and its transaction for ever. Real runs take tens of seconds.
+    connect-timeout-seconds: 5
+    read-timeout-seconds: 600
 
   # The single administrator created on a fresh database. Every other account is provisioned by an
   # administrator; nothing here ever overwrites an existing password, so credentials changed later
