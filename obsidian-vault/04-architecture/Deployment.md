@@ -131,7 +131,7 @@ graph LR
 
 ### Job Breakdown
 
-1. **`backend` (Java 21)**: Runs `./mvnw verify --batch-mode`, compiling 130 source files and executing 288 unit and integration tests (MockMvc security tests; Flyway migrations are not exercised, tests run on H2).
+1. **`backend` (Java 21)**: Runs `./mvnw verify --batch-mode`, compiling 130 source files and executing 290 unit and integration tests (MockMvc security tests; Flyway migrations are not exercised, tests run on H2).
 2. **`optimiser` (Python 3.11)**: Installs `requirements.lock.txt`, verifies code formatting with `ruff check`, enforces strict static typing with `mypy app`, and executes 601 `pytest` test cases.
 3. **`frontend` (Node 20)**: Installs locked dependencies via `npm ci`, runs 26 unit tests via `vitest`, verifies TypeScript types with `tsc --noEmit`, and compiles production bundles with `vite build`.
 4. **`docker`**: Tests multi-stage image builds for all containers via `docker compose build`.

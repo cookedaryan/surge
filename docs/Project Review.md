@@ -30,7 +30,7 @@
 
 Could not run, or deviated from CI: see §6. Headline deviations: Python ran on **3.14** (CI and `AGENTS.md` say 3.11/3.13; neither is installed), Node was 24 (CI uses 20), and `gh` is not installed so CI history is unread.
 
-Counts the docs quote are all stale: README/CONTEXT say 209 / ~489 / 26 tests; actual 279 / 601 / 130. Files: 136 Java main, 38 Java test, 111 Python app, 48 Python test, 101 frontend `src` (CONTEXT says 112 / 79 / 65).
+Counts the docs quote are all stale: README/CONTEXT say 209 / ~489 / 26 tests; actual 279 / 601 / 130. Files at review time: 130 Java main `.java`, 38 Java test files, 111 Python app `.py` (104 after the cleanup), 48 Python test files, 81 non-test frontend `.ts`/`.tsx` (CONTEXT says 112 / 79 / 65).
 
 ---
 
@@ -124,7 +124,7 @@ Proposed only — nothing rewritten. IDs are for picking in the apply phase.
 | D-02 | `README.md:161-162` | "No brute-force protection… no rate limit, lockout or delay." `LoginThrottleService` exists (5 / 15 min, 429). It is bypassable (F-02), which is the accurate thing to say. | Rewrite the Security section |
 | D-03 | `README.md:157` | Points at §5.7 as open. `MVP Gap Closure Plan.md:838` and `:844` strike items 1 and 2 as DONE 2026-08-16; only TLS remains. | Update |
 | D-04 | `README.md:109, 117`, `CONTEXT.md:164-165` | Vite dev port 5174. `vite.config.ts:12` and `.claude/launch.json` say **5173**. | Fix both |
-| D-05 | `README.md:141-143`, `CONTEXT.md:20-22` | Counts 209 / ~489 / 26; Flyway "V1–V13"; 112 / 79 / 65 files. Actual 279 / 601 / 130; V1–V20; 136 / 111 / 101. | Update, or drop the numbers |
+| D-05 | `README.md:141-143`, `CONTEXT.md:20-22` | Counts 209 / ~489 / 26; Flyway "V1–V13"; 112 / 79 / 65 files. Actual 279 / 601 / 130 at review time; V1–V20; 130 / 111 / 81 files. | Update, or drop the numbers |
 | D-06 | `README.md:18-19` | "The optimiser is never exposed to the browser" — port 8000 is published on the host (`docker-compose.yml:63`). | Fix with F-18 |
 | D-07 | `README.md:185` | Mentions `web-map/`. | Remove with X-01 |
 | D-08 | `CONTEXT.md:5, 25-28, 181` | "Last updated 2026-08-15"; deployment blockers list is out of date (two of three done). | Refresh |
@@ -229,3 +229,44 @@ Reply with IDs. Suggested order, and what each group touches:
 2. **Docs only** (separate change set): D-01 → D-19. D-09's rename and D-01/D-02/D-03/D-04/D-05 are mechanical and low-risk.
 3. **Deletions** (`git rm`, then run that service's tests/build): X-01 → X-10 are safe; X-11 is a local `rmdir`. Nothing in X-20 → X-28 will be touched without a direct answer from you.
 4. **Code fixes** (not part of the cleanup you described; each is a separate small change with a test): F-01 first, then F-02, F-03, F-04, F-07, F-15, F-16.
+
+---
+
+## 8. Applied on `chore/project-review-cleanup`
+
+Everything above describes `e672571` as reviewed. This section records what was then done, on a branch cut from that commit, one commit per item so any of them can be reverted alone. Nothing was pushed or merged.
+
+| Items | Commit | Notes |
+| --- | --- | --- |
+| X-01 `web-map/` | `4523d29` | |
+| X-02 → X-07 dead Python modules, `mypy_output.txt`, UTF-16 `requirements.txt` | `3c95582` | ruff clean, mypy clean (104 files), pytest 601 passed |
+| X-08 → X-10 empty placeholders; X-11 stray `optimisation-python;C/` | `28976cb` | X-11 was an untracked empty directory, removed locally |
+| F-01 popup XSS | `f875bef` | 10 hostile-input cases, failed 10/10 first. Frontend: tsc clean, 144 tests, build ok |
+| F-02 login-throttle key, plus loopback port binding (the part of F-18 that makes F-02 sound) | `326c095` | `ClientAddressTest` failed 3/5 first. `docker compose config` shows `127.0.0.1` for 8080, 8000 and 5432 |
+| F-03 zip-bomb bound (64 MB unpacked) | `c3bc4fd` | failed first (the 65 MB payload was fully inflated and parsed) |
+| F-04 Python-call timeouts (5 s connect, 600 s read, configurable) | `3f78fa5` | mutation-checked: removing the read timeout fails the test |
+| F-16 actuator detail and SQL/bind-value logging | `64f1deb` | failed 2/2 first. SQL logging moved to `application-dev.yml` |
+| F-10 error bodies no longer echo internal text | `ce8ab9b` | failed 2/2 first |
+| D-01 → D-10 | `3829947` | README, CONTEXT, AGENTS.md, Python README, both `.env.example` |
+| D-11 → D-13, D-15 → D-18 | `865b61a` (+ count bump) | corrections are marked as corrections, not silently edited |
+
+**Final state of the branch:** Java `./mvnw verify` on JDK 21 → **290 tests, 0 failures**. Python (3.14.0 venv) → ruff clean, mypy clean, **601 passed**. Frontend (Node 24) → tsc clean, **144 passed**, build ok.
+
+### Not applied, and why
+
+| Item | Why it was left |
+| --- | --- |
+| **F-15** audit log admin-only | **Needs a product decision.** The Audit tab is shown to every role in the UI (`RailNav.tsx`: only `Users` is `adminOnly`), so restricting the endpoint would blank it for engineers and viewers. Say which you want and it is a one-line change plus the tab flag. |
+| **F-07 / X-22** unused route-write endpoints | On the DECIDE FIRST list; two Java tests exercise them. |
+| **X-20** `app/reporting/`, **X-21** `route_scoring.py`, **X-23** `capexWeight`/`lossesWeight`, **X-24** test-only methods, **X-26** vault duplicates, **X-27** notebooks placeholder, **X-28** the untracked V1→V2 plan | DECIDE FIRST — untouched. |
+| **D-14, D-19** archive `whats-next.md` and `docs/superpowers/` | These are X-25 (DECIDE FIRST). |
+| **D-15, second half** — the P-2 "done" claim in `docs/V1→V2 Gap Closure — Ticket Plan.md` | The file is untracked, so an edit would not be recoverable. Change that row to "not done" when you commit it. |
+| **F-05** compatibility cable, **F-09** `PARTIAL_SUCCESS`, **F-12** `$` on parcels, **F-17** derating/parallel columns | Each changes behaviour or needs a schema or label decision (reject vs warn; what to print when the currency was never recorded). |
+| **F-06** Flyway under Testcontainers, **F-13** shared golden contract | New test infrastructure and a dependency; larger than a cleanup. |
+| **F-08** viewer role enforcement, **F-14** swallowed fetch errors, **F-11**, **F-19** → **F-25** | Access-model and UX changes that should be tested in a browser; I did not run the app. |
+| **F-18** rest (drop published ports entirely) | Loopback binding was done; removing the ports would break the Vite dev proxy and the documented health URLs. |
+| **F-02** rest | A per-username counter and edge rate limiting. |
+
+### What was *not* verified after the changes
+
+`docker compose build`/`up` was not run (only `docker compose config`), so the image builds with the removed Python modules are unproven, though `Dockerfile` copies only `app/` and nothing deleted was imported. The popup fix and the compose port change were not exercised in a browser or on a running stack. CI has not run on this branch. Local `web-map/{dist,node_modules,public}` (ignored) remain on disk.

@@ -1,7 +1,7 @@
 # Backend Architecture (Java Spring Boot)
 
 > [!success] Implementation Status: Implemented
-> The SURGE Java backend is a production-grade Spring Boot 3.3.2 microservice on Java 21, encompassing 130 source files and 288 unit/integration tests. It acts as the system-of-record, securing API boundaries, managing spatial entities in PostgreSQL/PostGIS, orchestrating asynchronous optimization jobs via dedicated thread pools, streaming real-time SSE progress events, and generating engineering BOMs and PDF reports.
+> The SURGE Java backend is a production-grade Spring Boot 3.3.2 microservice on Java 21, encompassing 130 source files and 290 unit/integration tests. It acts as the system-of-record, securing API boundaries, managing spatial entities in PostgreSQL/PostGIS, orchestrating asynchronous optimization jobs via dedicated thread pools, streaming real-time SSE progress events, and generating engineering BOMs and PDF reports.
 
 ```mermaid
 graph TD

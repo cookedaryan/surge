@@ -141,7 +141,7 @@ python -m ruff check app tests && python -m mypy app && python -m pytest -q
 
 | Suite | Count | Command |
 | --- | --- | --- |
-| Java backend | 288 | `./mvnw verify` |
+| Java backend | 290 | `./mvnw verify` |
 | Python optimiser | 601 | `python -m pytest -q` |
 | Web map | 144 | `npm run test` |
 

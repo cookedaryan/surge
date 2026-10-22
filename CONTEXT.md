@@ -17,7 +17,7 @@ network) rather than only against fixtures.
 
 | Component | State |
 | --- | --- |
-| Java backend | 130 source files, 288 tests, Flyway V1–V20 |
+| Java backend | 130 source files, 290 tests, Flyway V1–V20 |
 | Python optimiser | 104 source files, 601 tests |
 | Web map | 81 source files, 144 tests |
 | CI | Four jobs — Java, Python, frontend, container builds |
