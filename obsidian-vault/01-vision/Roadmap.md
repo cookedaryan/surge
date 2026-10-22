@@ -76,7 +76,7 @@ gantt
 ### Milestone 4: Security Hardening & Release Verification (Current)
 > [!note] **Active: Target Completion 2026-08-20**
 - **Security Hardening**: Enforced mandatory `APP_JWT_SECRET`, database-backed token active checks, admin lockout protection, and structured audit logs (`/api/v1/audit-logs`).
-- **Comprehensive Quality Assurance**: Verified 209 Java backend tests, ~489 Python optimizer tests, and 26 frontend Vitest tests.
+- **Comprehensive Quality Assurance**: Verified 288 Java backend tests, 601 Python optimizer tests, and 144 frontend Vitest tests.
 - **Golden Benchmark Acceptance**: End-to-end verification against real Uravakonda wind survey dataset.
 - **Remaining Production Tasks**: Configure login rate limiting, TLS reverse proxy termination, and KMZ upload parser hardening.
 

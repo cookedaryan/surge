@@ -5,6 +5,12 @@
 **Method:** direct source reading of `optimisation-python/app/` and `backend-java/src/main/` at
 commit `985a580`.
 
+> **Status note, 2026-10-22.** The table below describes `985a580`. Since then cable sizing is
+> emitted, persisted (conductor, utilisation) and shown in the BOM, Java sends `cable_config` and
+> `costing_config`, and the land decision table exists. What still stands: `land_context` is never
+> sent, micro-siting is unreachable, `app/reporting/` has no endpoint, and Java still calls v1. The
+> current picture is in [`Project Review.md`](Project%20Review.md) §2.
+
 ---
 
 ## 1. The reframing
@@ -20,7 +26,7 @@ emitted, or not switchable on.
 | --- | --- | --- | --- | --- |
 | PY-030 cable sizing | yes | **no** — absent from `presentation/models.py` | n/a | **no** |
 | PY-031 electrical repair | yes | yes — `recommended_candidate_repair_log` | n/a | **yes** |
-| PY-034 land decisions | yes | **count only** — `owner_interaction_count` | request: v2 only | partly |
+| PY-034 land decisions | yes | **count only** — `owner_interaction_count` | request: v1 and v2 (corrected) | partly |
 | PY-035 pole micro-siting | yes | via pole positions | **no** — `enabled=False`, no request field | **no** |
 | PY-036/037 decision report | yes | **no endpoint at all** | n/a | **no** |
 | Search caching / budgeting | yes | internal | unconfirmed | n/a |
@@ -99,8 +105,13 @@ expose them.
 One task, and everything on the Java side waits behind it.
 
 ### B1. Repoint `PythonOptimizationClient` at `/api/v2/optimise`
-`PythonOptimizationClient.java:23` calls v1. v1 is a compatibility shim: `land_context` is v2-only,
-and the richer response lives there.
+`PythonOptimizationClient.java:23` calls v1. v1 is a compatibility shim.
+
+> **Corrected 2026-10-22.** This used to say `land_context` is v2-only and that the richer response
+> lives only on v2. v1 accepts `land_context`, `costing_config` and `cable_config`
+> (`app/schemas/optimise.py`), and its response already reuses v2's `CandidateSummary`, so this
+> migration gates far less than this plan assumed. What v2 still adds is a top-level four-value
+> `status` and strict (`extra="forbid"`) request validation.
 
 Work: map `CreateOptimizationJobRequest` to the v2 request shape, parse
 `OptimiseProjectResponse`, handle the four-value `status`

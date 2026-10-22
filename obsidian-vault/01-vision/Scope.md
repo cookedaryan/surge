@@ -1,6 +1,6 @@
 # Project Scope & Delivery Boundary
 
-> **Current Delivery State (as of 2026-08-16):** The SURGE platform provides a complete, working, end-to-end vertical-slice MVP verified against real-world GIS survey data from the Uravakonda wind project benchmark. All core architectural layers — PostGIS spatial database (Flyway V1–V13), Spring Boot 3.3.2 backend orchestrator (112 source files, 209 tests), FastAPI Python 3.11 optimization engine (79 source files, ~489 tests), and React 18 / TypeScript Web GIS client (`web-map-next`, 65 source files, 26 tests) — are fully operational and containerized in Docker Compose.
+> **Current Delivery State (as of 2026-08-16):** The SURGE platform provides a complete, working, end-to-end vertical-slice MVP verified against real-world GIS survey data from the Uravakonda wind project benchmark. All core architectural layers — PostGIS spatial database (Flyway V1–V20), Spring Boot 3.3.2 backend orchestrator (130 source files, 288 tests), FastAPI Python 3.11 optimization engine (104 source files, 601 tests), and React 18 / TypeScript Web GIS client (`web-map-next`, 81 source files, 144 tests) — are fully operational and containerized in Docker Compose.
 
 ---
 
@@ -101,9 +101,9 @@ graph LR
 graph TD
     classDef pass fill:#14532d,stroke:#22c55e,stroke-width:2px,color:#f0fdf4;
 
-    TEST1["Java Backend: 112 Files / 209 Tests"]:::pass
-    TEST2["Python Engine: 79 Files / ~489 Tests (PY-001–028)"]:::pass
-    TEST3["Frontend (web-map-next): 65 Files / 26 Vitest Tests"]:::pass
+    TEST1["Java Backend: 130 Files / 288 Tests"]:::pass
+    TEST2["Python Engine: 104 Files / 601 Tests (PY-001–028)"]:::pass
+    TEST3["Frontend (web-map-next): 81 Files / 144 Vitest Tests"]:::pass
     TEST4["PostGIS DB: Flyway Migrations V1–V13"]:::pass
     TEST5["Golden Benchmark: Uravakonda Wind Farm Ingestion"]:::pass
 
@@ -115,8 +115,8 @@ graph TD
 ```
 
 - **Python Optimization Microservice**: Completed tickets **PY-001 through PY-028** (covering GIS preprocessing, graph synthesis, WTG grouping, A* routing, path refinement, pole placement, Pandapower load flow, multi-objective scoring, canonical engineering metrics, and Decimal LCC costing). Strict type checking with Mypy and linting with Ruff clean.
-- **Java Spring Boot Backend**: 112 source files with 209 unit/integration tests passing. Implements REST APIs, `@Async` executor thread pool, SSE progress service, Spring Security JWT filter, Admin user management, Audit logging, and PDFBox/CSV export services.
-- **Web GIS Client (`web-map-next`)**: 65 source files with 26 Vitest component tests passing. Full React 18 SPA with Leaflet Canvas rendering, Radix UI modals, Zustand state management, and real-time SSE consumption.
+- **Java Spring Boot Backend**: 130 source files with 288 unit/integration tests passing. Implements REST APIs, `@Async` executor thread pool, SSE progress service, Spring Security JWT filter, Admin user management, Audit logging, and PDFBox/CSV export services.
+- **Web GIS Client (`web-map-next`)**: 81 source files with 144 Vitest component tests passing. Full React 18 SPA with Leaflet Canvas rendering, Radix UI modals, Zustand state management, and real-time SSE consumption.
 - **Containerization & CI**: Docker Compose deploys 4 healthy containers with automated verification in GitHub Actions (`.github/workflows/ci.yml`).
 
 ---

@@ -91,14 +91,18 @@ Against what the engine expects, that is missing:
 
 ### 3.2 The transport does not exist
 
-`land_context` is defined on the **v2** request schema only
-(`app/schemas/v2/optimise.py:294`). Java calls **`/api/v1/optimise`**
-(`PythonOptimizationClient.java:23`) and sends parcels merely as soft-constraint polygons with a
-`cost_weight`. So today the entire land engine receives nothing.
+`land_context` is defined on **both** the v1 (`app/schemas/optimise.py:69`) and v2
+(`app/schemas/v2/optimise.py:294`) request schemas, and is optional on both. Java calls
+**`/api/v1/optimise`** (`PythonOptimizationClient.java:23`) and sends parcels merely as
+soft-constraint polygons with a `cost_weight`; `PythonOptimisationRequest` has no `landContext`
+field. So the land engine still runs, but with no commercial profile for any parcel: owners are
+counted per parcel and no purchase, lease or easement option can be priced.
 
-This is the same class of problem as PY-030/031 cable sizing and electrical repair, which are also
-v2-only and also unreachable. **Java moving to v2 unlocks all of it at once** and should be treated
-as one piece of work rather than three.
+> **Corrected 2026-10-22.** This section originally said `land_context` was v2-only and that moving
+> Java to v2 would unlock the land engine, cable sizing and repair together. Re-read against the
+> code: `land_context`, `costing_config` and `cable_config` are all accepted on v1, and Java already
+> sends the last two. The missing piece is Java building and sending `land_context`, which does not
+> depend on the v2 migration. See [`Project Review.md`](Project%20Review.md) §2.1.
 
 ### 3.3 There is no way to enter the data
 
