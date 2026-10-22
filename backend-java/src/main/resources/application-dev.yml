@@ -1,0 +1,9 @@
+# Active when SPRING_PROFILES_ACTIVE=dev (the value .env.example ships with).
+#
+# Statement and bind-value logging live here rather than in application.yml because bound values
+# include password hashes, e-mail addresses and imported survey text, none of which belong in the
+# logs of a deployed instance.
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE

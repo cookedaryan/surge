@@ -68,11 +68,11 @@ management:
         include: health,info,metrics
   endpoint:
     health:
-      show-details: always
+      # The status endpoint is public so a probe can reach it. The detail (database type, disk
+      # path and free space) is for signed-in callers only.
+      show-details: when-authorized
 
 logging:
   level:
     root: INFO
     com.power.surge: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
