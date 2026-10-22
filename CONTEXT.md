@@ -2,7 +2,7 @@
 
 Implementation status and the progress record across the SURGE platform. Newest first.
 
-**Last updated:** 2026-08-15
+**Last updated:** 2026-10-22 (the dated sections below record 2026-08-13 to 2026-08-15 and have not been rewritten; see [`docs/Project Review.md`](docs/Project%20Review.md) for the current audit)
 
 ---
 
@@ -17,15 +17,15 @@ network) rather than only against fixtures.
 
 | Component | State |
 | --- | --- |
-| Java backend | 112 source files, 209 tests, Flyway V1–V13 |
-| Python optimiser | 79 source files, ~489 tests |
-| Web map | 65 source files, 26 tests |
+| Java backend | 130 source files, 288 tests, Flyway V1–V20 |
+| Python optimiser | 104 source files, 601 tests |
+| Web map | 81 source files, 144 tests |
 | CI | Four jobs — Java, Python, frontend, container builds |
 
-**Not production-ready.** Three deployment blockers are tracked in
-[§5.7 of the gap closure plan](docs/MVP%20Gap%20Closure%20Plan.md): credential defaults that ship
-insecure, no brute-force protection on login, and no TLS. Several areas have never had a security
-review at all.
+**Not production-ready.** The deployment checklist is in
+[§5.7 of the gap closure plan](docs/MVP%20Gap%20Closure%20Plan.md). Credential defaults and login
+throttling were closed on 2026-08-16 (the throttle is a speed bump, not a wall — see the README);
+what remains there is TLS. Known open issues are listed in [`docs/Project Review.md`](docs/Project%20Review.md).
 
 ---
 
@@ -161,8 +161,8 @@ Kept because each cost real time and each recurred.
 dispatch while the live server did (403 in tests, 401 in production), a stale container bundle on
 `:3000` serving a three-hour-old build, or the transaction-visibility race in §4.1.
 
-**Two builds serve the frontend.** `:3000` is the container; `:5174` is Vite. A fix was reported as
-working on 5174 while 3000 still served the broken version. Rebuild before testing on 3000.
+**Two builds serve the frontend.** `:3000` is the container; `:5173` is Vite. A fix was reported as
+working on the dev server while 3000 still served the broken version. Rebuild before testing on 3000.
 
 **Test the ordering when ordering is the bug.** End-state assertions pass against broken sequences.
 
@@ -178,7 +178,8 @@ worthless. Check layer state instead of pixels there.
 
 ## 7. Known gaps
 
-**Deployment blockers** — credential defaults, login rate limiting, TLS. See §5.7 of the gap plan.
+**Deployment blockers** — TLS. Credential defaults and login rate limiting are done (2026-08-16); see
+§5.7 of the gap plan.
 
 **Never security-reviewed** — the KMZ upload path (archive and XML handling on 25 MB untrusted
 files), cross-user project access, the export endpoints.

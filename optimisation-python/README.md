@@ -1,88 +1,73 @@
 # SURGE GIS Optimization Service (Python Microservice)
 
-FastAPI microservice dedicated to GIS processing, route optimisation, electrical analysis, ML inference, and GeoJSON result generation for the SURGE project.
+FastAPI microservice that does the computation for SURGE: capacity-constrained feeder grouping, MST
+topology, A\* routing over a terrain and constraint cost surface, pole placement, pandapower AC load
+flow, cable sizing, lifecycle costing, land-impact decisions and candidate scoring. It is stateless and
+is called only by the Java backend; it has no authentication of its own and must not be exposed to
+the network.
 
-## Current MVP status
+For the design, see [`../docs/Python Engine - Architecture.md`](../docs/Python%20Engine%20-%20Architecture.md).
+For ticket history and scope, see [`../docs/Surge MVP Ticket Plan.md`](../docs/Surge%20MVP%20Ticket%20Plan.md).
+For setup of the whole system, see the [root README](../README.md).
 
-The API-integrated baseline currently returns one refined routed network over a
-uniform prepared cost surface. SURGE-PY-014 PNC assembly, SURGE-PY-015
-pandapower validation, and SURGE-PY-016 presentation packaging are implemented
-as standalone modules. SURGE-PY-017 deterministic candidate PNC generation is
-implemented. PY-018 through PY-020 own scoring/recommendation, orchestration,
-and compatible API/end-to-end integration respectively. ML ranking and raw GIS
-constraint rasterization are post-MVP.
+## Endpoints
 
-See [`../docs/Surge MVP Ticket Plan.md`](../docs/Surge%20MVP%20Ticket%20Plan.md)
-for the authoritative ticket boundaries.
+| Endpoint | Used by |
+| --- | --- |
+| `GET /api/v1/health` | Docker healthcheck |
+| `POST /api/v1/optimise` | The Java backend (`PythonOptimizationClient`). A compatibility request/response that already carries `cable_config`, `costing_config` and `land_context`. |
+| `POST /api/v2/optimise` | Nothing in this repository yet. The richer, strictly validated request (`extra="forbid"`) and a top-level four-value `status`. |
 
-## Project Structure
+OpenAPI docs are served at `/docs` unless `ENVIRONMENT=production`.
+
+## Layout
 
 ```text
-optimisation-python/
-├── app/
-│   ├── __init__.py
-│   ├── main.py
-│   ├── core/
-│   │   ├── __init__.py
-│   │   └── config.py
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── v1/
-│   │       ├── __init__.py
-│   │       ├── router.py
-│   │       └── endpoints/
-│   │           ├── __init__.py
-│   │           ├── health.py
-│   │           └── optimise.py
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   └── optimise.py
-│   ├── services/
-│   │   ├── __init__.py
-│   │   └── optimisation_service.py
-│   ├── gis/
-│   │   ├── __init__.py
-│   │   ├── crs.py
-│   │   ├── geojson.py
-│   │   ├── geometry.py
-│   │   └── preprocessing.py
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── spatial.py
-│   ├── algorithms/
-│   │   ├── __init__.py
-│   │   ├── route_graph.py
-│   │   ├── cost_function.py
-│   │   └── electrical_analysis.py
-│   └── utils/
-│       ├── __init__.py
-│       └── coordinate_transform.py
-├── tests/
-│   ├── __init__.py
-│   ├── test_health.py
-│   └── test_optimise.py
-├── .env.example
-├── .dockerignore
-├── .gitignore
-├── AGENTS.md
-├── Dockerfile
-├── pyproject.toml
-├── requirements.txt
-├── requirements.lock.txt
-└── README.md
+app/
+├── main.py           FastAPI application and router mounting
+├── core/             settings (ENVIRONMENT, LOG_LEVEL, API prefixes)
+├── api/v1, api/v2    HTTP endpoints
+├── schemas/          request/response models; legacy_mapping.py adapts v1 to the workflow
+├── gis/              CRS handling, GeoJSON, cost surface, constraint rasterisation, ROW analysis
+├── algorithms/       grouping, MST, A*, route refinement, pole placement and micro-siting
+├── pnc/              assembly of a validated collector network from topology and routes
+├── electrical/       cable sizing, voltage drop, pandapower load flow, repair
+├── costing/          lifecycle cost model
+├── land/             per-parcel land decisions
+├── optimisation/     orchestrator, scenario generation, candidate evaluation, scoring, search
+├── presentation/     map-ready result packaging
+└── reporting/        decision report builder (tested, not yet exposed over HTTP)
+tests/                pytest suite (api/, fixtures/)
+scripts/              generate_search_corpus.py
 ```
 
-## Running Locally
+## Running locally
+
+Use a virtual environment inside this directory, on Python 3.11 (the version CI and the Docker image
+use) or 3.13.
 
 ```bash
+py -3.11 -m venv .venv && .venv/Scripts/activate   # Windows; use python3.11 -m venv .venv on Linux/macOS
+python -m pip install -r requirements.lock.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-## Running Tests
+## Checks
+
+These are the commands CI runs:
 
 ```bash
-pytest
+python -m ruff check app tests
+python -m mypy app
+python -m pytest -q
 ```
+
+## Configuration
+
+Read by `app/core/config.py` from the environment or a local `.env` (see `.env.example`):
+`PROJECT_NAME`, `VERSION`, `ENVIRONMENT` (`development`, `testing` or `production`), `LOG_LEVEL`,
+`API_V1_PREFIX`, `API_V2_PREFIX`. `ENVIRONMENT=production` turns the OpenAPI docs off. `LOG_LEVEL` is
+read but nothing applies it to logging yet.
 
 ## Route Refinement
 
