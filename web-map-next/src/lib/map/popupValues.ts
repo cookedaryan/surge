@@ -10,6 +10,25 @@
 
 const UNKNOWN_HTML = '<span class="popup-unknown">Unknown</span>';
 
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+};
+
+/**
+ * Makes a value safe to place inside popup HTML.
+ *
+ * <p>Leaflet writes a string popup straight into innerHTML, and nearly every value in one comes
+ * from an imported survey file. A placemark named `<img onerror=…>` would otherwise run script in
+ * the browser of whoever clicks it, with their session token in localStorage.
+ */
+export function escapeHtml(value: unknown): string {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
+}
+
 /**
  * Renders a value, or says plainly that it is not known.
  *
@@ -25,13 +44,13 @@ export function shown(value: unknown, format?: (v: number) => string): string {
     if (!Number.isFinite(value)) {
       return UNKNOWN_HTML;
     }
-    return format ? format(value) : String(value);
+    return escapeHtml(format ? format(value) : value);
   }
   if (format) {
     const parsed = Number(value);
-    return Number.isFinite(parsed) ? format(parsed) : String(value);
+    return escapeHtml(Number.isFinite(parsed) ? format(parsed) : value);
   }
-  return String(value);
+  return escapeHtml(value);
 }
 
 export const asMw = (v: number): string => `${v} MW`;

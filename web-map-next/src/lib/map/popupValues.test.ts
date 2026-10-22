@@ -5,6 +5,7 @@ import {
   asMw,
   asPercent,
   asRatePerM2,
+  escapeHtml,
   isHighUtilisation,
   shown
 } from './popupValues';
@@ -110,5 +111,27 @@ describe('isHighUtilisation', () => {
 
   it('accepts a numeric string', () => {
     expect(isHighUtilisation('90.00')).toBe(true);
+  });
+});
+
+describe('escapeHtml', () => {
+  it('neutralises the characters that let text become markup', () => {
+    expect(escapeHtml('<img src=x onerror="a()">')).toBe('&lt;img src=x onerror=&quot;a()&quot;&gt;');
+    expect(escapeHtml("a & b's")).toBe('a &amp; b&#39;s');
+  });
+
+  it('renders null and undefined as empty rather than as the words', () => {
+    expect(escapeHtml(null)).toBe('');
+    expect(escapeHtml(undefined)).toBe('');
+  });
+});
+
+describe('shown escapes what it renders', () => {
+  it('escapes text values', () => {
+    expect(shown('<b>x</b>')).toBe('&lt;b&gt;x&lt;/b&gt;');
+  });
+
+  it('escapes the output of a formatter, since a currency code comes from outside', () => {
+    expect(shown(5, (v) => asMoney(v, '<i>'))).toBe('&lt;i&gt; 5');
   });
 });
