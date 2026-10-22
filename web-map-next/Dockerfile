@@ -5,6 +5,8 @@ COPY package*.json ./
 RUN npm ci
 COPY tsconfig*.json vite.config.ts tailwind.config.js postcss.config.js index.html ./
 COPY src ./src
+# Static files Vite copies into dist as-is, including the Download Sample .KMZ target.
+COPY public ./public
 RUN npm run build
 
 # Nginx production web server
