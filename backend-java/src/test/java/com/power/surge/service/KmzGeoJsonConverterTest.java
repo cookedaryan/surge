@@ -364,4 +364,31 @@ class KmzGeoJsonConverterTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Failed to parse KML XML");
     }
+
+    /**
+     * The 25 MB upload limit is on the compressed archive, and deflate routinely exceeds 1000:1 on
+     * repetitive data, so a small file can unpack to gigabytes. The unpacked KML is read into memory
+     * and then parsed into a DOM, so the unpacked size has to be bounded as well.
+     */
+    @Test
+    void rejectsAKmlThatIsTooLargeOnceUnpacked() throws Exception {
+        byte[] padding = new byte[1024 * 1024];
+        java.util.Arrays.fill(padding, (byte) ' ');
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+            zos.putNextEntry(new ZipEntry("bomb.kml"));
+            zos.write("<kml xmlns=\"http://www.opengis.net/kml/2.2\">".getBytes(StandardCharsets.UTF_8));
+            for (int i = 0; i <= KmzGeoJsonConverter.MAX_UNPACKED_KML_BYTES / padding.length; i++) {
+                zos.write(padding);
+            }
+            zos.write("</kml>".getBytes(StandardCharsets.UTF_8));
+            zos.closeEntry();
+        }
+        byte[] kmz = baos.toByteArray();
+
+        assertThat(kmz.length).as("the archive itself is small").isLessThan(1024 * 1024);
+        assertThatThrownBy(() -> converter.convert(kmz))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("when unpacked");
+    }
 }
