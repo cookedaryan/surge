@@ -1,0 +1,903 @@
+# MVP Gap Closure Plan
+
+**Status date:** 2026-08-16 (the §5.7 items struck below were closed that day; the sections they sit under date from 2026-08-15)
+**Author context:** written after a full functional pass through the running
+stack (Docker Compose, real Uravakonda KMZ import, live optimisation runs)
+and direct source verification of every claim below — not derived from
+re-reading the older planning docs alone.
+**Relationship to other docs:** `whats-next.md`, `Surge MVP Ticket Plan.md`,
+and `MVP - Minimum Viable Product.md` define what SURGE's MVP *is*. This
+document does not redefine that scope. It replaces their now-stale "current
+state" sections with a verified baseline (§1) and gives a dependency-ordered,
+implementation-level plan for what is left (§2–§6). Where this document's
+findings contradict an older doc's status claims, this document is correct as
+of 2026-08-15 — the older docs were written mid-sprint (2026-08-12/13) and
+several items they list as outstanding have since shipped, while at least two
+items they implicitly assumed were real turned out to be inert.
+
+---
+
+## 1. Verified baseline — what is actually done
+
+Confirmed by direct code reading and/or a live end-to-end run this session,
+not by trusting prior status notes.
+
+### 1.1 Fully working, verified live
+- KMZ/KML upload → preview → classify → confirm → persist (`AssetService`,
+  `AssetClassifier`, `KmzGeoJsonConverter`), verified against the real
+  Uravakonda survey file (95 WTGs across 6 statuses, 9 substations, 2
+  restricted areas).
+- Optimisation dispatch: Java queries persisted WTGs/substations, builds a
+  proximity-based primary-substation selection, and calls the Python engine.
+- Constraint transport: `OptimizationJobService.buildAvoidanceGeoJson()`
+  ([OptimizationJobService.java:290](../../backend-java/src/main/java/com/power/surge/service/OptimizationJobService.java)) sends reference lines, parcels, and
+  restricted areas as a real GeoJSON `FeatureCollection` with
+  `constraint_type`/`routing_mode`/`buffer_m`/`cost_weight` to Python on every
+  job.
+- Pole placement is wired end-to-end: Python places and network-deduplicates
+  poles on the recommended candidate, Java persists them
+  (`GeneratedPole`, `PoleService`), and the frontend renders four pole classes
+  (terminal/angle/tangent/junction) as independent map layers.
+- Max pole span, system voltage (kV), and feeder capacity from the UI reach
+  Python (`pole_config`, `electrical_params.nominal_voltage_kv`) instead of
+  being silently hardcoded.
+- Per-segment and per-job pole counts are real (`segment_id` ↔
+  `connected_route_ids` linkage, V9 migration) instead of a `length / 150m`
+  guess.
+- The "Why this route?" decision panel surfaces real candidate comparison,
+  disqualification reasons, electrical summary, and spatial-constraint summary
+  from `resultSummaryJson`.
+- Failed/no-route jobs are unmistakable in the UI (red failure card with
+  reasons) — no silent fallback to a stale or demo route.
+- Scenario comparison (`ReportService.getScenarioComparison`) reads real
+  completed jobs per scenario label and omits scenarios that were never run,
+  instead of four hardcoded numbers.
+- The frontend proactively blocks "Run Optimisation" with a specific reason
+  (no optimisable WTGs / no substation / multiple unresolved substations)
+  instead of letting the call fail server-side.
+- CI (`.github/workflows/ci.yml`) already builds/tests Java (`mvnw verify`),
+  Python (`ruff`, `mypy`, `pytest`), the frontend (`npm run build`), and all
+  Docker images on every push/PR. Phase 0 of the Obsidian MVP plan
+  ("make the stack testable") is materially done on the backend/infra side.
+- Map/BOM/elevation-drawer stacking bug (BOM strip and elevation profile
+  rendering behind the Leaflet map) fixed 2026-08-15.
+
+### 1.2 Two findings that reorder everything below
+
+**Finding A — the four optimisation scenarios do nothing.**
+The scenario dropdown (`Balanced` / `Minimum Cost` / `Minimum Land Impact` /
+`Minimum Environmental Impact`,
+[OptimizationPane.tsx:12-14](../../web-map-next/src/features/optimization/OptimizationPane.tsx)) only sets a display-label string.
+`OptimizationJobService` always defaults `capexWeight`/`lossesWeight` to
+`0.5`/`0.5` ([OptimizationJobService.java:123-124](../../backend-java/src/main/java/com/power/surge/service/OptimizationJobService.java)) regardless of which
+label was picked, and — critically — `PythonOptimisationRequest` has no field
+for either weight at all, so they are never sent to Python in the first
+place. Python's V1 endpoint (the one Java actually calls) defaults
+`scoring_weights` to a fixed `ScoringWeightsRequest()`
+(`route_length_weight=0.4, electrical_loss_weight=0.25,
+cable_loading_weight=0.20, voltage_margin_weight=0.15`,
+[v2/optimise.py:86-89](../../optimisation-python/app/schemas/v2/optimise.py)) on every call. Running the same
+project under all four scenario labels today produces byte-identical
+candidate scores, byte-identical routes, and byte-identical pole layouts.
+This is the literal MVP release gate from the Obsidian plan ("run each of the
+four deterministic scenarios ... their displayed differences come from real
+inputs/results") and from `Surge MVP Ticket Plan.md` §14 ("show different
+winners across scenarios") — currently false.
+
+**Finding B — every project/job endpoint is unauthenticated.**
+`SecurityConfig.java:44-51` has
+`.requestMatchers(..., "/api/v1/projects/**").permitAll()`. JWT auth exists
+and is enforced on other paths, but every project, asset, optimisation job,
+route, pole, and report endpoint bypasses it entirely — there is no
+ownership check anywhere in the request path. Any caller can read or mutate
+any project. `MVP Execution Plan - Frontend & Java.md` flags this explicitly:
+*"`permitAll` on all project paths is not safe for an external MVP."*
+
+### 1.3 Confirmed-but-not-yet-fixed bugs (identified earlier this session)
+- BOM electrical losses use a `length_m × 0.005 kW/m` heuristic
+  (`RouteService.extractBigDecimal` fallback) instead of Python's real
+  Pandapower `active_loss_mw`, because the property name/unit Python emits
+  (`active_loss_mw`, MW) never matches what Java looks for
+  (`electricalLossesKw`/`electrical_losses_kw`, kW). The "Why this route?"
+  panel shows the correct number (259.9 kW); the BOM strip/report shows the
+  wrong one (516.46 kW) for the same job.
+- Parcel ROW/compensation area in the engineering BOM report uses each
+  parcel's full polygon area rather than the real route-corridor overlap.
+  Python already has a working, tested overlap engine for this
+  (`app/gis/row_analysis.py`, SURGE-PY-011) that computes real
+  buffer∩parcel intersection area — it is referenced from
+  `result_builder.py`/`engineering_metrics.py` for the *decision-summary*
+  path, but `ReportService`'s BOM/PDF parcel-impact table does not consume
+  it and instead falls back to the naive full-area figure.
+
+---
+
+## 2. Tier 1 — Make the four scenarios real ✅ DONE (2026-08-15)
+
+> **Completed.** Implemented on `feat/mvp-tier1-real-scenarios`. See §2.4 for the
+> verified result and the one design correction made during implementation.
+
+**Why first:** this is the single largest gap between "looks like a demo"
+and "is the MVP," it's explicitly called out as a must-have in three
+different planning docs, and — per the investigation below — it is smaller
+than it looks: the scoring-weight wiring already exists in Python and only
+needs to be *connected*, not built.
+
+### 2.1 Design: what actually drives each scenario
+
+Python's candidate scorer (`CandidateScoringConfig`,
+[scoring_models.py:20-24](../../optimisation-python/app/optimisation/scoring_models.py)) ranks already-generated candidates on
+exactly four metrics: `route_length`, `electrical_loss`, `cable_loading`,
+`voltage_margin`. There is no "land impact" or "environmental impact" metric
+in that scorer, and adding one is explicitly deferred to P1 in
+`whats-next.md` §5 ("include a spatial-impact metric in cohort ranking ...
+only after the end-to-end path is green"). Do not build a fifth scoring
+metric for this pass — use the two mechanisms that already exist:
+
+| Scenario | Mechanism | What changes |
+| --- | --- | --- |
+| **Balanced** | Scoring weights only | Send the Python defaults explicitly: `0.4 / 0.25 / 0.20 / 0.15` (route length / electrical loss / cable loading / voltage margin). |
+| **Minimum Cost** | Scoring weights only | Shift weight toward `route_length_weight` (route length is the current proxy for CAPEX until a real cost model exists — say goes to `0.70`, spreading the remaining `0.30` across the other three proportionally). |
+| **Minimum Land Impact** | Routing-cost bias | Raise `cost_weight` on `parcel` constraint features in `buildAvoidanceGeoJson()` so A* prefers routes crossing less/cheaper land *before* candidates are even scored. Leave scoring weights at Balanced defaults. |
+| **Minimum Environmental Impact** | Routing-cost bias | Raise `cost_weight`/`buffer_m` on `restricted_area` and any forest/environmental reference-line constraints the same way. |
+
+This keeps land/environmental differentiation inside Java's existing
+constraint-transport ownership boundary (already real, already tested) and
+keeps cost/electrical differentiation inside Python's existing scoring
+config (already real, already validated, just unused by V1 callers).
+
+### 2.2 Implementation steps
+
+1. **Python — none required for the scoring axis.** `ScoringWeightsRequest`
+   and `CandidateScoringConfig` already validate weights sum to `1.0` and
+   already flow through `legacy_mapping.py:40`
+   (`scoring_weights=payload.scoring_weights`) on the V1 endpoint. Confirm
+   this with one manual call before touching Java: POST `/api/v1/optimise`
+   twice with the same project, once omitting `scoring_weights` and once
+   with a skewed vector, and diff the `recommendation`/ranked candidates.
+2. **Java DTO — add the missing field.**
+   `dto/client/python/PythonOptimisationRequest.java` needs a
+   `scoringWeights` (→ `scoring_weights`) field: a small record/map with the
+   four weight doubles. Follow the existing pattern used for `poleConfig`.
+3. **Java — define the scenario → weight table.** In
+   `OptimizationJobService`, add a small deterministic lookup (a private
+   `Map<String, ScoringWeights>` or switch on `scenario`) for the four known
+   labels, defaulting unknown/null scenario strings to Balanced. Do not
+   invent a fifth "custom weights" UI control in this pass — keep the four
+   fixed presets from `Surge MVP Ticket Plan.md`/`Scope.md`.
+4. **Java — bias `buildAvoidanceGeoJson()` by scenario.** Thread the
+   `scenario` string into `buildAvoidanceGeoJson(UUID projectId, String
+   scenario)`. For `Minimum Land Impact`, multiply the parcel loop's
+   `cost_weight` by a fixed factor (e.g. `3.0`×) when one isn't already set
+   from a real land rate; for `Minimum Environmental Impact`, do the same for
+   `restricted_area` features' effective cost (or `buffer_m`, whichever the
+   Python constraint layer weights more strongly for soft features — verify
+   against `app/gis/constraints.py` before picking). Leave `Balanced` and
+   `Minimum Cost` at the existing unscaled values.
+5. **Frontend — no new UI**, the scenario dropdown already exists and
+   already reaches Java (`OptimizationPane.tsx:55`). No changes needed here
+   beyond confirming the selected label round-trips unchanged (it does).
+6. **Regression test — the actual acceptance bar.** Add one Java service
+   test and one Python integration test that run the *same* fixture project
+   under two different scenario labels and assert the results differ
+   (different `recommendation.recommended_scenario_id`, different
+   `total_route_length_m`, or different ranked order — any one is sufficient
+   proof of differentiation). This test is the concrete, checkable
+   replacement for "scenarios are real."
+
+### 2.3 Acceptance criteria
+- Running the golden Uravakonda project under all four scenario labels
+  produces at least two distinct outcomes (route length and/or recommended
+  candidate differ) between at least one pair of scenarios.
+- `ScenarioComparisonResponse` shows genuinely different numbers per
+  scenario row, not just different labels on identical numbers.
+- A new automated test fails if scenario weighting regresses to a no-op.
+
+**Estimated effort:** 0.5–1 day (mostly Java DTO/service wiring; Python side
+is already built).
+
+### 2.4 Outcome and the one design correction
+
+**Correction to §2.1.** The table above assigned *Minimum Cost* to scoring
+weights alone. Verification showed that would have been a no-op: on the real
+Uravakonda data only one of three candidates survives electrical screening
+(`"Only one candidate was electrically feasible"`), and a sole eligible
+candidate wins under every possible weight vector. Every scenario therefore
+also carries a cost-surface bias, so the candidate routes differ before scoring
+runs at all. Two further constraints discovered while reading the engine:
+
+- Soft-constraint cost is **additive to the raster**
+  (`costs[finite_mask] += layer.cost_weight`, `constraints.py:217`), with a
+  documented default of `20.0` when a feature carries no explicit cost.
+- Hard exclusions **must not** carry `cost_weight` — Python raises on it
+  (`constraints.py:67`) — so the environmental scenario expresses its
+  preference as extra `buffer_m` clearance instead, added on top of Python's
+  own `avoidance_buffer_m` default of `10.0` m so it can never resolve to
+  *less* clearance than the baseline.
+
+**As-built profile table** (`ScenarioProfile.java`):
+
+| Scenario | Weights (len/loss/load/volt) | Constraint bias |
+| --- | --- | --- |
+| Balanced | 0.40 / 0.25 / 0.20 / 0.15 | none — imported values used as-is |
+| Minimum Cost | 0.70 / 0.12 / 0.10 / 0.08 | soft crossings ×0.5 |
+| Minimum Land Impact | 0.40 / 0.25 / 0.20 / 0.15 | parcels ×3 |
+| Minimum Environmental Impact | 0.40 / 0.25 / 0.20 / 0.15 | watercourses ×3, restricted +25 m clearance |
+
+Balanced at a 1.0 multiplier reproduces the previous behaviour exactly, so the
+default scenario is not a regression.
+
+**Verified live** against `Uravakonda PCN Route Test` (95 WTGs / 38 optimisable,
+45 reference lines, 1 parcel, 2 restricted areas):
+
+| Scenario | Length (m) | Poles | Losses (kW) |
+| --- | ---: | ---: | ---: |
+| Balanced | 69,991.4 | 606 | 324.18 |
+| Minimum Cost | 68,476.4 | 581 | 317.29 |
+| Minimum Land Impact | 69,933.6 | 601 | 324.12 |
+| Minimum Environmental Impact | 70,142.2 | 608 | 324.82 |
+
+Four distinct lengths, four distinct pole counts, four distinct loss figures —
+and the ordering is physically sensible: Minimum Cost is the shortest and
+cheapest because it accepts crossings, Minimum Environmental Impact is the
+longest because it detours around the widened clearance.
+
+**Also fixed in passing:** `OptimizationJobResponse` never exposed the job's
+`scenario`, so the UI could not show which scenario produced a result. Added
+the field and surfaced it in the decision card ("Optimised for …").
+
+**Test coverage added:** `ScenarioProfileTest` (17 tests: weights total 1.0 per
+the Python contract, per-weight range, no two scenarios share a configuration,
+every scenario biases the surface, direction-of-effect per scenario, fallback
+and casing) and `OptimizationJobServiceTest.eachScenarioDispatchesADistinct
+OptimisationRequest` (captures all four dispatched payloads and asserts they
+differ). Both were mutation-tested: forcing `forScenario()` to always return
+Balanced fails 6 of them, so the guard has teeth. Full suite: 153 Java tests
+green, frontend typecheck and build clean.
+
+---
+
+## 3. Tier 2 — Close the authorization gap
+
+> **Scope changed after discussion (2026-08-15).** SURGE is used by a handful of trusted
+> colleagues who all need full access, so per-project ownership was dropped as
+> over-engineering: it would have meant a migration, a backfill, and enforcement
+> threaded through 42 endpoints to police a boundary that does not exist in the
+> organisation. Individual accounts were kept over a single shared login — they cost
+> the same to build and preserve a usable audit trail. Tier 2 is now three phases:
+>
+> - **Phase 1 — authentication (✅ done, see §3.3)**
+> - **Phase 2 — admin panel (✅ done, see §3.4)**
+> - **Phase 3 — audit coverage (✅ done, see §3.5)**
+
+**Why second:** every other feature sits behind this. Shipping Tier 1
+before this is fine (still local/demo-safe), but nothing here should be
+exposed beyond a trusted network until it's done.
+
+### 3.1 Implementation steps
+1. **Confirm the data model.** Check whether `Project` already has an
+   owner/user relation (`created_by`, a join table, etc.). If not, add a
+   migration: `owner_id` (FK to the users table) on `projects`, backfilled to
+   a system/admin user for existing rows.
+2. **Remove the blanket bypass.** In `SecurityConfig.java:44-51`, drop
+   `"/api/v1/projects/**"` from the `permitAll()` matcher list. Everything
+   under it should require authentication by default (it will, since
+   `.anyRequest().authenticated()` already covers the rest).
+3. **Add ownership enforcement**, not just authentication. Authentication
+   alone (any logged-in user can see any project) does not satisfy the doc's
+   requirement ("project ownership/role authorization"). Add either:
+   - a `@PreAuthorize` check backed by a small ownership-lookup service, or
+   - repository-level scoping (`findByIdAndOwnerId`) used consistently in
+     every controller that takes a `projectId` path variable.
+
+   Cover: `ProjectController`, `ProjectAssetController`,
+   `OptimizationJobController` (and its route/pole sub-resources),
+   `ReportController`.
+4. **Decide on a demo/admin bypass explicitly** (many small teams want an
+   "admin sees everything" role) — implement it as a real role check, not as
+   a second `permitAll()`.
+5. **Tests.** Add a Java integration test: user A creates a project, user B
+   authenticates and attempts to read/mutate it → expect `403`/`404` (pick
+   one convention and use it everywhere — `404` avoids leaking existence).
+
+### 3.2 Acceptance criteria
+- No path under `/api/v1/projects/**` is reachable without a valid JWT.
+- A second authenticated user cannot read, run jobs on, or export reports
+  from a project they do not own.
+- Existing single-user demo flows (login → import → run → view) still work
+  unchanged for the owning user.
+
+**Estimated effort:** 0.5–1 day, depending on whether project ownership
+already exists on the `Project` entity (check first — this may already be
+half-done). *Superseded: ownership was dropped, see the note at the top of §3.*
+
+### 3.3 Phase 1 outcome — authentication (done 2026-08-15)
+
+**What was closed**
+
+1. `/api/v1/projects/**` removed from `permitAll()`. That single entry had been
+   exempting 9 controllers and 42 project-scoped endpoints.
+2. `POST /api/v1/auth/register` restricted to administrators, in both the filter
+   chain and a `@PreAuthorize` on the method. This mattered more than the first
+   item: registration was world-open, so anyone could have created an account,
+   received a valid token, and walked back in legitimately. Locking the project
+   routes without this would have been security theatre.
+3. `seedDemoUsers()` replaced with `seedBootstrapAdmin()`. The old version ran on
+   every startup and re-encoded the password each time, so **any credential change
+   was silently reverted on the next restart** — which would have broken the admin
+   panel's password-reset feature on day one, and silently undone manual database
+   edits. The replacement creates the account only when missing, never overwrites,
+   takes credentials from configuration, and warns when the built-in default is
+   still in use.
+
+**Three problems found while verifying, each fixed**
+
+- *Anonymous requests returned 403, not 401.* Added an `HttpStatusEntryPoint` so a
+  missing session is distinguishable from a forbidden action — the UI needs that to
+  send an expired session to the login screen rather than showing a permission error.
+- *Denied requests returned 401 even when authenticated.* `sendError()` makes the
+  container re-dispatch to `/error` through the same filter chain; that dispatch
+  carries no credentials, so it was itself rejected and the entry point overwrote
+  the real 403. Fixed by permitting `DispatcherType.ERROR`. Worth remembering:
+  **MockMvc performs no ERROR dispatch, so the test suite showed 403 while the
+  running server returned 401** — only live verification caught it.
+- *A 401 masqueraded as "no projects".* `listProjects` swallowed errors into an
+  empty array, which made `ProjectSelector` auto-create a replacement project, and
+  `createProject` fabricated a fake project with a client-generated id when the API
+  call failed. Enabling auth made that path reachable on every pre-login render.
+  All three were removed: failures now propagate, auto-create requires an
+  authenticated caller, and no synthetic project is ever invented. This was the
+  "simulated success after an API failure" the Obsidian MVP plan explicitly forbids.
+
+**Client changes**
+
+- Job progress moved from `EventSource` to a fetch-based stream. `EventSource`
+  cannot attach an `Authorization` header, and the alternative — a token in the
+  query string — would leak the credential into access logs, browser history and
+  referrer headers. The progress endpoint is now authenticated like everything else.
+- A 401 from any transport clears the token and returns to the sign-in screen.
+- Successful sign-in invalidates cached queries, so the workstation loads without a
+  manual page reload.
+
+**Verified against the running stack**
+
+| Caller | Endpoint | Result |
+| --- | --- | --- |
+| anonymous | `/api/v1/projects` | 401 |
+| anonymous | `/api/v1/projects/{id}/jobs/{jid}/progress` | 401 |
+| anonymous | `/api/v1/audit-logs` | 401 |
+| anonymous | `POST /api/v1/auth/register` | 401 |
+| engineer | `/api/v1/projects` | 200 |
+| engineer | `POST /api/v1/auth/register` | 403 |
+| admin | `POST /api/v1/auth/register` | 201 |
+| anyone | `/api/v1/health` | 200 |
+
+The admin password survived a container restart, confirming the seed no longer
+overwrites. A full UI pass — sign in, project list loads without a reload, run an
+optimisation, read the decision card — works end to end, and the fetch stream was
+confirmed to receive events with a valid token and to sign the operator out on a
+rejected one.
+
+**Tests:** `SecurityBoundaryTest` (11 tests) runs with the security filters *on*,
+unlike every other controller test (`addFilters = false`), and mints real tokens
+through `JwtTokenProvider`. `AuthServiceBootstrapTest` (3 tests) pins the
+never-overwrite contract. Suite: 167 Java tests green, frontend build clean.
+
+**Known gap:** roles are enforced only for registration. `ROLE_VIEWER` still has
+write access everywhere else — deliberate for now, and the natural companion to the
+Phase 2 admin panel.
+
+### 3.4 Phase 2 outcome — admin panel (done 2026-08-15)
+
+**API** — `/api/v1/admin/users`, with a class-level `@PreAuthorize("hasRole('ADMIN')")`
+so a route added later is restricted by default rather than by remembering to
+annotate it:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/admin/users` | List accounts |
+| `POST` | `/admin/users` | Provision an account |
+| `PATCH` | `/admin/users/{id}` | Change role and/or suspension state |
+| `POST` | `/admin/users/{id}/password` | Set a new password |
+
+`PATCH` treats `null` fields as "leave unchanged", so role and suspension can be
+changed independently. Password reset is a separate route so it is audited as its
+own distinct event.
+
+**Suspension rather than deletion.** Migration `V11` adds `users.enabled`. Deleting
+an account would leave its audit-log entries naming someone who can no longer be
+looked up; suspending keeps the history interpretable while blocking sign-in
+immediately. `AuthService.login` rejects a disabled account *after* the password
+check, so a suspended account is not distinguishable from a wrong password, and
+records a `USER_LOGIN_DENIED` event so a locked-out colleague's attempts are visible.
+
+**Two lockout invariants**, enforced in the service rather than the UI because the
+UI is not the only possible caller:
+
+- an administrator cannot suspend or demote *their own* account; and
+- the last enabled administrator cannot be suspended or demoted.
+
+Recovering from zero administrators would need direct database access — exactly what
+this panel exists to avoid.
+
+**A real bug this surfaced.** Method-level authorization failures were being reported
+as **500 Internal Server Error**: `@PreAuthorize` throws inside the dispatcher, and
+`ApiExceptionHandler`'s catch-all `@ExceptionHandler(Exception.class)` swallowed it
+before Spring Security could translate it. Every `@PreAuthorize` in the codebase was
+affected, including the Phase 1 annotation on `register` (masked there only because a
+filter-level rule denied it first). Added an explicit `AccessDeniedException` handler
+returning 403.
+
+**Session restore.** The auth store inferred "signed in" from a token existing in
+storage, but username and role lived only in memory — so after a reload an
+administrator came back with no role and silently lost the admin tab. The app now
+resolves the account from `/auth/me` on load, which revalidates the token at the same
+time and takes the role from the server rather than trusting local storage.
+
+**Verified against the running stack:** create → sign in as the new account → suspend
+→ sign-in refused (400) → reset password → reinstate → sign in with the new password
+(200) while the old one is refused (400). Self-suspend and self-demote are refused
+with readable messages and the account is left untouched; a non-administrator gets 403
+from every route. Driving a suspension from the UI updated the database, blocked that
+user's next sign-in, and wrote `USER_SUSPENDED` against **the acting administrator**,
+which is the "who did what" the panel was for.
+
+**Tests:** `UserAdminServiceTest` (12) covers creation, duplicate rejection, both
+lockout invariants, audit-on-change, no-audit-when-unchanged, and that a reset stores
+a hash and never logs the password. `SecurityBoundaryTest` grew 3 cases for the new
+routes. Suite: 182 Java tests green, frontend build clean.
+
+**Note:** a malformed UUID in any path still returns 500 via the catch-all rather than
+400. Pre-existing across every `{id}` route, not introduced here — worth a small
+`MethodArgumentTypeMismatchException` handler when convenient.
+
+### 3.5 Phase 3 outcome — audit coverage (done 2026-08-15)
+
+Before this, `recordAudit` was called from exactly two places in the whole codebase, so
+the log could say who signed in and nothing about what they did.
+
+**Attribution without plumbing.** `AuditLogService.record(action, resourceType,
+resourceId, details)` resolves the acting user from the security context. Threading a
+username through every service signature is what leads to a log that covers two call
+sites instead of the application. Two properties matter:
+
+- It runs in its own transaction (`REQUIRES_NEW`), so a record survives even when the
+  surrounding work rolls back — a failed import or rejected job is exactly what you
+  want in the log.
+- A storage failure is swallowed and reported to the application log. Audit logging is
+  observability, not business logic; it must never take down the operation it records.
+
+**Now instrumented:** project created, project updated (naming the rename explicitly),
+assets imported (both the reviewed preview/commit path and the one-step upload), an
+optimisation completing or failing, and report exports.
+
+**Deliberately not instrumented:** `generateBomReport`, which also backs the
+always-visible BOM panel. Auditing it would bury real actions under a stream of page
+renders. Only taking data *out* of the system — the CSV and PDF exports — is recorded.
+
+**Details carry the facts, not just the verb.** "Imported a file" is useless six weeks
+later; "95 WTG, 9 substation, 2 restricted" explains why a project's results changed.
+Likewise the optimisation entry names the scenario and turbine count, so a change in
+output has a visible cause.
+
+**One correction during verification.** The KMZ upload endpoint converts to GeoJSON
+before reaching the service, so it was logging "Direct GeoJSON import" — describing the
+internal plumbing rather than what the operator did. It now records the actual entry
+point and filename.
+
+**A real trail from a real run** (create project → upload the Uravakonda KMZ → run an
+optimisation → export a PDF):
+
+```text
+admin | USER_LOGIN              | Successful user authentication
+admin | PROJECT_CREATED         | Created project 'Audit Trace v2'
+admin | ASSETS_IMPORTED         | One-step KMZ/KML upload of 'Uravakonda WTG Substation
+                                  Restricted.kmz' into 'Audit Trace v2': 106 features
+                                  (95 WTG, 9 substation, 0 tower, 0 line, 0 parcel,
+                                  2 restricted)
+admin | OPTIMIZATION_COMPLETED  | Scenario 'Minimum Environmental Impact' completed for
+                                  project 'Audit Trace v2' (38 optimisable WTG, 33 kV)
+admin | REPORT_EXPORTED         | Exported executive PDF report for project
+                                  'Audit Trace v2'
+```
+
+**Audit pane** now shows the entry count, colours by consequence (failures and
+suspensions in red, creations in accent, changes in amber) so a problem stands out when
+skimming, and shows a date for entries older than today rather than a bare time.
+
+**Tests:** `AuditLogServiceTest` gains attribution from the security context, the
+anonymous fallback, and proof that a storage failure does not propagate. Suite: 185
+Java tests green, frontend build clean.
+
+**Known limits:** the endpoint returns the most recent 50 entries with no pagination,
+filtering or retention policy — fine at this scale, but worth revisiting before the log
+becomes long enough to hide something. There is still no DELETE endpoint anywhere in
+the application, so no deletion auditing was needed.
+
+---
+
+## 4. Tier 3 — Fix the two known data-correctness bugs ✅ DONE (2026-08-15)
+
+> **Completed.** Both fixed and verified against the running stack; see §4.3 for the
+> outcome and for two things that turned out to be worse than recorded below.
+
+Both were diagnosed to the exact line earlier this session; this section is
+the fix, not further investigation.
+
+### 4.1 BOM electrical losses use the wrong number
+- **Root cause:** `optimisation-python/app/schemas/legacy_mapping.py`'s
+  `_legacy_route_collection` passes through Python's raw property
+  `active_loss_mw` (megawatts) unchanged. Java's
+  `RouteService.extractBigDecimal` looks for `electricalLossesKw` /
+  `electrical_losses_kw` — a different name *and* a different unit — never
+  matches, and silently falls back to the `length_m × 0.005` heuristic.
+- **Fix:** either (a) have Python additionally emit a correctly-named,
+  correctly-unit'd property (`electrical_losses_kw = active_loss_mw *
+  1000`) alongside the existing one for backward compatibility, or (b) update
+  `RouteService.extractBigDecimal`'s lookup keys to match Python's actual
+  property name and convert MW→kW in Java. Prefer (a): it's additive on the
+  Python side and doesn't risk breaking any other consumer of
+  `active_loss_mw`.
+- **Verify:** re-run the Uravakonda job; BOM losses should read ~259.9 kW,
+  matching the "Why this route?" panel exactly (both must come from the same
+  Pandapower result now).
+
+### 4.2 Parcel ROW/compensation uses full parcel area, not real overlap
+- **Root cause:** `ReportService`'s BOM/PDF parcel-impact table computes
+  `affectedAreaM2` from each `CadastralParcel`'s whole stored polygon area,
+  not the actual route-corridor intersection. `app/gis/row_analysis.py`
+  already computes the real per-parcel overlap area
+  (`Area(Buffer(route, ROW_width/2) ∩ parcel)`) and is wired into the
+  decision-summary path (`spatialConstraintSummary.affected_parcel_count` /
+  `affected_parcel_overlap_length_m` in `resultSummaryJson`) — but that
+  summary carries only counts/lengths, not per-parcel area, and
+  `ReportService` never consumes it at all.
+- **Fix:** extend the Python presentation result to include per-parcel
+  overlap area (`row_analysis.py` already computes this internally — expose
+  it in the same result object `result_builder.py` already builds from), and
+  have Java's `ReportService.generateBomReport`/`generateBomCsv` read that
+  real per-parcel figure instead of calling
+  `CadastralParcel.getGeometry().getArea()` directly.
+- **Verify:** on a project where the recommended route actually clips a
+  parcel, the BOM parcel-impact table's affected area should be a small
+  fraction of that parcel's full area, not the whole polygon.
+
+**Estimated effort:** 0.5 day each (roughly 1 day total) — both are
+localized name/wiring fixes against already-correct underlying data, not new
+algorithms.
+
+### 4.3 Outcome (done 2026-08-15)
+
+**Losses — fixed as planned.** Python now emits `electrical_losses_kw` alongside
+`active_loss_mw` in the segment properties. Java already accepted that key, so no
+backend change was needed at all. Verified on a fresh run of the reference project:
+BOM losses **324.18 kW**, exactly matching Pandapower's `total_active_loss_mw`, where
+the old heuristic gave 349.96 kW. The BOM and the "Why This Route" panel now agree —
+their disagreement was the original symptom.
+
+**Parcel area — worse than recorded, and the fix is different.** The plan assumed
+Python already computed a usable per-parcel overlap. It does compute
+`RowIntersection.intersection_area_m2`, but `result_builder.py` invokes the analysis
+with `RowConfig(corridor_width_m=0.01)` — a **1 cm** corridor used to *detect*
+crossings, not a real right-of-way. Widening it there would have changed the
+crossing-detection and hard-violation semantics that the Python suite pins, so the
+overlap is computed in PostGIS instead, which is already the storage layer and can
+measure on the ellipsoid via `::geography`.
+
+The old Java figure was also worse than "full parcel area". It was:
+
+```java
+p.getGeometry().getArea() * 111000.0 * 111000.0 * 0.001
+```
+
+— the whole parcel, converted with a fixed metres-per-degree factor that ignores
+latitude, then scaled by an unexplained `0.001`. On the reference project:
+
+| Basis | m² |
+| --- | ---: |
+| Whole parcel | 36,862 |
+| **True 18 m ROW overlap** | **18,884** |
+| Figure previously reported | 38 |
+
+Roughly 500× too small, feeding `estimatedCompensationCost` — a money field.
+
+`CadastralParcelRepository.findRowCorridorAreaByParcel` now returns the area of
+`ST_Intersection(ST_Buffer(route::geography, width/2), parcel)` per parcel. Parcels the
+corridor misses return zero rather than being dropped, so they still appear as
+unaffected. If the spatial query cannot run, every parcel reports zero and a warning is
+logged: showing no impact is honest, inventing an area that feeds a compensation
+estimate is not.
+
+**One assumption made explicit.** ROW width is accepted on the job request and sent to
+Python but never persisted, so the report uses the documented 18 m default. Rather than
+bury that behind a number, the CSV export now states the corridor width and the basis
+of the calculation. Persisting `rowWidthM` on the job is the proper follow-up.
+
+**Two implementations of the same quantity — worth consolidating.** While this was in
+flight, PY-028 (lifecycle cost model) landed and made the Python corridor width a
+parameter defaulting to the same 18 m, adding `ParcelEngineeringExposure` with
+`parcel_id` and `row_intersection_area_m2`. That is the per-parcel figure the plan
+originally wanted from Python. It is *not* exposed over the API — it feeds candidate
+scoring and lifecycle costing internally — so the PostGIS query remains the only route
+to the BOM report and the two do not currently contradict each other in any output.
+They are still two measurements of one physical quantity, computed in different places
+by different libraries, and should converge on one source of truth before either is
+treated as authoritative. Consuming the Python figure once it is exposed is the
+cleaner end state.
+
+**Verified:** 187 Java tests and 509 Python tests green (on the merged tree, including
+PY-028); a live run of the reference
+project shows 324.18 kW losses and 11,475 m² of corridor overlap for the job's actual
+routes (the figure differs from the 18,884 m² above because that measured a different
+job's route set).
+
+---
+
+## 5. Tier 4 — Release-readiness gaps ✅ DONE (2026-08-15)
+
+> **Completed.** All three items landed; see §5.4 for the outcome, including a real bug
+> the new tests caught.
+
+These don't block a working demo but block calling it done per the
+project's own "Definition of Sunday/MVP done" checklists.
+
+### 5.1 Frontend has no test runner at all
+- **Current state:** confirmed — no `*.test.*`/`*.spec.*` files exist under
+  `web-map-next/src`, and `package.json` has no test script.
+- **Steps:** add Vitest + React Testing Library (matches the Vite toolchain
+  already in place). Add a `test` script to `package.json` and a CI step in
+  `.github/workflows/ci.yml`'s `frontend` job. Write a small smoke suite
+  covering: login gate, project selector populates from the API, the "Run
+  Optimisation" button's blocker logic (the run-blocking work done earlier
+  this session is exactly the kind of logic worth a unit test), and layer
+  toggle state.
+
+### 5.2 No browser end-to-end test
+- **Steps:** add Playwright (or reuse the same in-app Browser tooling used
+  manually this session, scripted). One test: login → select/create project
+  → upload the golden KMZ → preview/confirm → run optimisation → assert the
+  map renders routes and poles → download a report. This directly
+  operationalizes `whats-next.md` §9's "Full product" test list and
+  `Surge MVP Ticket Plan.md`'s Saturday demonstration gate.
+
+### 5.3 No golden-fixture contract test tying constraint transport + pole persistence together
+- **Steps:** add one Java `@SpringBootTest` (or slice test) that creates a
+  project with a known parcel/restricted-area fixture, runs a job against a
+  stubbed/recorded Python response, and asserts (a) the constraint
+  `FeatureCollection` Java sent contains the expected `constraint_type`s, and
+  (b) the poles/routes returned are persisted and retrievable by job ID.
+  `whats-next.md` §6 item 9 asks for exactly this ("Add service/controller
+  tests proving imported constraints are sent to Python and returned
+  pole/route output remains associated with the same job").
+
+**Estimated effort:** 1–1.5 days total across all three.
+
+### 5.4 Outcome (done 2026-08-15)
+
+**Frontend test runner — 23 tests.** Vitest + React Testing Library + jsdom, wired into
+the CI frontend job before the build. jsdom implements neither `ResizeObserver` nor
+`DOMRect`, and Radix primitives call both on mount, so the setup file stubs them —
+without that, any component containing a `Select` or `Slider` throws before a single
+assertion runs.
+
+Coverage went to the logic that manual testing cannot reach:
+
+- `listenJobProgress` (10) — the fetch-based SSE client. Frame reassembly across
+  arbitrary chunk boundaries, several frames in one chunk, CRLF, malformed JSON,
+  terminal-once semantics, bearer token present and *not* in the query string, and
+  sign-out on 401.
+- `client` (6) — token attachment, 401 clearing the session, and 403 deliberately *not*
+  clearing it, since "signed in but not allowed" is not a reason to sign someone out.
+- `OptimizationPane` (7) — the run-gating rules, including the case worth guarding:
+  95 turbines imported and none optimisable, which looks like a populated project and
+  an unexplained failure without a specific message.
+
+**A real bug these caught.** The unsubscribe test failed on first run: after `stop()`,
+already-buffered frames were still parsed and dispatched, because the loop only checked
+its exit flag *after* processing. Aborting the request does not help — the bytes are
+already in hand. `handleFrame` now returns early when finished. This was a genuine
+defect in code written earlier in this plan, found by the test rather than by review.
+
+**Java contract test — `OptimisationContractTest` (7).** Proves the two claims
+`whats-next.md` §6 asks for: every imported constraint kind reaches the optimiser with
+the right routing mode (restricted areas hard and carrying no `cost_weight`, everything
+else soft and carrying one), evacuation routes are excluded as reference data rather
+than obstacles, and returned routes and poles are filed against the job that produced
+them — with a failed run persisting neither. Mutation-checked: flipping restricted areas
+to `soft` fails the suite.
+
+**Browser end-to-end — 5 specs, Playwright.** Run against the live stack and observed
+passing, including a real 60-second optimisation: sign-in loads real projects rather
+than inventing one, a project runs an optimisation and explains the result, the BOM
+strip is actually in the viewport (it once rendered behind the Leaflet canvas — no unit
+test would notice), account administration is offered only to administrators with
+self-suspend disabled, and the audit log shows real work rather than only sign-ins.
+
+They are excluded from `npm test` and not in CI, because they need PostGIS, the backend
+and the optimiser running; a unit run must not pass merely because a service was
+unreachable. The spec skips itself with a clear message when the app is not reachable.
+See `web-map-next/src/test/e2e/README.md`.
+
+**Totals:** 194 Java, 509 Python, 23 frontend unit, 5 browser E2E.
+
+**Known gaps, deliberately left:**
+
+- The contract test uses mocked repositories. Verifying rows actually land in PostGIS
+  needs a real database — H2 cannot create the `text[]` column on `generated_poles` —
+  so Testcontainers is the proper closure.
+- Report download is not asserted end to end; browser download handling is flaky enough
+  across drivers that the CSV/PDF endpoints are better covered by the backend suite.
+- The E2E specs are not in CI. Running them there needs the compose stack in the
+  workflow, which is a deliberate follow-up rather than an oversight.
+
+---
+
+## 5.5 Asynchronous job execution (done 2026-08-15)
+
+Not one of the original four tiers. It came out of the MVP readiness review as the only
+item genuinely blocking anything beyond a supervised demo, and the Obsidian execution
+plan lists it as a Phase 1 requirement: *"make job execution reliably asynchronous and
+retain status/progress/failure information."*
+
+**Before:** `POST /jobs` ran the whole pipeline inline and returned the finished job.
+On the reference project that held an HTTP connection open for around a minute, and a
+few concurrent runs would have exhausted the servlet pool. The SSE progress stream
+existed but was dead weight — by the time the client had a job id to subscribe to, the
+run was over.
+
+**After:** the endpoint validates, records a queued job and returns **202 in about a
+second**. A bounded executor (2 core, 4 max, queue of 20) runs the pipeline. Verified
+end to end: `PENDING → RUNNING (t+3s) → COMPLETED (t+48s)`, with the progress stream now
+delivering live messages because there is finally something live to report.
+
+**Three things this surfaced, each a real defect rather than a refactor artefact:**
+
+- **Run parameters were not persisted.** Feeder capacity, maximum voltage drop and ROW
+  width were accepted from the client and forwarded to the optimiser, but never stored.
+  That is survivable only while the pipeline runs inside the request carrying them; a
+  queued job would have silently fallen back to defaults and ignored the operator's
+  feeder capacity. Migration `V12` stores all three, which also closes the ROW-width
+  follow-up from §4.3 and makes a completed job reproducible.
+- **"Running" was invisible.** The status transition happened inside the same long
+  transaction as the work, so it was not committed until the job was already finished —
+  a job appeared queued for its entire duration then jumped to completed. The worker now
+  commits the transition separately before starting.
+- **The result was destroyed by switching tabs.** `Pane` renders only the active tab, so
+  the run's outcome — held in component state — was discarded whenever the operator
+  looked at another pane. Synchronous runs hid this because the result arrived before
+  anyone could navigate. The pane now derives its state from the job itself via a query
+  keyed on the job id, so the result survives navigation and a page reload. Verified by
+  starting a run, leaving for the Layers pane, and returning to a fully populated
+  decision card.
+
+**Orphaned jobs.** Work lives in an in-memory executor while status lives in the
+database, so a crash would leave rows claiming RUNNING with nothing left to finish them.
+`StaleJobSweeper` fails those at startup rather than requeueing, so the operator decides
+whether to re-run. Graceful shutdown still drains in-flight work first.
+
+**Queue overflow** returns 503 and marks the job failed with a readable message, rather
+than running the task on the request thread and undoing the whole change.
+
+**Tests:** 197 Java (three new for the sweeper), 23 frontend. The controller test now
+asserts 202 and that the job is actually handed to a worker — a queued job nobody
+submits would sit untouched forever.
+
+**Still open:** progress percentages are coarse (10/35/70/85) and come from fixed points
+in the pipeline rather than real solver progress.
+
+## 5.6 Results announced before they were readable (done 2026-08-15)
+
+**Symptom:** at the end of a run the UI reported success and the decision summary appeared,
+but the map stayed empty. A page reload showed the full network, so the data was clearly
+being produced and stored correctly.
+
+**Cause:** `OptimizationJobService.executeJob` is `@Transactional`, so the routes and poles it
+writes are invisible outside its own connection until it commits. It pushed the terminal SSE
+event from *inside* that transaction. The browser reacted immediately, fetched
+`/jobs/{id}/routes/geojson` and `/poles/geojson` on other connections, and legitimately got
+zero features back — then cached those empty answers. Measured live on the pre-fix build: the
+client received `feats=0` for both while the database already held 38 routes and 606 poles for
+that same job.
+
+**Fix:** `completeAfterCommit` defers the announcement to an `afterCompletion` synchronization,
+so the client is told the run finished only once its results are visible to everyone. A rollback
+is announced as a failure rather than dropped, which previously would have left the client
+waiting forever.
+
+The frontend now also loads the finished run into the query cache *before* pointing the map at
+it. Switching first and invalidating afterwards could not work: the query for the new job did
+not exist yet, so the invalidation had nothing to refetch and the map mounted an empty result.
+
+**Verified:** the same fetch made the instant the SSE stream announces completion now returns
+`routes=38 poles=606`. Through the UI, after an in-session run with no reload, the map holds 38
+route features with per-feeder colours and 606 poles split 483/84/27/12 across the intermediate,
+angle, junction and terminal layers.
+
+**Not verified:** the painted canvas. The automation pane runs hidden, `document.hidden` is
+true and `requestAnimationFrame` never fires, so Leaflet's canvas renderer cannot repaint there.
+Layer membership was checked instead. Canvas painting itself was confirmed working in the same
+pane on initial load.
+
+**Also changed:** the Leaflet map now uses `preferCanvas`. A completed run places 606 poles,
+which as `circleMarker`s were 606 individual SVG elements to create, style and reflow on every
+result change.
+
+## 5.7 Pre-deployment security checklist (agreed 2026-08-15, not yet done)
+
+Deferred deliberately — to be completed **before** the first real deployment, not before further
+local work. Context: the app was briefly exposed over a Cloudflare tunnel on 2026-08-15, which is
+how the two fixed items below were found.
+
+**Already fixed and committed (5d66566):** the JWT signing key has no default and the service
+refuses to start without `APP_JWT_SECRET`; the authentication filter resolves the account behind
+the token, so disabling, demoting or resetting a user takes effect immediately instead of a day
+later.
+
+**Outstanding, in priority order:**
+
+1. ~~**Credential defaults still ship insecure.**~~ **DONE 2026-08-16.** `SURGE_BOOTSTRAP_ADMIN_PASSWORD` defaults to
+   `admin` in `application.yml`, and `DB_PASSWORD` defaults to `postgres` in `docker-compose.yml`.
+   A fresh database therefore seeds `admin`/`admin` — exactly the hole that was publicly reachable
+   during the tunnel test. Rotating the live instance did not change this; only a new deployment
+   is affected. Give both the same fail-fast treatment `APP_JWT_SECRET` now has.
+
+2. ~~**No brute-force protection on login.**~~ **DONE 2026-08-16.** Verified empirically: eight rapid failed attempts all
+   returned 400 with no throttling, lockout or delay. With an 8-character minimum and unlimited
+   attempts, an exposed login page is guessable at leisure — `tester`/`tester123` was guessed by
+   hand on the second try. A per-IP delay after ~5 failures is enough to change the economics.
+
+3. **No TLS of its own.** nginx serves plain HTTP and tokens travel in headers, so whatever sits
+   in front must terminate TLS.
+
+**Also outstanding, from the same incident:** `engineer`/`engineer123` is in the public git
+history at `12d5be5` — the account is disabled locally but that password must be treated as burned
+wherever it was reused, as must the old JWT signing constant. The `viewer` account is still
+enabled and its password is unknown.
+
+**Never reviewed at all.** These fixes came from following up an exposure, not from a systematic
+audit. The KMZ upload path (archive and XML handling on 25 MB untrusted files), cross-user project
+access, and the export endpoints have had no security review. Acceptable for internal use behind a
+VPN; not for a public URL holding client survey data.
+
+## 6. Explicitly out of scope for this pass
+
+Carried forward unchanged from `whats-next.md` §5/§11 and
+`Surge MVP Ticket Plan.md`'s "Explicit post-MVP work" — do not pull these
+forward while Tiers 1–4 are open:
+
+- A fifth "spatial impact" scoring metric (land/environmental scenarios use
+  the routing-cost-bias mechanism instead, per §2.1).
+- ML/Pareto ranking, N-1 analysis, automatic electrical repair.
+- Terrain/DEM slope costs, conductor sag/structural pole design.
+- Detailed BoQ, additional export formats beyond the existing CSV/PDF.
+- Production security hardening beyond the ownership check in Tier 2 (rate
+  limiting, secrets rotation, etc.).
+- Live third-party road/parcel data acquisition.
+
+---
+
+## 7. Suggested execution order
+
+1. ~~**Tier 1** (scenarios real)~~ — **done 2026-08-15**, see §2.4.
+2. ~~**Tier 3** (BOM losses + ROW area fixes)~~ — **done 2026-08-15**, see §4.3.
+3. ~~**Tier 2** (authorization)~~ — **done 2026-08-15**, see §3.3–§3.5.
+4. ~~**Tier 4** (tests)~~ — **done 2026-08-15**, see §5.4.
+
+**All four tiers are complete.** Remaining follow-ups, each recorded in its own section
+rather than left implicit: persist `rowWidthM` on the job (§4.3), converge the two
+right-of-way area implementations (§4.3), enforce `ROLE_VIEWER` beyond registration
+(§3.3), paginate the audit log (§3.5), and close the integration-test gap with
+Testcontainers plus the compose stack in CI (§5.4).
+
+## 8. Definition of done for this plan
+
+- All four scenario labels produce measurably different results on the
+  golden Uravakonda project, backed by an automated regression test.
+- No `/api/v1/projects/**` endpoint is reachable without authentication and
+  ownership checks.
+- BOM losses and parcel-impact figures match the real Pandapower/ROW-overlap
+  values shown elsewhere in the same job's results.
+- `npm run test` (frontend), `./mvnw verify` (Java), and `pytest` (Python)
+  all stay green in CI throughout, plus one new browser E2E test passes.
+- Every number above was verified against a live run, not asserted from a
+  planning document — the same standard this document was held to.

@@ -2,11 +2,19 @@
 
 import json
 from dataclasses import replace
+from pathlib import Path
+from types import SimpleNamespace
 
 import pyproj
 import pytest
 from shapely.geometry import LineString, Point, Polygon
 
+from app.contracts.resolution import (
+    SEARCH_DISABLED,
+    V0_PROFILE_RESOLUTION,
+    ProfileResolution,
+    ResponseContext,
+)
 from app.electrical.load_flow.models import (
     LoadFlowBusResult,
     LoadFlowFeederResult,
@@ -17,10 +25,12 @@ from app.electrical.load_flow.models import (
 )
 from app.gis.constraints import ConstraintLayer, ConstraintMode, ConstraintType
 from app.pnc.models import PNCFeeder, PNCSegment, ProjectPNCNetwork
+from app.presentation.design_truth import build_design_truth
 from app.presentation.exceptions import PresentationDataMismatchError
 from app.presentation.result_builder import build_project_result
 
 UTM_CRS = pyproj.CRS("EPSG:32643")
+CONTRACTS = Path(__file__).resolve().parents[2] / "contracts"
 
 
 def _valid_inputs() -> tuple[ProjectPNCNetwork, LoadFlowNetworkResult]:
@@ -106,6 +116,57 @@ def _valid_inputs() -> tuple[ProjectPNCNetwork, LoadFlowNetworkResult]:
         violations=(),
     )
     return pnc, load_flow
+
+
+def test_design_truth_matches_c2_fixture_and_preserves_v0() -> None:
+    pnc, _load_flow = _valid_inputs()
+    segment = replace(
+        pnc.feeders[0].segments[0],
+        segment_id="SEG-F1-001",
+        feeder_id="F1",
+    )
+    feeder = replace(pnc.feeders[0], feeder_id="F1", segments=(segment,))
+    pnc = replace(pnc, feeders=(feeder,))
+    action = SimpleNamespace(
+        segment_id="SEG-F1-001",
+        original_cable_type_id="SMALL",
+        upgraded_cable_type_id="LARGE",
+        reason_code="VOLTAGE_VIOLATION",
+        trigger_violation_type="OVERVOLTAGE",
+        repair_iteration=1,
+    )
+    candidate = SimpleNamespace(
+        scenario=SimpleNamespace(scenario_id="SCN-001", network=pnc),
+        cable_sizing=SimpleNamespace(segment_cable_type_ids={"SEG-F1-001": "SMALL"}),
+        repair_log=(action,),
+    )
+    workflow = SimpleNamespace(
+        recommendation=SimpleNamespace(recommended_scenario_id="SCN-001"),
+        candidates=(candidate,),
+    )
+    v0_context = ResponseContext(
+        profile=V0_PROFILE_RESOLUTION,
+        search=SEARCH_DISABLED,
+        profiles_enabled=False,
+        search_enabled=False,
+    )
+    profile_context = replace(
+        v0_context,
+        profile=ProfileResolution(profile_id="balanced", profile_version="1"),
+        profiles_enabled=True,
+    )
+
+    assert build_design_truth(workflow, v0_context) is None  # type: ignore[arg-type]
+
+    result = build_design_truth(workflow, profile_context)  # type: ignore[arg-type]
+    fixture = json.loads(
+        (CONTRACTS / "fixtures/response/additive-blocks.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert result is not None
+    assert result.model_dump(mode="json") == fixture["design_truth"]
 
 
 def test_build_project_result_success() -> None:

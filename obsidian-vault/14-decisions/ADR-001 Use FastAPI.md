@@ -57,7 +57,7 @@ graph LR
 1. **Native Pydantic v2 Integration**: Automatic schema validation, strict type coercion, and OpenAPI 3.0 specification generation directly from Python type hints.
 2. **Dual-Version Support**: Clean routing architecture supporting canonical rich endpoints (`POST /api/v2/optimise`) alongside backward-compatible legacy adapters (`POST /api/v1/optimise`).
 3. **Scientific Ecosystem Compatibility**: Seamless execution of CPU-bound NumPy, SciPy, Shapely, and Pandapower routines without heavy web framework boilerplate.
-4. **Independent Testability**: The service can be tested in complete isolation using `pytest` and Starlette's `TestClient` (achieving 601 passing tests with 0 Ruff errors and 0 Mypy issues).
+4. **Independent Testability**: The service can be tested in complete isolation using `pytest` and Starlette's `TestClient` (achieving 1,750 passing tests with 0 Ruff errors and 0 Mypy issues).
 5. **Clear Separation of Concerns**: Enterprise authorization, relational constraints, and database storage remain isolated from mathematical solver routines.
 
 ---

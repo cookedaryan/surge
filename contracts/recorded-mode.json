@@ -1,0 +1,8 @@
+{
+  "demo_modes": [
+    "LIVE",
+    "CLEARING",
+    "RECORDED"
+  ],
+  "schema_version": "1.0.0"
+}

@@ -1,0 +1,32 @@
+{
+  "profiles": [
+    {
+      "id": "minimum_cost",
+      "scenario_label": "Minimum Cost",
+      "versions": [
+        "1"
+      ]
+    },
+    {
+      "id": "minimum_land_impact",
+      "scenario_label": "Minimum Land Impact",
+      "versions": [
+        "1"
+      ]
+    },
+    {
+      "id": "minimum_environmental_impact",
+      "scenario_label": "Minimum Environmental Impact",
+      "versions": [
+        "1"
+      ]
+    },
+    {
+      "id": "balanced",
+      "scenario_label": "Balanced",
+      "versions": [
+        "1"
+      ]
+    }
+  ]
+}

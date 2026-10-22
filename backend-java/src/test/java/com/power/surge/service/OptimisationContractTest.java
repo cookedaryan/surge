@@ -93,7 +93,7 @@ class OptimisationContractTest {
                 substationRepository, referenceLineRepository, parcelRepository,
                 restrictedAreaRepository, routeService, poleService, pythonClient,
                 new ObjectMapper(), sseProgressService, auditLogService, cableCatalogueService,
-                costCatalogueService);
+                costCatalogueService, true);
     }
 
     private Polygon squareAt(double lon, double lat) {

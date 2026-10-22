@@ -6,6 +6,7 @@ from enum import StrEnum
 from numbers import Real
 from typing import Literal
 
+from app.contracts.profiles import ProfileDefinition
 from app.costing.models import CandidateCostAssessment
 from app.electrical.cable_sizing import CableSizingResult
 from app.electrical.load_flow.models import LoadFlowNetworkResult
@@ -89,6 +90,11 @@ class CandidateScoringConfig:
     electrical_weight: float
     spatial_subweights: SpatialScoringWeights
     electrical_subweights: ElectricalScoringWeights
+    # The resolved profile, when one drives this run. ``None`` is V0: the weights
+    # above decide, exactly as before. ``resolve_profile`` attaches a profile through
+    # the S2 ``configure`` seam, because ``OptimisationConfig`` is frozen and the
+    # orchestrator belongs to L2, so neither can carry it.
+    profile: ProfileDefinition | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.policy_mode, ScoringPolicyMode):

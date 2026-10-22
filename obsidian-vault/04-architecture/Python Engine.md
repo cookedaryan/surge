@@ -1,7 +1,7 @@
 # Python Optimization Engine (FastAPI Microservice)
 
 > [!success] Implementation Status: Implemented
-> The Python optimization engine (`optimisation-python`) is a stateless computational microservice built on FastAPI, Python 3.11, NetworkX, NumPy, SciPy, Shapely, and Pandapower. It contains 104 source files and 601 automated tests covering geospatial transformations, capacity-constrained clustering, cost-surface A* routing, physical pole placement, AC load-flow screening, candidate scoring, and lifecycle costing.
+> The Python optimization engine (`optimisation-python`) is a stateless computational microservice built on FastAPI, Python 3.11, NetworkX, NumPy, SciPy, Shapely, and Pandapower. It contains 148 source files and 1,750 automated tests covering geospatial transformations, capacity-constrained clustering, cost-surface A* routing, physical pole placement, AC load-flow screening, candidate scoring, and lifecycle costing.
 
 ```mermaid
 graph TD

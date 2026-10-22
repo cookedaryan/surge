@@ -1,0 +1,10 @@
+# Contract C10: paths L1 may edit in Phase 1 (see the L1 worktree plan §6).
+
+optimisation-python/tests/regression/v0/**
+optimisation-python/tests/fixtures/v0_golden/**
+optimisation-python/tests/test_generation_mst_invariance.py
+optimisation-python/scripts/catalogue_preflight.py
+optimisation-python/tests/test_catalogue_preflight.py
+
+web-map-next/src/features/optimization/ClaimDisclosure.tsx
+web-map-next/src/features/optimization/ClaimDisclosure.test.tsx

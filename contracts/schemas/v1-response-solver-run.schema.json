@@ -1,0 +1,89 @@
+{
+  "$defs": {
+    "SolverStatus": {
+      "description": "Outcome of one MILP solve.\n\n``LIMIT_REACHED`` must never be treated as ``INFEASIBLE``: a limit that\nstops a solve says nothing about whether that feeder count is feasible.",
+      "enum": [
+        "OPTIMAL",
+        "INFEASIBLE",
+        "LIMIT_REACHED",
+        "UNBOUNDED",
+        "ERROR"
+      ],
+      "title": "SolverStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "One grouping MILP solve (WP4-6).",
+  "properties": {
+    "feeder_count": {
+      "minimum": 1,
+      "title": "Feeder Count",
+      "type": "integer"
+    },
+    "limit_reached": {
+      "title": "Limit Reached",
+      "type": "boolean"
+    },
+    "mip_gap": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mip Gap"
+    },
+    "node_limit": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Node Limit"
+    },
+    "objective": {
+      "title": "Objective",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/SolverStatus"
+    },
+    "time_limit_s": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Time Limit S"
+    },
+    "wall_time_s": {
+      "minimum": 0,
+      "title": "Wall Time S",
+      "type": "number"
+    }
+  },
+  "required": [
+    "objective",
+    "feeder_count",
+    "status",
+    "wall_time_s",
+    "limit_reached"
+  ],
+  "title": "SolverRun",
+  "type": "object"
+}

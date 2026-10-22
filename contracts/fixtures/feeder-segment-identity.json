@@ -1,0 +1,107 @@
+{
+  "description": "V1 feeder_routes_geojson segment features and how Java must persist and aggregate them.",
+  "expected_bom_segment_count_by_feeder": {
+    "F1": 2,
+    "F2": 1
+  },
+  "expected_route_rows": [
+    {
+      "feederName": "F1",
+      "segmentId": "SEG-F1-001"
+    },
+    {
+      "feederName": "F1",
+      "segmentId": "SEG-F1-002"
+    },
+    {
+      "feederName": "F2",
+      "segmentId": "SEG-F2-001"
+    }
+  ],
+  "feeder_routes_geojson": {
+    "features": [
+      {
+        "geometry": {
+          "coordinates": [
+            [
+              77.1,
+              14.3
+            ],
+            [
+              77.11,
+              14.31
+            ]
+          ],
+          "type": "LineString"
+        },
+        "id": "SEG-F1-001",
+        "properties": {
+          "edge": "substation:SS-wtg:T1",
+          "feature_type": "pnc_segment",
+          "feederName": "F1",
+          "feeder_id": "F1",
+          "from_node": "substation:SS",
+          "length_m": 1000.0,
+          "segment_id": "SEG-F1-001",
+          "to_node": "wtg:T1"
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            [
+              77.1,
+              14.3
+            ],
+            [
+              77.11,
+              14.31
+            ]
+          ],
+          "type": "LineString"
+        },
+        "id": "SEG-F1-002",
+        "properties": {
+          "edge": "wtg:T1-wtg:T2",
+          "feature_type": "pnc_segment",
+          "feederName": "F1",
+          "feeder_id": "F1",
+          "from_node": "wtg:T1",
+          "length_m": 1000.0,
+          "segment_id": "SEG-F1-002",
+          "to_node": "wtg:T2"
+        },
+        "type": "Feature"
+      },
+      {
+        "geometry": {
+          "coordinates": [
+            [
+              77.1,
+              14.3
+            ],
+            [
+              77.11,
+              14.31
+            ]
+          ],
+          "type": "LineString"
+        },
+        "id": "SEG-F2-001",
+        "properties": {
+          "edge": "substation:SS-wtg:T3",
+          "feature_type": "pnc_segment",
+          "feederName": "F2",
+          "feeder_id": "F2",
+          "from_node": "substation:SS",
+          "length_m": 1000.0,
+          "segment_id": "SEG-F2-001",
+          "to_node": "wtg:T3"
+        },
+        "type": "Feature"
+      }
+    ],
+    "type": "FeatureCollection"
+  }
+}

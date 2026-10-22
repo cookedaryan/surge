@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "BundleHashes": {
+      "additionalProperties": false,
+      "properties": {
+        "catalogue_sha256": {
+          "title": "Catalogue Sha256",
+          "type": "string"
+        },
+        "code_revisions": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1,
+          "title": "Code Revisions",
+          "type": "object"
+        },
+        "evidence_schema_version": {
+          "title": "Evidence Schema Version",
+          "type": "string"
+        },
+        "image_digests": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1,
+          "title": "Image Digests",
+          "type": "object"
+        },
+        "profile_definition_sha256": {
+          "title": "Profile Definition Sha256",
+          "type": "string"
+        },
+        "request_sha256": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1,
+          "title": "Request Sha256",
+          "type": "object"
+        },
+        "response_schema_version": {
+          "title": "Response Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_sha256",
+        "profile_definition_sha256",
+        "code_revisions",
+        "image_digests",
+        "catalogue_sha256",
+        "response_schema_version",
+        "evidence_schema_version"
+      ],
+      "title": "BundleHashes",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "bundle_id": {
+      "minLength": 1,
+      "title": "Bundle Id",
+      "type": "string"
+    },
+    "cohort_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Cohort Hash"
+    },
+    "hashes": {
+      "$ref": "#/$defs/BundleHashes"
+    },
+    "on_screen_label": {
+      "minLength": 1,
+      "title": "On Screen Label",
+      "type": "string"
+    },
+    "recorded_at": {
+      "minLength": 1,
+      "title": "Recorded At",
+      "type": "string"
+    },
+    "release_candidate_tag": {
+      "minLength": 1,
+      "title": "Release Candidate Tag",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "winner_final_design_fingerprints": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "minProperties": 1,
+      "title": "Winner Final Design Fingerprints",
+      "type": "object"
+    }
+  },
+  "required": [
+    "bundle_id",
+    "recorded_at",
+    "release_candidate_tag",
+    "hashes",
+    "winner_final_design_fingerprints",
+    "cohort_hash",
+    "on_screen_label"
+  ],
+  "title": "RecordedBundleManifest",
+  "type": "object"
+}

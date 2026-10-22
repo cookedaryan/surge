@@ -1,7 +1,7 @@
 # Frontend Architecture (React Web GIS Client)
 
 > [!success] Implementation Status: Implemented (`web-map-next`)
-> The active SURGE web frontend is **`web-map-next`**, a high-performance React 18 and TypeScript application built with Vite, Leaflet (`preferCanvas: true`), TanStack Query v5, Zustand v4, Radix UI, and Tailwind CSS v3. It contains 81 source files and 144 Vitest unit tests.
+> The active SURGE web frontend is **`web-map-next`**, a high-performance React 18 and TypeScript application built with Vite, Leaflet (`preferCanvas: true`), TanStack Query v5, Zustand v4, Radix UI, and Tailwind CSS v3. It contains 82 source files and 144 Vitest unit tests.
 > 
 > *Note: The legacy vanilla JavaScript `web-map` directory is preserved solely for historical reference and is deprecated.*
 

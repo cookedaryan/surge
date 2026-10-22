@@ -1,0 +1,56 @@
+{
+  "request_id": "REQ-MVP-001",
+  "status": "failed",
+  "scenario": "Balanced",
+  "metrics": {
+    "feeder_count": 0,
+    "total_length_m": 0.0,
+    "message": "Optimisation completed with workflow status NO_FEASIBLE_CANDIDATE."
+  },
+  "schema_version": "2.0",
+  "workflow_status": "NO_FEASIBLE_CANDIDATE",
+  "generation": {
+    "requested_candidate_count": 3,
+    "accepted_candidate_count": 1,
+    "attempts": 5
+  },
+  "candidates": [
+    {
+      "scenario_id": "SCN-001",
+      "parameter_set_id": "PS-001",
+      "strategy": "baseline",
+      "topology_fingerprint": "v1:9e489ef46876fcd57813b8ecbd0d1ba474296c0d1b947d2007601f5ee135c2a4",
+      "execution_failure": {
+        "code": "ELECTRICAL_VALIDATION_FAILED",
+        "message": "Electrical repair failed (REPAIR_EXHAUSTED) with no violation reported.",
+        "details": {
+          "status": "REPAIR_EXHAUSTED",
+          "summary": "Electrical repair failed (REPAIR_EXHAUSTED) with no violation reported.",
+          "no_upgrade_reason_code": "CABLE_SIZING_FAILED",
+          "no_upgrade_reason": "Initial cable sizing failed, so no repair was attempted at all.",
+          "unresolved_violations": [],
+          "repair_attempts": [],
+          "largest_cable_available": {
+            "cable_type_id": "66kV_800mm2",
+            "effective_ampacity_a": 368.0,
+            "parallel_count": 1
+          },
+          "catalogue_size": 1
+        }
+      }
+    }
+  ],
+  "failures": [
+    {
+      "stage": "ELECTRICAL_VALIDATION",
+      "code": "ELECTRICAL_VALIDATION_FAILED",
+      "message": "Electrical repair failed (REPAIR_EXHAUSTED) with no violation reported.",
+      "scenario_id": "SCN-001"
+    }
+  ],
+  "_provenance": {
+    "base_sha": "8ceda7f",
+    "fixture": "tests/fixtures/mvp_demo_project_v2.json",
+    "captured_at": "2026-09-17T15:43:43.451762+00:00"
+  }
+}

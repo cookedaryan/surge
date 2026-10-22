@@ -1,0 +1,717 @@
+{
+  "request_id": "REQ-CONSTRAINT-DEMO-001",
+  "status": "success",
+  "scenario": "Balanced",
+  "feeder_routes_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "segment-SEG-FDR001-0001",
+        "properties": {
+          "feature_type": "pnc_segment",
+          "segment_id": "SEG-FDR001-0001",
+          "feeder_id": "FDR-001",
+          "from_node": "substation:SUB1",
+          "to_node": "wtg:T01",
+          "length_m": 231.549,
+          "segment_type": "substation_to_wtg",
+          "project_id": "CONSTRAINT-DEMO",
+          "current_from_a": 92.16,
+          "current_to_a": 92.08,
+          "maximum_current_a": 500.0,
+          "loading_percent": 18.43,
+          "active_loss_mw": 0.000177,
+          "electrical_losses_kw": 0.1768,
+          "reactive_loss_mvar": -0.015255,
+          "from_voltage_pu": 1.0,
+          "to_voltage_pu": 1.0001,
+          "has_cable_overload": false,
+          "feederName": "FDR-001",
+          "edge": "substation:SUB1-wtg:T01",
+          "traversal_cost": 231.549,
+          "original_length_m": 231.549,
+          "refined_length_m": 231.549,
+          "original_traversal_cost": 231.549,
+          "refined_traversal_cost": 231.549
+        },
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [
+              -1.0000000000000002,
+              52.001999999999995
+            ],
+            [
+              -0.9996620876864343,
+              52.001409762061456
+            ],
+            [
+              -0.9997101683582464,
+              52.00033150528565
+            ],
+            [
+              -1.0000000000000007,
+              52.0
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  "poles_geojson": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "pole-FDR-001-P002",
+        "properties": {
+          "feature_type": "pnc_pole",
+          "pole_id": "FDR-001-P002",
+          "connected_feeder_ids": [
+            "FDR-001"
+          ],
+          "connected_route_ids": [
+            "SEG-FDR001-0001"
+          ],
+          "source_pole_ids": [
+            "FDR-001-P002"
+          ],
+          "pole_role": "angle",
+          "recommended_pole_type": "33kV angle/tension pole",
+          "connected_node_ids": [],
+          "poleId": "FDR-001-P002",
+          "feederName": "FDR-001",
+          "feederIds": [
+            "FDR-001"
+          ],
+          "poleRole": "angle",
+          "recommendedPoleType": "33kV angle/tension pole"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.9996620876864343,
+            52.001409762061456
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "pole-FDR-001-P003",
+        "properties": {
+          "feature_type": "pnc_pole",
+          "pole_id": "FDR-001-P003",
+          "connected_feeder_ids": [
+            "FDR-001"
+          ],
+          "connected_route_ids": [
+            "SEG-FDR001-0001"
+          ],
+          "source_pole_ids": [
+            "FDR-001-P003"
+          ],
+          "pole_role": "intermediate",
+          "recommended_pole_type": "33kV tangent/suspension pole",
+          "connected_node_ids": [],
+          "poleId": "FDR-001-P003",
+          "feederName": "FDR-001",
+          "feederIds": [
+            "FDR-001"
+          ],
+          "poleRole": "intermediate",
+          "recommendedPoleType": "33kV tangent/suspension pole"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.9996861283995108,
+            52.00087063370232
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "pole-FDR-001-P004",
+        "properties": {
+          "feature_type": "pnc_pole",
+          "pole_id": "FDR-001-P004",
+          "connected_feeder_ids": [
+            "FDR-001"
+          ],
+          "connected_route_ids": [
+            "SEG-FDR001-0001"
+          ],
+          "source_pole_ids": [
+            "FDR-001-P004"
+          ],
+          "pole_role": "angle",
+          "recommended_pole_type": "33kV angle/tension pole",
+          "connected_node_ids": [],
+          "poleId": "FDR-001-P004",
+          "feederName": "FDR-001",
+          "feederIds": [
+            "FDR-001"
+          ],
+          "poleRole": "angle",
+          "recommendedPoleType": "33kV angle/tension pole"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -0.9997101683582464,
+            52.00033150528565
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "pole-FDR-001-P001",
+        "properties": {
+          "feature_type": "pnc_pole",
+          "pole_id": "FDR-001-P001",
+          "connected_feeder_ids": [
+            "FDR-001"
+          ],
+          "connected_route_ids": [
+            "SEG-FDR001-0001"
+          ],
+          "source_pole_ids": [
+            "FDR-001-P001"
+          ],
+          "pole_role": "terminal",
+          "recommended_pole_type": "33kV terminal/dead-end pole",
+          "connected_node_ids": [
+            "substation:SUB1"
+          ],
+          "poleId": "FDR-001-P001",
+          "feederName": "FDR-001",
+          "feederIds": [
+            "FDR-001"
+          ],
+          "poleRole": "terminal",
+          "recommendedPoleType": "33kV terminal/dead-end pole"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -1.0000000000000002,
+            52.001999999999995
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "pole-FDR-001-P005",
+        "properties": {
+          "feature_type": "pnc_pole",
+          "pole_id": "FDR-001-P005",
+          "connected_feeder_ids": [
+            "FDR-001"
+          ],
+          "connected_route_ids": [
+            "SEG-FDR001-0001"
+          ],
+          "source_pole_ids": [
+            "FDR-001-P005"
+          ],
+          "pole_role": "terminal",
+          "recommended_pole_type": "33kV terminal/dead-end pole",
+          "connected_node_ids": [
+            "wtg:T01"
+          ],
+          "poleId": "FDR-001-P005",
+          "feederName": "FDR-001",
+          "feederIds": [
+            "FDR-001"
+          ],
+          "poleRole": "terminal",
+          "recommendedPoleType": "33kV terminal/dead-end pole"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            -1.0000000000000007,
+            52.0
+          ]
+        }
+      }
+    ]
+  },
+  "metrics": {
+    "feeder_count": 1,
+    "total_length_m": 231.549,
+    "message": "Pipeline completed. Recommended candidate selected by the end-to-end workflow. Projected from EPSG:32630."
+  },
+  "schema_version": "2.0",
+  "workflow_status": "SUCCESS",
+  "generation": {
+    "requested_candidate_count": 1,
+    "accepted_candidate_count": 1,
+    "attempts": 1
+  },
+  "candidates": [
+    {
+      "scenario_id": "SCN-001",
+      "parameter_set_id": "PS-001",
+      "strategy": "baseline",
+      "topology_fingerprint": "v1:9211c2d1408c165a589bd78ae9beb3f00d55c0d057a3edaff4bab52de7f20d5b",
+      "electrical_status": "VALID",
+      "eligible": true,
+      "rank": 1,
+      "total_benefit_score": 0.0,
+      "raw_metrics": {
+        "total_route_length_m": 231.54865300531458,
+        "total_active_loss_mw": 0.00017683950837454887,
+        "maximum_loading_percent": 18.4324265185226,
+        "voltage_margin_pu": 0.04993300362963482
+      },
+      "engineering_metrics": {
+        "total_route_length_m": 231.54865300531458,
+        "total_traversal_cost": 396.3530580243553,
+        "affected_parcel_count": 0,
+        "owner_interaction_count": 0,
+        "road_crossing_count": 1,
+        "soft_constraint_overlap_length_m": 10.003785519860685,
+        "environmental_overlap_m2": 0.0,
+        "physical_pole_count": 5,
+        "total_active_loss_mw": 0.00017683950837454887,
+        "maximum_loading_percent": 18.4324265185226,
+        "voltage_margin_pu": 0.04993300362963482
+      },
+      "group_scores": [
+        {
+          "group": "PHYSICAL",
+          "group_score": 0.0,
+          "group_weight": 0.4,
+          "weighted_score": 0.0
+        },
+        {
+          "group": "SPATIAL",
+          "group_score": 0.0,
+          "group_weight": 0.0,
+          "weighted_score": 0.0
+        },
+        {
+          "group": "INFRASTRUCTURE",
+          "group_score": 0.0,
+          "group_weight": 0.0,
+          "weighted_score": 0.0
+        },
+        {
+          "group": "ELECTRICAL",
+          "group_score": 0.0,
+          "group_weight": 0.6,
+          "weighted_score": 0.0
+        }
+      ],
+      "disqualifications": [],
+      "cable_sizing": {
+        "assignments": [
+          {
+            "segment_id": "SEG-FDR001-0001",
+            "downstream_active_power_mw": 5.0,
+            "downstream_reactive_power_mvar": 1.643420525894317,
+            "sizing_basis": "APPARENT_POWER",
+            "assumed_power_factor": null,
+            "nominal_voltage_kv": 33.0,
+            "required_current_a": 92.08138264587335,
+            "selected_cable_type_id": "33kV-demo",
+            "base_ampacity_a": 500.0,
+            "derating_factor": 1.0,
+            "parallel_count": 1,
+            "effective_ampacity_a": 500.0,
+            "utilization_fraction": 0.1841627652917467
+          }
+        ],
+        "segment_cable_type_ids": {
+          "SEG-FDR001-0001": "33kV-demo"
+        }
+      },
+      "land": {
+        "parcel_count": 0,
+        "owner_interaction_count": 0,
+        "owner_interaction_basis": "PARCEL_PROXY",
+        "unknown_owner_count": 0,
+        "unavailable_parcel_ids": [],
+        "land_cost_basis": "UNKNOWN",
+        "is_feasible": true,
+        "parcel_decisions": []
+      }
+    }
+  ],
+  "recommendation": {
+    "recommended_scenario_id": "SCN-001",
+    "engineering_best_scenario_id": "SCN-001",
+    "policy": "LEGACY_COMPATIBILITY",
+    "normalization_ranges": {
+      "ROUTE_LENGTH": {
+        "minimum": 231.54865300531458,
+        "maximum": 231.54865300531458
+      },
+      "TRAVERSAL_COST": {
+        "minimum": 396.3530580243553,
+        "maximum": 396.3530580243553
+      },
+      "AFFECTED_PARCEL_COUNT": {
+        "minimum": 0.0,
+        "maximum": 0.0
+      },
+      "ROAD_CROSSING_COUNT": {
+        "minimum": 1.0,
+        "maximum": 1.0
+      },
+      "SOFT_CONSTRAINT_OVERLAP_LENGTH": {
+        "minimum": 10.003785519860685,
+        "maximum": 10.003785519860685
+      },
+      "OWNER_INTERACTION_COUNT": {
+        "minimum": 0.0,
+        "maximum": 0.0
+      },
+      "PHYSICAL_POLE_COUNT": {
+        "minimum": 5.0,
+        "maximum": 5.0
+      },
+      "ACTIVE_LOSS": {
+        "minimum": 0.00017683950837454887,
+        "maximum": 0.00017683950837454887
+      },
+      "CABLE_LOADING": {
+        "minimum": 18.4324265185226,
+        "maximum": 18.4324265185226
+      },
+      "VOLTAGE_MARGIN": {
+        "minimum": 0.04993300362963482,
+        "maximum": 0.04993300362963482
+      }
+    },
+    "reasons": [
+      "Only one candidate satisfied all eligibility checks"
+    ],
+    "reason_details": [
+      {
+        "code": "ONLY_ELIGIBLE_CANDIDATE",
+        "message": "Only one candidate satisfied all eligibility checks"
+      }
+    ],
+    "baseline_comparisons": {
+      "ROUTE_LENGTH": 0.0,
+      "TRAVERSAL_COST": 0.0,
+      "AFFECTED_PARCEL_COUNT": 0.0,
+      "ROAD_CROSSING_COUNT": 0.0,
+      "SOFT_CONSTRAINT_OVERLAP_LENGTH": 0.0,
+      "OWNER_INTERACTION_COUNT": 0.0,
+      "PHYSICAL_POLE_COUNT": 0.0,
+      "ACTIVE_LOSS": 0.0,
+      "CABLE_LOADING": 0.0,
+      "VOLTAGE_MARGIN": 0.0
+    }
+  },
+  "recommended_result": {
+    "schema_version": "1.0.0",
+    "project_id": "CONSTRAINT-DEMO",
+    "network_summary": {
+      "wtg_count": 1,
+      "feeder_count": 1,
+      "segment_count": 1,
+      "total_route_length_m": 231.549
+    },
+    "pole_summary": {
+      "total_poles": 5,
+      "terminal_poles": 2,
+      "angle_poles": 2,
+      "intermediate_poles": 1,
+      "junction_poles": 0
+    },
+    "spatial_constraint_summary": {
+      "hard_exclusion_violation_count": 0,
+      "soft_constraint_intersection_count": 1,
+      "soft_constraint_overlap_length_m": 10.003785519860685,
+      "road_crossing_count": 1,
+      "affected_parcel_count": 0,
+      "affected_parcel_overlap_length_m": 0.0
+    },
+    "electrical_summary": {
+      "converged": true,
+      "valid": true,
+      "solver_algorithm": "nr",
+      "total_active_loss_mw": 0.000177,
+      "total_reactive_loss_mvar": -0.015255,
+      "minimum_voltage_pu": 1.0,
+      "maximum_voltage_pu": 1.0001,
+      "maximum_loading_percent": 18.43,
+      "violation_count": 0
+    },
+    "feeders": [
+      {
+        "feeder_id": "FDR-001",
+        "wtg_ids": [
+          "wtg:T01"
+        ],
+        "segment_ids": [
+          "SEG-FDR001-0001"
+        ],
+        "wtg_count": 1,
+        "segment_count": 1,
+        "route_length_m": 231.549,
+        "active_loss_mw": 0.000177,
+        "reactive_loss_mvar": -0.015255,
+        "minimum_voltage_pu": 1.0,
+        "maximum_voltage_pu": 1.0001,
+        "maximum_loading_percent": 18.43,
+        "valid": true,
+        "violations": []
+      }
+    ],
+    "violations": [],
+    "feature_collection": {
+      "type": "FeatureCollection",
+      "features": [
+        {
+          "type": "Feature",
+          "properties": {
+            "feature_type": "pnc_substation",
+            "substation_id": "substation:SUB1",
+            "project_id": "CONSTRAINT-DEMO",
+            "voltage_pu": 1.0,
+            "voltage_kv": 33.0,
+            "voltage_angle_degree": 0.0,
+            "net_active_power_demand_mw": 4.9998,
+            "net_reactive_power_demand_mvar": 1.6587,
+            "has_voltage_violation": false
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              -1.0000000000000002,
+              52.001999999999995
+            ]
+          },
+          "id": "substation-substation:SUB1"
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "feature_type": "pnc_wtg",
+            "wtg_id": "wtg:T01",
+            "feeder_id": "FDR-001",
+            "project_id": "CONSTRAINT-DEMO",
+            "voltage_pu": 1.0001,
+            "voltage_kv": 33.002,
+            "voltage_angle_degree": 0.01,
+            "net_active_power_demand_mw": -5.0,
+            "net_reactive_power_demand_mvar": -1.6434,
+            "has_voltage_violation": false
+          },
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              -1.0000000000000007,
+              52.0
+            ]
+          },
+          "id": "wtg-wtg:T01"
+        },
+        {
+          "type": "Feature",
+          "properties": {
+            "feature_type": "pnc_segment",
+            "segment_id": "SEG-FDR001-0001",
+            "feeder_id": "FDR-001",
+            "from_node": "substation:SUB1",
+            "to_node": "wtg:T01",
+            "length_m": 231.549,
+            "segment_type": "substation_to_wtg",
+            "project_id": "CONSTRAINT-DEMO",
+            "current_from_a": 92.16,
+            "current_to_a": 92.08,
+            "maximum_current_a": 500.0,
+            "loading_percent": 18.43,
+            "active_loss_mw": 0.000177,
+            "electrical_losses_kw": 0.1768,
+            "reactive_loss_mvar": -0.015255,
+            "from_voltage_pu": 1.0,
+            "to_voltage_pu": 1.0001,
+            "has_cable_overload": false
+          },
+          "geometry": {
+            "type": "LineString",
+            "coordinates": [
+              [
+                -1.0000000000000002,
+                52.001999999999995
+              ],
+              [
+                -0.9996620876864343,
+                52.001409762061456
+              ],
+              [
+                -0.9997101683582464,
+                52.00033150528565
+              ],
+              [
+                -1.0000000000000007,
+                52.0
+              ]
+            ]
+          },
+          "id": "segment-SEG-FDR001-0001"
+        },
+        {
+          "type": "Feature",
+          "id": "pole-FDR-001-P002",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              -0.9996620876864343,
+              52.001409762061456
+            ]
+          },
+          "properties": {
+            "feature_type": "pnc_pole",
+            "pole_id": "FDR-001-P002",
+            "connected_feeder_ids": [
+              "FDR-001"
+            ],
+            "connected_route_ids": [
+              "SEG-FDR001-0001"
+            ],
+            "source_pole_ids": [
+              "FDR-001-P002"
+            ],
+            "pole_role": "angle",
+            "recommended_pole_type": "33kV angle/tension pole",
+            "connected_node_ids": []
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "pole-FDR-001-P003",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              -0.9996861283995108,
+              52.00087063370232
+            ]
+          },
+          "properties": {
+            "feature_type": "pnc_pole",
+            "pole_id": "FDR-001-P003",
+            "connected_feeder_ids": [
+              "FDR-001"
+            ],
+            "connected_route_ids": [
+              "SEG-FDR001-0001"
+            ],
+            "source_pole_ids": [
+              "FDR-001-P003"
+            ],
+            "pole_role": "intermediate",
+            "recommended_pole_type": "33kV tangent/suspension pole",
+            "connected_node_ids": []
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "pole-FDR-001-P004",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              -0.9997101683582464,
+              52.00033150528565
+            ]
+          },
+          "properties": {
+            "feature_type": "pnc_pole",
+            "pole_id": "FDR-001-P004",
+            "connected_feeder_ids": [
+              "FDR-001"
+            ],
+            "connected_route_ids": [
+              "SEG-FDR001-0001"
+            ],
+            "source_pole_ids": [
+              "FDR-001-P004"
+            ],
+            "pole_role": "angle",
+            "recommended_pole_type": "33kV angle/tension pole",
+            "connected_node_ids": []
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "pole-FDR-001-P001",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              -1.0000000000000002,
+              52.001999999999995
+            ]
+          },
+          "properties": {
+            "feature_type": "pnc_pole",
+            "pole_id": "FDR-001-P001",
+            "connected_feeder_ids": [
+              "FDR-001"
+            ],
+            "connected_route_ids": [
+              "SEG-FDR001-0001"
+            ],
+            "source_pole_ids": [
+              "FDR-001-P001"
+            ],
+            "pole_role": "terminal",
+            "recommended_pole_type": "33kV terminal/dead-end pole",
+            "connected_node_ids": [
+              "substation:SUB1"
+            ]
+          }
+        },
+        {
+          "type": "Feature",
+          "id": "pole-FDR-001-P005",
+          "geometry": {
+            "type": "Point",
+            "coordinates": [
+              -1.0000000000000007,
+              52.0
+            ]
+          },
+          "properties": {
+            "feature_type": "pnc_pole",
+            "pole_id": "FDR-001-P005",
+            "connected_feeder_ids": [
+              "FDR-001"
+            ],
+            "connected_route_ids": [
+              "SEG-FDR001-0001"
+            ],
+            "source_pole_ids": [
+              "FDR-001-P005"
+            ],
+            "pole_role": "terminal",
+            "recommended_pole_type": "33kV terminal/dead-end pole",
+            "connected_node_ids": [
+              "wtg:T01"
+            ]
+          }
+        }
+      ],
+      "bbox": [
+        -1.0000000000000007,
+        52.0,
+        -0.9996620876864343,
+        52.001999999999995
+      ]
+    },
+    "source_crs": "EPSG:32630",
+    "recommended_candidate_repair_log": []
+  },
+  "failures": [],
+  "_provenance": {
+    "base_sha": "8ceda7f",
+    "fixture": "tests/fixtures/constraint_demo_project_v2.json",
+    "captured_at": "2026-09-17T15:43:41.835039+00:00"
+  }
+}

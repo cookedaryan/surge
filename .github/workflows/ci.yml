@@ -8,6 +8,25 @@ permissions:
   contents: read
 
 jobs:
+  # Demo-optimisation level branches (demo-opt/l1-*, l2-*, l3-*) may edit only the
+  # paths their contract C10 ownership map grants. Other branches skip this job.
+  ownership:
+    name: Level ownership
+    if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'demo-opt/l')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check changed paths against the level ownership map
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          suffix="${HEAD_REF#demo-opt/l}"
+          level="L${suffix%%-*}"
+          python3 scripts/ci/check_ownership.py --level "$level" --base "origin/$BASE_REF"
+
   backend:
     name: Java backend
     runs-on: ubuntu-latest

@@ -53,6 +53,7 @@ from app.algorithms.route_graph import (
     build_project_graph,
     turbine_node_id,
 )
+from app.algorithms.solver_models import SolverOptions
 from app.algorithms.wtg_grouping import (
     FeederGroupingResult,
     GroupingObjective,
@@ -610,11 +611,18 @@ class TestVariationReachesAlgorithms:
             *,
             random_state: int = 42,
             objective: GroupingObjective = GroupingObjective.MINIMIZE_DISTANCE,
+            solver_options: SolverOptions | None = None,
         ) -> FeederGroupingResult:
             recorded_calls.append(
                 {"random_state": random_state, "objective": objective}
             )
-            return group_wtgs(proj, cap, random_state=random_state, objective=objective)
+            return group_wtgs(
+                proj,
+                cap,
+                random_state=random_state,
+                objective=objective,
+                solver_options=solver_options,
+            )
 
         with patch(
             "app.optimisation.scenarios.group_wtgs",
@@ -638,9 +646,16 @@ class TestVariationReachesAlgorithms:
             *,
             random_state: int = 42,
             objective: GroupingObjective = GroupingObjective.MINIMIZE_DISTANCE,
+            solver_options: SolverOptions | None = None,
         ) -> FeederGroupingResult:
             recorded_seeds.append(random_state)
-            return group_wtgs(proj, cap, random_state=random_state, objective=objective)
+            return group_wtgs(
+                proj,
+                cap,
+                random_state=random_state,
+                objective=objective,
+                solver_options=solver_options,
+            )
 
         with patch(
             "app.optimisation.scenarios.group_wtgs",

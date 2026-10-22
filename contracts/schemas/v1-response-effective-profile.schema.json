@@ -1,0 +1,85 @@
+{
+  "additionalProperties": false,
+  "description": "The effective policy and flag state behind this response (WP3-7).",
+  "properties": {
+    "definition_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Definition Hash"
+    },
+    "generation_settings_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Generation Settings Hash"
+    },
+    "metric_registry_version": {
+      "title": "Metric Registry Version",
+      "type": "string"
+    },
+    "policy_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Policy Hash"
+    },
+    "profile_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Profile Id"
+    },
+    "profile_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Profile Version"
+    },
+    "profiles_enabled": {
+      "title": "Profiles Enabled",
+      "type": "boolean"
+    },
+    "search_enabled": {
+      "title": "Search Enabled",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "profile_id",
+    "profile_version",
+    "policy_hash",
+    "definition_hash",
+    "metric_registry_version",
+    "generation_settings_hash",
+    "profiles_enabled",
+    "search_enabled"
+  ],
+  "title": "EffectiveProfile",
+  "type": "object"
+}

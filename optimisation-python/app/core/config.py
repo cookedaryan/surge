@@ -18,6 +18,17 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
+    # Contract C5 deployment flags. Server-side only, default off, and
+    # independently rollbackable. Environment: SURGE_PROFILES_ENABLED and
+    # SURGE_SEARCH_ENABLED.
+    surge_profiles_enabled: bool = False
+    surge_search_enabled: bool = False
+
+    @property
+    def new_generation_schedule_enabled(self) -> bool:
+        """C5/C12 gating rule: the new schedule runs only when either flag is on."""
+        return self.surge_profiles_enabled or self.surge_search_enabled
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

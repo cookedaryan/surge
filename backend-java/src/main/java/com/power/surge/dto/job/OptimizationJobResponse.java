@@ -21,8 +21,33 @@ public record OptimizationJobResponse(
         String resultSummaryJson,
         Instant createdAt,
         Instant startedAt,
-        Instant completedAt
+        Instant completedAt,
+        /** The policy behind the recommendation (C2), or null when the job has none recorded. */
+        EffectiveProfileResponse effectiveProfile
 ) {
+
+    /** A job with no recorded policy: the shape this response had before profiles existed. */
+    public OptimizationJobResponse(
+            UUID id,
+            UUID projectId,
+            JobStatus status,
+            String algorithmType,
+            String scenario,
+            BigDecimal capexWeight,
+            BigDecimal lossesWeight,
+            BigDecimal maxSpanMeters,
+            BigDecimal voltageKv,
+            String errorMessage,
+            String resultSummaryJson,
+            Instant createdAt,
+            Instant startedAt,
+            Instant completedAt
+    ) {
+        this(id, projectId, status, algorithmType, scenario, capexWeight, lossesWeight,
+                maxSpanMeters, voltageKv, errorMessage, resultSummaryJson, createdAt, startedAt,
+                completedAt, null);
+    }
+
     public static OptimizationJobResponse fromEntity(OptimizationJob job) {
         return new OptimizationJobResponse(
                 job.getId(),
@@ -38,7 +63,8 @@ public record OptimizationJobResponse(
                 job.getResultSummaryJson(),
                 job.getCreatedAt(),
                 job.getStartedAt(),
-                job.getCompletedAt()
+                job.getCompletedAt(),
+                EffectiveProfileResponse.fromEntity(job)
         );
     }
 }

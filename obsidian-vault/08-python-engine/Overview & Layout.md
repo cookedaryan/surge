@@ -3,7 +3,7 @@
 The **SURGE Python GIS & Optimization Service** (located under `optimisation-python/`) is a high-performance spatial optimization, electrical simulation, and multi-objective routing microservice built with **FastAPI**, **NetworkX**, **Shapely**, **PyProj**, **SciPy**, and **Pandapower** running on **Python 3.11**.
 
 > [!note] Status & Test Coverage (as of 2026-08-16)
-> The microservice consists of **104 source files** across 12 domain packages and **601 automated tests** spanning 28+ test suites in `tests/` (including comprehensive V1 and V2 API integration suites).
+> The microservice consists of **148 source files** across 12 domain packages and **1,750 automated tests** spanning 28+ test suites in `tests/` (including comprehensive V1 and V2 API integration suites).
 
 ---
 
@@ -118,7 +118,7 @@ optimisation-python/
 │   └── utils/
 │       ├── __init__.py
 │       └── coordinate_transform.py            # Low-level coordinate transformation helpers
-└── tests/                                     # Automated test suites (601 tests)
+└── tests/                                     # Automated test suites (1,750 tests)
     ├── api/
     │   ├── test_optimise_v1.py                # V1 API compatibility & constraint regression tests
     │   └── test_optimise_v2.py                # V2 API multi-candidate & schema tests

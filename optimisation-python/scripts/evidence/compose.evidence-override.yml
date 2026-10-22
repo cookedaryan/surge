@@ -1,0 +1,24 @@
+# WP0B-8: isolates a measurement stack from any developer stack, as the Stage 0
+# clean-start check did. Unique container names, remapped host ports, and no
+# restart, so a failed service stays failed instead of being retried unseen.
+services:
+  db:
+    container_name: surge-evidence-postgis
+    restart: "no"
+    ports: !override
+      - "25432:5432"
+  backend:
+    container_name: surge-evidence-backend
+    restart: "no"
+    ports: !override
+      - "28080:8080"
+  optimizer:
+    container_name: surge-evidence-optimizer
+    restart: "no"
+    ports: !override
+      - "28000:8000"
+  frontend:
+    container_name: surge-evidence-web
+    restart: "no"
+    ports: !override
+      - "23000:80"

@@ -22,6 +22,10 @@ class CandidateSpatialResult:
     environmental_overlap_m2: float
     hard_violation_ids: tuple[str, ...]
     parcel_exposures: tuple[ParcelEngineeringExposure, ...]
+    # WP2-5: the canonical land metric. Area, not a count: two projects can touch
+    # the same number of parcels while taking very different amounts of land.
+    # Deduplicated, so overlapping parcels or corridors never double-count.
+    affected_parcel_row_area_m2: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,9 @@ class CandidateEngineeringMetrics:
     total_active_loss_mw: float
     maximum_loading_percent: float
     voltage_margin_pu: float
+    # WP2-5. Defaulted so a caller that predates the metric still builds; the
+    # extractor always supplies it.
+    affected_parcel_row_area_m2: float = 0.0
 
     def __post_init__(self) -> None:
         non_negative_values = {
@@ -46,6 +53,7 @@ class CandidateEngineeringMetrics:
             "total_traversal_cost": self.total_traversal_cost,
             "soft_constraint_overlap_length_m": self.soft_constraint_overlap_length_m,
             "environmental_overlap_m2": self.environmental_overlap_m2,
+            "affected_parcel_row_area_m2": self.affected_parcel_row_area_m2,
             "total_active_loss_mw": self.total_active_loss_mw,
             "maximum_loading_percent": self.maximum_loading_percent,
         }
@@ -86,6 +94,7 @@ class EngineeringMetricFailureCode(StrEnum):
     LAND_PARCEL_UNAVAILABLE = "LAND_PARCEL_UNAVAILABLE"
     POLE_CONFIG_MISSING = "POLE_CONFIG_MISSING"
     POLE_PLACEMENT_FAILED = "POLE_PLACEMENT_FAILED"
+    MICRO_SITING_FAILED = "MICRO_SITING_FAILED"
     LOAD_FLOW_NOT_CONVERGED = "LOAD_FLOW_NOT_CONVERGED"
     ELECTRICAL_METRICS_MISSING = "ELECTRICAL_METRICS_MISSING"
     ELECTRICAL_METRICS_NOT_FINITE = "ELECTRICAL_METRICS_NOT_FINITE"
@@ -115,6 +124,7 @@ class CandidateEngineeringAssessment:
     extraction_failures: tuple[EngineeringMetricFailure, ...]
     pole_result: CollectorPoleResult | None = None
     parcel_exposures: tuple[ParcelEngineeringExposure, ...] = ()
+    degradation_notices: tuple[EngineeringMetricFailure, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.scenario_id.strip():

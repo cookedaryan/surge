@@ -2,7 +2,20 @@ import math
 from dataclasses import replace
 from typing import Any, Literal
 
+from app.contracts.resolution import (
+    SEARCH_DISABLED,
+    V0_PROFILE_RESOLUTION,
+    ResponseContext,
+)
 from app.optimisation.workflow_models import OptimisationWorkflowResult
+from app.presentation.design_truth import build_design_truth
+from app.presentation.explanation import build_scoring_explanation
+from app.presentation.profile_echo import build_effective_profile
+from app.presentation.search_evidence import (
+    build_search_evidence,
+    build_solver_runs,
+    build_termination,
+)
 from app.schemas.optimise import (
     OptimisationMetrics,
     OptimisationRequest,
@@ -53,11 +66,25 @@ def legacy_to_workflow_invocation(payload: OptimisationRequest) -> WorkflowInvoc
     )
 
 
+_V0_RESPONSE_CONTEXT = ResponseContext(
+    profile=V0_PROFILE_RESOLUTION,
+    search=SEARCH_DISABLED,
+    profiles_enabled=False,
+    search_enabled=False,
+)
+
+
 def to_legacy_api_response(
     workflow_result: OptimisationWorkflowResult,
     payload: OptimisationRequest,
+    context: ResponseContext | None = None,
 ) -> OptimisationResponse:
-    """Build the additive V1 response while preserving its legacy fields."""
+    """Build the additive V1 response while preserving its legacy fields.
+
+    The contract C2 blocks come from level-owned hooks (S3). A hook that returns
+    ``None`` leaves its block absent from the serialised response.
+    """
+    context = context or _V0_RESPONSE_CONTEXT
 
     rich_response = to_api_response(
         workflow_result,
@@ -105,6 +132,12 @@ def to_legacy_api_response(
         recommendation=rich_response.recommendation,
         recommended_result=rich_response.recommended_result,
         failures=rich_response.failures,
+        design_truth=build_design_truth(workflow_result, context),
+        search_evidence=build_search_evidence(workflow_result, context),
+        solver_runs=build_solver_runs(workflow_result, context),
+        scoring_explanation=build_scoring_explanation(workflow_result, context),
+        effective_profile=build_effective_profile(workflow_result, context),
+        termination=build_termination(workflow_result, context),
     )
 
 

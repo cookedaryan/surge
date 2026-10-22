@@ -10,8 +10,10 @@ import com.power.surge.domain.RestrictedArea;
 import com.power.surge.domain.Substation;
 import com.power.surge.domain.WtgLocation;
 import com.power.surge.domain.WtgStatus;
+import com.power.surge.dto.client.python.PythonEffectiveProfile;
 import com.power.surge.dto.client.python.PythonOptimisationRequest;
 import com.power.surge.dto.client.python.PythonOptimisationResponse;
+import com.power.surge.dto.client.python.PythonProfileSelection;
 import com.power.surge.dto.job.CreateOptimizationJobRequest;
 import com.power.surge.dto.job.OptimizationJobResponse;
 import com.power.surge.repository.CadastralParcelRepository;
@@ -122,7 +124,9 @@ class OptimizationJobServiceTest {
                 sseProgressService,
                 auditLogService,
                 cableCatalogueService,
-                costCatalogueService
+                costCatalogueService,
+                // Profiles on, so these tests exercise the profiled path as well as V0.
+                true
         );
     }
 
@@ -252,6 +256,110 @@ class OptimizationJobServiceTest {
                 .isGreaterThan((Double) sent.get(0).scoringWeights().get("route_length_weight"));
     }
 
+    /**
+     * WP2-3 (L2): typed identity reaches Python, replacing the Stage 0 WP2-1 probe.
+     *
+     * <p>The probe recorded that routing mode survived while the persisted restriction type and the
+     * cadastral parcel id did not: every restricted area arrived as the generic {@code restricted_area}
+     * and a parcel was named only by its database id. Each avoidance feature now also carries the C1
+     * {@code source_id} and {@code feature_type}, while {@code constraint_type} keeps selecting routing
+     * treatment exactly as before.
+     */
+    @Test
+    void typedIdentityReachesPythonOnEveryAvoidanceFeature() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Probe", "WP2-1");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.10, 14.30)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 14.40)));
+        CadastralParcel parcel = new CadastralParcel(project, "P-CADASTRAL-001", "Owner",
+                new BigDecimal("100.00"), squareAt(77.15, 14.35));
+        RestrictedArea forest = new RestrictedArea(project, "Reserve Forest", "PROTECTED_AREA",
+                new BigDecimal("30.00"), squareAt(77.20, 14.38));
+        UUID forestId = UUID.randomUUID();
+        org.springframework.test.util.ReflectionTestUtils.setField(forest, "id", forestId);
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of(parcel));
+        when(restrictedAreaRepository.findAllByProjectIdOrderByNameAsc(projectId)).thenReturn(List.of(forest));
+        stubJobPersistence();
+        when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
+                new PythonOptimisationResponse("job-1", "success", "Balanced", Map.of(), Map.of(),
+                        Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                        "SUCCESS", List.of(), Map.of(), Map.of(), List.of()));
+
+        jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", ScenarioProfile.BALANCED, null, null, null, null, null, null, null));
+
+        ArgumentCaptor<PythonOptimisationRequest> captor = ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(captor.capture());
+        PythonOptimisationRequest sent = captor.getValue();
+
+        Map<String, Object> forestProperties = constraintProperties(sent, "restricted_area");
+        Map<String, Object> parcelProperties = constraintProperties(sent, "parcel");
+
+        // Unchanged by WP2-3: mode still survives, and routing treatment is still chosen by
+        // constraint_type, so the hard exclusion stays a hard exclusion.
+        assertThat(forestProperties).containsEntry("routing_mode", "hard");
+        assertThat(parcelProperties).containsEntry("routing_mode", "soft");
+        assertThat(forestProperties).containsEntry("constraint_type", "restricted_area");
+        assertThat(parcelProperties).containsEntry("constraint_type", "parcel");
+
+        // What the probe proved missing.
+        assertThat(forestProperties).containsEntry("feature_type", "protected_area");
+        assertThat(forestProperties).containsEntry("source_id", forestId.toString());
+        assertThat(parcelProperties).containsEntry("feature_type", "parcel");
+        assertThat(parcelProperties).containsEntry("source_id", "P-CADASTRAL-001");
+    }
+
+    /**
+     * The identity is the persisted restriction type, not a guess from the routing class: two hard
+     * exclusions that route identically must still be distinguishable downstream (F7).
+     */
+    @Test
+    void restrictedAreasOfDifferentTypesCarryDifferentIdentities() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Types", "WP2-3");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.10, 14.30)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 14.40)));
+        RestrictedArea forest = new RestrictedArea(project, "Reserve Forest", "RESERVE_FOREST",
+                new BigDecimal("30.00"), squareAt(77.20, 14.38));
+        RestrictedArea radar = new RestrictedArea(project, "Radar", "AVIATION",
+                new BigDecimal("30.00"), squareAt(77.30, 14.48));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of());
+        when(restrictedAreaRepository.findAllByProjectIdOrderByNameAsc(projectId)).thenReturn(List.of(forest, radar));
+        stubJobPersistence();
+        when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
+                new PythonOptimisationResponse("job-1", "success", "Balanced", Map.of(), Map.of(),
+                        Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                        "SUCCESS", List.of(), Map.of(), Map.of(), List.of()));
+
+        jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", ScenarioProfile.BALANCED, null, null, null, null, null, null, null));
+
+        ArgumentCaptor<PythonOptimisationRequest> captor = ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(captor.capture());
+
+        List<String> featureTypes = avoidanceFeatures(captor.getValue()).stream()
+                .map(feature -> String.valueOf(propertiesOf(feature).get("feature_type")))
+                .toList();
+
+        assertThat(featureTypes).containsExactlyInAnyOrder("forest", "aviation");
+    }
+
     private Polygon squareAt(double lon, double lat) {
         double d = 0.01;
         LinearRing ring = geometryFactory.createLinearRing(new Coordinate[]{
@@ -270,6 +378,16 @@ class OptimizationJobServiceTest {
 
     private static double restrictedBufferIn(PythonOptimisationRequest request) {
         return (Double) constraintProperties(request, "restricted_area").get("buffer_m");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> avoidanceFeatures(PythonOptimisationRequest request) {
+        return (List<Map<String, Object>>) request.avoidanceGeojson().get("features");
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> propertiesOf(Map<String, Object> feature) {
+        return (Map<String, Object>) feature.get("properties");
     }
 
     @SuppressWarnings("unchecked")
@@ -367,6 +485,172 @@ class OptimizationJobServiceTest {
     }
 
     /**
+     * WP3-5: a profile the allow-list does not hold is refused, and refused here.
+     *
+     * <p>The neighbouring scenario selector defaults an unknown label to Balanced, which is right
+     * for a display string. A profile decides which design is recommended, so the same default
+     * would hand back Balanced's winner as though it came from the policy that was asked for.
+     */
+    @Test
+    void createJob_refusesAnUnknownProfileRatherThanFallingBackToBalanced() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Uravakonda", null);
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.10, 14.30)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 14.40)));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+
+        assertThatThrownBy(() -> jobService.createJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null,
+                "minimum_carbon")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("minimum_carbon");
+
+        // No row written. The caller is told at once rather than watching a job queue, start and
+        // then be rejected by Python seconds later.
+        verify(jobRepository, never()).save(any(OptimizationJob.class));
+    }
+
+    /**
+     * The boundary WP3-5 stopped at, now closed. V23 gives a queued job somewhere to keep the
+     * client's choice, so it survives the wait and reaches the engine.
+     */
+    @Test
+    void anAllowedProfileSurvivesTheQueueAndReachesPython() {
+        UUID projectId = profiledRunFixture("balanced");
+
+        jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null,
+                "balanced"));
+
+        ArgumentCaptor<PythonOptimisationRequest> captor =
+                ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(captor.capture());
+
+        // Java pins the version; the client named only the profile.
+        assertThat(captor.getValue().profile())
+                .isEqualTo(new PythonProfileSelection("balanced", "1"));
+    }
+
+    @Test
+    void aV0RunStillSendsNoProfileAtAll() {
+        UUID projectId = successfulRunFixture();
+
+        jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null));
+
+        ArgumentCaptor<PythonOptimisationRequest> captor =
+                ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(captor.capture());
+
+        assertThat(captor.getValue().profile()).isNull();
+    }
+
+    /** WP3-7b: the engine's echo is what the job keeps, and what the API returns. */
+    @Test
+    void theEffectiveProfileIsPersistedAndReturned() {
+        UUID projectId = profiledRunFixture("minimum_cost");
+
+        OptimizationJobResponse response = jobService.createAndRunJob(
+                projectId, new CreateOptimizationJobRequest(
+                        "MULTI_OBJECTIVE_A_STAR", null, null, null, null, null, null, null, null,
+                        "minimum_cost"));
+
+        assertThat(response.effectiveProfile()).isNotNull();
+        assertThat(response.effectiveProfile().profileId()).isEqualTo("minimum_cost");
+        assertThat(response.effectiveProfile().profileVersion()).isEqualTo("1");
+        assertThat(response.effectiveProfile().policyHash()).isEqualTo("a".repeat(64));
+        assertThat(response.effectiveProfile().definitionHash()).isEqualTo("b".repeat(64));
+        assertThat(response.effectiveProfile().metricRegistryVersion()).isEqualTo("2");
+        assertThat(response.effectiveProfile().generationSettingsHash()).isEqualTo("c".repeat(64));
+        assertThat(response.effectiveProfile().profilesEnabled()).isTrue();
+        assertThat(response.effectiveProfile().searchEnabled()).isFalse();
+    }
+
+    /**
+     * A scenario is a label; a profile is a policy. Sending one profile and having another applied
+     * would attribute a recommendation to a policy nobody chose, so the run fails instead.
+     */
+    @Test
+    void anEngineThatAppliesADifferentProfileFailsTheRun() {
+        UUID projectId = profiledRunFixture("balanced");
+
+        OptimizationJobResponse response = jobService.createAndRunJob(
+                projectId, new CreateOptimizationJobRequest(
+                        "MULTI_OBJECTIVE_A_STAR", "Minimum Cost", null, null, null, null, null,
+                        null, null, "minimum_cost"));
+
+        // Failed, not completed-with-a-note: a recommendation nobody can attribute to a policy is
+        // not a result, and the routes are never written.
+        assertThat(response.status()).isEqualTo(JobStatus.FAILED);
+        assertThat(response.errorMessage()).contains("minimum_cost").contains("balanced");
+        verify(routeService, never()).saveRoutesFromGeoJson(any(), any(), any(), any());
+    }
+
+    @Test
+    void anEngineThatReportsNoProfileAtAllFailsTheRun() {
+        // The V0 fixture answers without an effective_profile block. Against a profile request
+        // that means the ranking came from somewhere this service cannot name.
+        UUID projectId = successfulRunFixture();
+
+        OptimizationJobResponse response = jobService.createAndRunJob(
+                projectId, new CreateOptimizationJobRequest(
+                        "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null,
+                        null, "balanced"));
+
+        assertThat(response.status()).isEqualTo(JobStatus.FAILED);
+        assertThat(response.errorMessage()).contains("no effective profile");
+    }
+
+    @Test
+    void theScenarioIsDerivedFromTheProfileWhenTheClientSendsNone() {
+        UUID projectId = profiledRunFixture("minimum_land_impact");
+
+        jobService.createAndRunJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", null, null, null, null, null, null, null, null,
+                "minimum_land_impact"));
+
+        ArgumentCaptor<PythonOptimisationRequest> captor =
+                ArgumentCaptor.forClass(PythonOptimisationRequest.class);
+        verify(pythonClient).runOptimization(captor.capture());
+
+        // C1 refuses a profile paired with the wrong scenario, so Java supplies the right one
+        // rather than leaving the default to be rejected at the far end.
+        assertThat(captor.getValue().scenario()).isEqualTo("Minimum Land Impact");
+    }
+
+    @Test
+    void aProfilePairedWithTheWrongScenarioIsRefusedBeforeAnyRun() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Uravakonda", null);
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.10, 14.30)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 14.40)));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+
+        assertThatThrownBy(() -> jobService.createJob(projectId, new CreateOptimizationJobRequest(
+                "MULTI_OBJECTIVE_A_STAR", "Balanced", null, null, null, null, null, null, null,
+                "minimum_cost")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Minimum Cost")
+                .hasMessageContaining("Balanced");
+
+        verify(jobRepository, never()).save(any(OptimizationJob.class));
+    }
+
+    /**
      * The whole pipeline runs in one transaction, so the routes and poles it writes are invisible to
      * every other connection until it commits. Announcing completion from inside that transaction
      * sent the browser off to fetch results nobody else could see yet: it got zero features back,
@@ -420,6 +704,40 @@ class OptimizationJobServiceTest {
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
+    }
+
+    /**
+     * The same project, run with profiles on, with the engine echoing the profile it was given.
+     *
+     * <p>Takes the echoed ID rather than assuming agreement, so a test can also stage the
+     * disagreement the service is supposed to refuse.
+     */
+    private UUID profiledRunFixture(String echoedProfileId) {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Test Project", "Description");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+
+        WtgLocation wtg = new WtgLocation(project, "WTG-001", new BigDecimal("3.000"),
+                geometryFactory.createPoint(new Coordinate(77.23, 28.63)));
+        Substation sub = new Substation(project, "SUB-001", new BigDecimal("100.000"),
+                geometryFactory.createPoint(new Coordinate(77.25, 28.64)));
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(wtgLocationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(wtg));
+        when(substationRepository.findAllByProjectIdOrderByExternalIdAsc(projectId)).thenReturn(List.of(sub));
+
+        stubJobPersistence();
+
+        when(pythonClient.runOptimization(any(PythonOptimisationRequest.class))).thenReturn(
+                new PythonOptimisationResponse(
+                        "job-123", "success", "Balanced", Map.of(), Map.of(),
+                        Map.of("feeder_count", 1, "total_length_m", 1500.0),
+                        "SUCCESS", List.of(), Map.of(), Map.of(), List.of(),
+                        new PythonEffectiveProfile(echoedProfileId, "1", "a".repeat(64),
+                                "b".repeat(64), "2", "c".repeat(64), true, false),
+                        null, null, null, null, null));
+
+        return projectId;
     }
 
     /** A project the optimiser will run to completion over, returning one feeder. */

@@ -141,8 +141,8 @@ python -m ruff check app tests && python -m mypy app && python -m pytest -q
 
 | Suite | Count | Command |
 | --- | --- | --- |
-| Java backend | 290 | `./mvnw verify` |
-| Python optimiser | 601 | `python -m pytest -q` |
+| Java backend | 376 | `./mvnw verify` |
+| Python optimiser | 1,750 | `python -m pytest -q` |
 | Web map | 144 | `npm run test` |
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all three plus `docker compose build`
@@ -157,7 +157,7 @@ could catch an accidental `permitAll`.
 ## Security: before you deploy
 
 This runs safely on a laptop. Before it is reachable from the internet, see
-[§5.7 of the gap closure plan](docs/MVP%20Gap%20Closure%20Plan.md) and:
+[§5.7 of the gap closure plan](docs/planning/MVP%20Gap%20Closure%20Plan.md) and:
 
 1. **TLS.** nginx serves plain HTTP and tokens travel in headers, so whatever sits in front must
    terminate TLS.
@@ -183,11 +183,13 @@ client survey data.
 
 ## Documentation
 
+Browse the [documentation index](docs/README.md) for all documents grouped by topic.
+
 - [`CONTEXT.md`](CONTEXT.md) — implementation status and the full progress record
-- [`docs/MVP Gap Closure Plan.md`](docs/MVP%20Gap%20Closure%20Plan.md) — the living plan, with what
+- [`docs/planning/MVP Gap Closure Plan.md`](docs/planning/MVP%20Gap%20Closure%20Plan.md) — the living plan, with what
   each piece of work actually produced and what it got wrong
-- [`docs/MVP - Minimum Viable Product.md`](docs/MVP%20-%20Minimum%20Viable%20Product.md) — scope
-- [`docs/Python Engine - Architecture.md`](docs/Python%20Engine%20-%20Architecture.md) — optimiser internals
-- [`docs/Surge MVP Ticket Plan.md`](docs/Surge%20MVP%20Ticket%20Plan.md) — the SURGE-PY ticket sequence
+- [`docs/product/MVP - Minimum Viable Product.md`](docs/product/MVP%20-%20Minimum%20Viable%20Product.md) — scope
+- [`docs/architecture/Python Engine - Architecture.md`](docs/architecture/Python%20Engine%20-%20Architecture.md) — optimiser internals
+- [`docs/planning/Surge MVP Ticket Plan.md`](docs/planning/Surge%20MVP%20Ticket%20Plan.md) — the SURGE-PY ticket sequence
 - [`docs/Project Review.md`](docs/Project%20Review.md) — completeness, known flaws and stale-doc audit
 - `obsidian-vault/` — design notes and research

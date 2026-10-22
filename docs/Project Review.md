@@ -270,3 +270,16 @@ Everything above describes `e672571` as reviewed. This section records what was 
 ### What was *not* verified after the changes
 
 `docker compose build`/`up` was not run (only `docker compose config`), so the image builds with the removed Python modules are unproven, though `Dockerfile` copies only `app/` and nothing deleted was imported. The popup fix and the compose port change were not exercised in a browser or on a running stack. CI has not run on this branch. Local `web-map/{dist,node_modules,public}` (ignored) remain on disk.
+
+---
+
+## 9. Merge with `origin/main` (2026-10-22)
+
+`test` was brought up to date with `origin/main` (`237ccc3`, 85 commits ahead of the review baseline) by a merge, not a rebase, so the cleanup commits keep their identity.
+
+- **Textual conflicts:** three documents only (`README.md`, `CONTEXT.md`, `optimisation-python/README.md`), because `main` moved `docs/` into topic folders. Resolved by keeping the corrected wording and `main`'s new paths. Two relative links to this file in moved documents were repointed (`../Project Review.md`), and `docs/README.md` links it.
+- **One semantic conflict, found only by compiling:** `main` added a `profile` component to `PythonOptimisationRequest`, which broke the constructor call in `PythonOptimizationClientTest`. The test now builds the request from JSON, so it no longer depends on the record's arity.
+- **Frozen path restored:** `contracts/frozen.txt` lists `optimisation-python/requirements.txt`. The review's X-07 deleted it; the merge restores it (byte-identical to `requirements.lock.txt`). Deleting it is a contract change request, not a cleanup.
+- **Counts updated** to the merged numbers: Java 376 tests, Python 1,750, web 144; Flyway V1–V23 (V21–V22 are reserved by `contracts/persistence.md`).
+
+Verification on the merged tree: Java `./mvnw verify` on JDK 21 → **376 tests, 0 failures**. Frontend → tsc clean, **144 passed**, build ok. Python (3.14.0 venv) → ruff clean, mypy clean (148 files), **1,748 passed, 2 failed**. The two failures (`test_search_off_golden` and `test_v1_response_golden`, case `SYN-3-CLUSTERED-20`, a `topology_fingerprint` mismatch) fail identically on a pristine checkout of `origin/main`, so they are not caused by this branch. They are probably the Python 3.14 mismatch (CI and `AGENTS.md` use 3.11/3.13), which could not be confirmed because neither is installed here.

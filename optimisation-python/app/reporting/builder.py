@@ -33,6 +33,7 @@ from app.reporting.decision_models import (
     ScoreSummary,
     SpatialSummary,
 )
+from app.reporting.schema_version import CURRENT_REPORT_SCHEMA_VERSION
 
 
 def _classify_rejected(
@@ -414,7 +415,7 @@ def build_decision_report(
             rejected.append(_classify_rejected(c, unknown_fallback=True))
 
         return DecisionReport(
-            schema_version="1.0.0",
+            schema_version=CURRENT_REPORT_SCHEMA_VERSION,
             status=status,
             project_id=project_id,
             optimisation_run_id=None,
@@ -498,7 +499,7 @@ def build_decision_report(
     )
 
     return DecisionReport(
-        schema_version="1.0.0",
+        schema_version=CURRENT_REPORT_SCHEMA_VERSION,
         status=status,
         project_id=project_id,
         optimisation_run_id=None,

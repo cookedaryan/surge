@@ -1,0 +1,46 @@
+INFO:root:Loading corpus from C:\Users\ARK\.codex\visualizations\2026\09\14\01a0a204-76f1-70b2-a852-b5b45a4be3d9\audit_search_corpus.csv
+INFO:root:Loaded 200 valid rows. Canonical fingerprint: ef3e3badd295851e92ec169ab278fdd241bf6a3d0dbcc41a646f0b4c3064800f
+INFO:root:Target report: {'singleton_group_count': 0, 'singleton_row_count': 0, 'usable_ranking_rows': 200, 'total_comparison_groups': 7}
+INFO:root:Evaluating baseline (heuristic_score)...
+INFO:root:Cross-validating ridge...
+INFO:root:Cross-validating hist_gb...
+D:\helloworld\surge\optimisation-python\.venv\Lib\site-packages\joblib\externals\loky\backend\context.py:131: UserWarning: Could not find the number of physical cores for the following reason:
+found 0 physical cores < 1
+Returning the number of logical cores instead. You can silence this warning by setting LOKY_MAX_CPU_COUNT to the number of cores you want to use.
+  warnings.warn(
+  File "D:\helloworld\surge\optimisation-python\.venv\Lib\site-packages\joblib\externals\loky\backend\context.py", line 255, in _count_physical_cores
+    raise ValueError(f"found {cpu_count_physical} physical cores < 1")
+INFO:root:Selected best model: ridge based on Top-K Recall (macro-by-project)
+INFO:root:Training final pipeline on all data...
+INFO:root:Validating serialization round-trip...
+INFO:root:Saving artifact to C:\Users\ARK\.codex\visualizations\2026\09\14\01a0a204-76f1-70b2-a852-b5b45a4be3d9\audit_pre_ranker
+INFO:root:Saved artifact to C:\Users\ARK\.codex\visualizations\2026\09\14\01a0a204-76f1-70b2-a852-b5b45a4be3d9\audit_pre_ranker (Status: OFFLINE_VALIDATED)
+
+SURGE ML PRE-RANKER TRAINING
+
+Corpus
+------
+Projects:             5
+Rows:                200
+Comparison groups:    7
+Usable ranking rows: 200
+
+Cross-validation
+----------------
+Existing heuristic:
+  Top-5 recall:       0.2400
+  Capture@5:          0.3333
+
+ridge:
+  Top-5 recall:       0.2933
+  Capture@5:          0.4000
+
+hist_gb:
+  Top-5 recall:       0.2533
+  Capture@5:          0.3333
+
+Selected model:
+  ridge
+
+Status:
+OFFLINE_VALIDATED

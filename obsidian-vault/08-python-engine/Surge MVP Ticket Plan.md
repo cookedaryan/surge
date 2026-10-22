@@ -2,7 +2,7 @@
 
 **Canonical as of:** 2026-08-16  
 **Status:** All core MVP & post-MVP Python tickets (SURGE-PY-014 through SURGE-PY-028) are **Complete**.  
-**Test Suite:** 601 passing automated tests in `optimisation-python/tests/`.
+**Test Suite:** 1,750 passing automated tests in `optimisation-python/tests/`.
 
 This document is the authoritative engineering record of the Python GIS & Optimization Service ticket sequence, module responsibilities, frozen interfaces, and architectural boundaries.
 

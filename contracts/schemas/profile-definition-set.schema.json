@@ -1,0 +1,164 @@
+{
+  "$defs": {
+    "MetricDirection": {
+      "description": "Whether a lower or higher raw metric value is better.",
+      "enum": [
+        "minimise",
+        "maximise"
+      ],
+      "title": "MetricDirection",
+      "type": "string"
+    },
+    "MetricTerm": {
+      "additionalProperties": false,
+      "description": "One scored metric inside a profile definition.",
+      "properties": {
+        "direction": {
+          "$ref": "#/$defs/MetricDirection"
+        },
+        "lexicographic_rank": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lexicographic Rank"
+        },
+        "metric": {
+          "minLength": 1,
+          "title": "Metric",
+          "type": "string"
+        },
+        "reference_max": {
+          "pattern": "^-?\\d+(\\.\\d+)?$",
+          "title": "Reference Max",
+          "type": "string"
+        },
+        "reference_min": {
+          "pattern": "^-?\\d+(\\.\\d+)?$",
+          "title": "Reference Min",
+          "type": "string"
+        },
+        "tolerance": {
+          "anyOf": [
+            {
+              "pattern": "^\\d+(\\.\\d+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tolerance"
+        },
+        "weight": {
+          "pattern": "^\\d+(\\.\\d+)?$",
+          "title": "Weight",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metric",
+        "direction",
+        "weight",
+        "reference_min",
+        "reference_max"
+      ],
+      "title": "MetricTerm",
+      "type": "object"
+    },
+    "ProfileDefinition": {
+      "additionalProperties": false,
+      "description": "The FRZ-1 values format. Decimals are strings so hashing is exact.",
+      "properties": {
+        "generation_settings": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Generation Settings",
+          "type": "object"
+        },
+        "placeholder": {
+          "default": true,
+          "title": "Placeholder",
+          "type": "boolean"
+        },
+        "policy_mode": {
+          "$ref": "#/$defs/ProfilePolicyMode"
+        },
+        "profile_id": {
+          "$ref": "#/$defs/ProfileId"
+        },
+        "terms": {
+          "items": {
+            "$ref": "#/$defs/MetricTerm"
+          },
+          "minItems": 1,
+          "title": "Terms",
+          "type": "array"
+        },
+        "tie_breaks": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tie Breaks",
+          "type": "array"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "profile_id",
+        "version",
+        "policy_mode",
+        "terms"
+      ],
+      "title": "ProfileDefinition",
+      "type": "object"
+    },
+    "ProfileId": {
+      "enum": [
+        "minimum_cost",
+        "minimum_land_impact",
+        "minimum_environmental_impact",
+        "balanced"
+      ],
+      "title": "ProfileId",
+      "type": "string"
+    },
+    "ProfilePolicyMode": {
+      "description": "Scoring policy a profile definition runs under.",
+      "enum": [
+        "UNIFIED_ENGINEERING",
+        "COST_AWARE"
+      ],
+      "title": "ProfilePolicyMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "definitions": {
+      "items": {
+        "$ref": "#/$defs/ProfileDefinition"
+      },
+      "minItems": 1,
+      "title": "Definitions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "definitions"
+  ],
+  "title": "ProfileDefinitionSet",
+  "type": "object"
+}

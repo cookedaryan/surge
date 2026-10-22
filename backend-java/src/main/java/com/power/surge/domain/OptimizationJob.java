@@ -241,6 +241,108 @@ public class OptimizationJob extends AuditableEntity {
     @Column(name = "cost_failure_count")
     private Integer costFailureCount;
 
+    // --- Effective scoring policy (contracts C2, C9 V23) ---------------------------------
+    //
+    // NULL in any of these means "recorded before this contract", never "false" and never "no
+    // profile". A reader that reads a null profiles_enabled as false would report every historical
+    // job as having run with profiles off, which these columns cannot support.
+
+    @Column(name = "profile_id", length = 64)
+    private String profileId;
+
+    @Column(name = "profile_version", length = 16)
+    private String profileVersion;
+
+    @Column(name = "policy_hash", length = 64)
+    private String policyHash;
+
+    @Column(name = "definition_hash", length = 64)
+    private String definitionHash;
+
+    @Column(name = "metric_registry_version", length = 16)
+    private String metricRegistryVersion;
+
+    @Column(name = "generation_settings_hash", length = 64)
+    private String generationSettingsHash;
+
+    @Column(name = "profiles_enabled")
+    private Boolean profilesEnabled;
+
+    @Column(name = "search_enabled")
+    private Boolean searchEnabled;
+
+    /**
+     * Records the profile this job was asked to run under, at the moment it is queued.
+     *
+     * <p>A queued job is rebuilt from its row when a worker picks it up, so without this the
+     * client's choice would not survive the wait. The engine's echo confirms the same values when
+     * the run returns; it cannot contradict them, because an unresolvable profile fails the run
+     * rather than being replaced by another one.
+     */
+    public void requestProfile(String profileId, String profileVersion) {
+        this.profileId = profileId;
+        this.profileVersion = profileVersion;
+    }
+
+    /**
+     * Records the policy the engine reports it actually applied (C2 {@code effective_profile}).
+     *
+     * <p>Kept even when no profile was resolved, because the flags and the metric registry version
+     * still describe the run. That is what tells a later reader the difference between a job that
+     * ran before any of this existed and one that ran with profiles switched off.
+     */
+    public void applyEffectiveProfile(
+            String profileId,
+            String profileVersion,
+            String policyHash,
+            String definitionHash,
+            String metricRegistryVersion,
+            String generationSettingsHash,
+            Boolean profilesEnabled,
+            Boolean searchEnabled
+    ) {
+        this.profileId = profileId;
+        this.profileVersion = profileVersion;
+        this.policyHash = policyHash;
+        this.definitionHash = definitionHash;
+        this.metricRegistryVersion = metricRegistryVersion;
+        this.generationSettingsHash = generationSettingsHash;
+        this.profilesEnabled = profilesEnabled;
+        this.searchEnabled = searchEnabled;
+    }
+
+    public String getProfileId() {
+        return profileId;
+    }
+
+    public String getProfileVersion() {
+        return profileVersion;
+    }
+
+    public String getPolicyHash() {
+        return policyHash;
+    }
+
+    public String getDefinitionHash() {
+        return definitionHash;
+    }
+
+    public String getMetricRegistryVersion() {
+        return metricRegistryVersion;
+    }
+
+    public String getGenerationSettingsHash() {
+        return generationSettingsHash;
+    }
+
+    public Boolean getProfilesEnabled() {
+        return profilesEnabled;
+    }
+
+    public Boolean getSearchEnabled() {
+        return searchEnabled;
+    }
+
     /** Records the money the engine computed for the network that was chosen. */
     public void applyCost(
             String currency,

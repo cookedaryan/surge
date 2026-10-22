@@ -11,6 +11,7 @@ from app.optimisation.search_models import (
     SearchTerminationReason,
 )
 from app.optimisation.workflow_models import WorkflowFailureCode, WorkflowStage
+from app.reporting.schema_version import CURRENT_REPORT_SCHEMA_VERSION
 
 
 class DecisionReportStatus(StrEnum):
@@ -29,7 +30,7 @@ class ReportProvenance:
     cost_model_version: str | None
     search_enabled: bool | None
     micro_siting_enabled: bool | None
-    report_schema_version: str = "1.0.0"
+    report_schema_version: str = CURRENT_REPORT_SCHEMA_VERSION
 
 
 @dataclass(frozen=True)

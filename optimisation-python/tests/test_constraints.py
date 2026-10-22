@@ -325,3 +325,74 @@ def test_refined_route_never_touches_hard_constraint_cells() -> None:
             constrained,
         )
         assert all(np.isfinite(constrained.costs[row, col]) for row, col in touched)
+
+
+def _typed_feature(feature_id: str, feature_type: object) -> dict[str, object]:
+    properties: dict[str, object] = {
+        "constraint_id": feature_id,
+        "constraint_type": "restricted_area",
+        "routing_mode": "hard",
+        "source_id": "asset-" + feature_id,
+    }
+    if feature_type is not None:
+        properties["feature_type"] = feature_type
+    return {
+        "type": "Feature",
+        "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+                [[2.0, 0.009], [2.001, 0.009], [2.001, 0.010], [2.0, 0.009]]
+            ],
+        },
+        "properties": properties,
+    }
+
+
+def _parse_typed(feature_type: object) -> ConstraintLayer:
+    layers = parse_constraint_layers(
+        {"type": "FeatureCollection", "features": [_typed_feature("f1", feature_type)]},
+        target_crs=CRS("EPSG:32631"),
+        default_buffer_m=0.0,
+        default_soft_cost_weight=2.0,
+    )
+    assert len(layers) == 1
+    return layers[0]
+
+
+# WP2-4: C1 typed identity is resolved at parse time, so everything downstream
+# reads one canonical vocabulary rather than whatever spelling the caller used.
+
+
+def test_feature_type_aliases_resolve_to_canonical_values() -> None:
+    assert _parse_typed("RESERVE FOREST").feature_type == "forest"
+    assert _parse_typed("Reserve-Forest").feature_type == "forest"
+    assert _parse_typed("wildlife_sanctuary").feature_type == "protected_area"
+    assert _parse_typed("RESERVOIR").feature_type == "water_body"
+    assert _parse_typed("village").feature_type == "settlement"
+
+
+def test_forest_is_not_collapsed_into_protected_or_restricted_area() -> None:
+    # Finding F7: these three were one value before typed identity existed.
+    assert _parse_typed("forest").feature_type == "forest"
+    assert _parse_typed("protected_area").feature_type == "protected_area"
+    assert _parse_typed("restricted").feature_type == "restricted_area"
+
+
+def test_source_id_survives_parsing() -> None:
+    assert _parse_typed("forest").source_id == "asset-f1"
+
+
+def test_unknown_or_absent_feature_type_is_none_not_a_guess() -> None:
+    # Absent means V0. Unknown must not become a specific environmental class;
+    # WP3-1 turns an unknown explicit value into a stable error.
+    assert _parse_typed(None).feature_type is None
+    assert _parse_typed("something_nobody_mapped").feature_type is None
+    assert _parse_typed("   ").feature_type is None
+    assert _parse_typed(42).feature_type is None
+
+
+def test_typed_identity_does_not_change_routing_treatment() -> None:
+    # constraint_type still selects the routing class, exactly as before.
+    layer = _parse_typed("forest")
+    assert layer.layer_type == ConstraintType.RESTRICTED_AREA
+    assert layer.mode == ConstraintMode.HARD_EXCLUSION

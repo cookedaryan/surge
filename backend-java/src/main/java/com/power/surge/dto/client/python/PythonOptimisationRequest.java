@@ -1,5 +1,6 @@
 package com.power.surge.dto.client.python;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.Map;
@@ -8,6 +9,18 @@ public record PythonOptimisationRequest(
         @JsonProperty("request_id") String requestId,
         @JsonProperty("project_id") String projectId,
         @JsonProperty("scenario") String scenario,
+        /**
+         * The C1 profile selection, or {@code null} for a V0 run.
+         *
+         * <p>Omitted from the JSON when null, because C1 says an <em>absent</em> profile means V0.
+         * Python would read an explicit {@code null} the same way today, but the contract is
+         * written about absence and the fixtures show absence, so this sends absence.
+         *
+         * <p>Filled in by WP3-7b, once V23 gives a queued job somewhere to remember the client's
+         * choice. Until then every request built here is a V0 request.
+         */
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        @JsonProperty("profile") PythonProfileSelection profile,
         @JsonProperty("wtg_geojson") Map<String, Object> wtgGeojson,
         @JsonProperty("substation_geojson") Map<String, Object> substationGeojson,
         @JsonProperty("electrical_params") Map<String, Object> electricalParams,

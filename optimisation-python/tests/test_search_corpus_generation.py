@@ -127,6 +127,7 @@ def test_training_corpus_emission_exercises_override_and_labels() -> None:
     assert {row["feasible"] for row in rows} == {True, False}
     for row in rows:
         assert row["project_id"] == "SYN-4-SPREAD-30"
+        assert row["parent_id"] is not None
         assert isinstance(row["feasible"], bool)
         assert row["total_route_length_m"] is not None
         if row["feasible"]:

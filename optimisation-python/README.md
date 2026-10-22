@@ -6,8 +6,8 @@ flow, cable sizing, lifecycle costing, land-impact decisions and candidate scori
 is called only by the Java backend; it has no authentication of its own and must not be exposed to
 the network.
 
-For the design, see [`../docs/Python Engine - Architecture.md`](../docs/Python%20Engine%20-%20Architecture.md).
-For ticket history and scope, see [`../docs/Surge MVP Ticket Plan.md`](../docs/Surge%20MVP%20Ticket%20Plan.md).
+For the design, see [`../docs/architecture/Python Engine - Architecture.md`](../docs/architecture/Python%20Engine%20-%20Architecture.md).
+For ticket history and scope, see [`../docs/planning/Surge MVP Ticket Plan.md`](../docs/planning/Surge%20MVP%20Ticket%20Plan.md).
 For setup of the whole system, see the [root README](../README.md).
 
 ## Endpoints

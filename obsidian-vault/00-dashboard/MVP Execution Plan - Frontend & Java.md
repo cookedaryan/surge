@@ -119,7 +119,7 @@ The Java backend (`backend-java`) and Python microservice (`optimisation-python`
 > [!note] **Phase 4 Status: Final Release Hardening (Active)**
 
 ### Java / Backend Workstream
-- [x] **Contract & Unit Test Suite**: 290 passing tests covering domain models, DTO mappings, `OptimizationJobService`, `ScenarioProfile`, `PdfReportService`, and MockMvc security/controller integration.
+- [x] **Contract & Unit Test Suite**: 376 passing tests covering domain models, DTO mappings, `OptimizationJobService`, `ScenarioProfile`, `PdfReportService`, and MockMvc security/controller integration.
 - [x] **PostGIS Integration Tests**: Validated Flyway migrations V1–V13 against PostgreSQL 16 + PostGIS 3.4 database instances (as recorded on 2026-08-16; V14–V20 were added afterwards and no automated test runs the migrations).
 - [x] **End-to-End Persistence Pipeline**: Verified full asset upload $\rightarrow$ async job execution $\rightarrow$ Python solver response $\rightarrow$ database persistence $\rightarrow$ PDF/CSV report generation workflow.
 - [x] **Security & Audit Hardening**: Implemented mandatory `APP_JWT_SECRET`, database-backed token validation, admin lockout prevention, and structured audit logs (`/api/v1/audit-logs`).

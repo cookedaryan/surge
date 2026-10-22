@@ -11,6 +11,7 @@ from shapely.geometry import Point
 from app.algorithms.physical_routing import validate_cost_surface
 from app.algorithms.pole_placement import place_poles_on_network
 from app.algorithms.route_graph import build_project_graph
+from app.contracts.codes import GuardPoint
 from app.costing.models import LifecycleCostConfig
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import WTGOperatingPoint
@@ -29,10 +30,8 @@ from app.land.models import (
 )
 from app.optimisation.candidate_evaluation import evaluate_candidate
 from app.optimisation.candidate_search import run_candidate_beam_search
-from app.optimisation.scenario_models import (
-    ScenarioGenerationConfig,
-    ScenarioGenerationError,
-)
+from app.optimisation.run_guard import NULL_RUN_GUARD, RunGuard, RunGuardStop
+from app.optimisation.scenario_models import ScenarioGenerationError
 from app.optimisation.scenarios import generate_pnc_scenarios
 from app.optimisation.search_cache import (
     CandidateEvaluationCache,
@@ -333,8 +332,13 @@ def optimise_project(
     *,
     evaluation_cache: CandidateEvaluationCache | None = None,
     corpus_sink: Callable[[Mapping[str, object]], None] | None = None,
+    run_guard: RunGuard = NULL_RUN_GUARD,
 ) -> OptimisationWorkflowResult:
-    """Run the complete end-to-end Surge optimisation workflow."""
+    """Run the complete end-to-end Surge optimisation workflow.
+
+    ``run_guard`` is consulted before each unit of bounded work and may raise a
+    ``RunGuardStop``; see ``app.optimisation.run_guard``.
+    """
     if config.search.emit_training_corpus and corpus_sink is None:
         raise OptimisationInputError(
             "emit_training_corpus=True requires a caller-provided corpus_sink"
@@ -365,14 +369,17 @@ def optimise_project(
     if evaluation_cache is None:
         evaluation_cache = CandidateEvaluationCache()
 
-    # Inject project_id to avoid dual ownership issues
-    scenario_config = ScenarioGenerationConfig(
-        candidate_count=config.scenario.candidate_count,
-        base_seed=config.scenario.base_seed,
+    # Inject project_id to avoid dual ownership issues. Every other field of
+    # config.scenario is forwarded unchanged, so generation settings a resolver
+    # sets through ``configure`` reach the generator (S2/S5 seam).
+    scenario_config = replace(
+        config.scenario,
         project_id=project_input.project_id,
+        solver_options=config.solver,
     )
 
     # 3. Scenario Generation
+    run_guard.check(GuardPoint.BEFORE_SEED_GENERATION)
     try:
         generation_result = generate_pnc_scenarios(
             project_data=project_input.project_data,
@@ -417,6 +424,7 @@ def optimise_project(
     # 4. Evaluate Seeds
     seeds = []
     for scenario in generation_result.candidates:
+        run_guard.check(GuardPoint.BEFORE_SEED_EVALUATION)
         eval_res = evaluate_candidate(scenario, project_input, config)
         if (
             eval_res.execution_failure
@@ -456,7 +464,10 @@ def optimise_project(
             evaluation_context_id=evaluation_context_id,
             evaluation_cache=evaluation_cache,
             corpus_sink=corpus_sink,
+            run_guard=run_guard,
         )
+    except RunGuardStop:
+        raise
     except Exception as exc:
         logger.exception("Candidate evaluation/search failed")
         failure = CandidateFailure(
@@ -555,6 +566,7 @@ def optimise_project(
                 load_flow_result=load_flow_result,
                 pole_network=pole_network,
                 constraint_layers=project_input.constraint_layers,
+                repair_log=winner_candidate.repair_log,
             )
             # Create a new instance with the presentation result
             winner_candidate = replace(

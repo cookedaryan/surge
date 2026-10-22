@@ -1,0 +1,100 @@
+{
+  "dependency_pin_mismatches": {},
+  "api_controls": {
+    "search_request_field": false,
+    "micro_siting_request_field": false
+  },
+  "long_edge_penalty": {
+    "graphs": 100,
+    "unchanged_msts": 100
+  },
+  "five_scheduled_seeds": {
+    "accepted": 3,
+    "attempts": [
+      {
+        "parameter": "PS-001",
+        "outcome": "accepted"
+      },
+      {
+        "parameter": "PS-002",
+        "outcome": "accepted"
+      },
+      {
+        "parameter": "PS-003",
+        "outcome": "accepted"
+      },
+      {
+        "parameter": "PS-004",
+        "outcome": "duplicate_topology"
+      },
+      {
+        "parameter": "PS-005",
+        "outcome": "duplicate_topology"
+      }
+    ]
+  },
+  "balanced_seed_change_equal_memberships": true,
+  "cache_land_round_trip": {
+    "first": [
+      {
+        "scenario": "SCN-S1-001",
+        "land_present": true
+      }
+    ],
+    "second": [
+      {
+        "scenario": "SCN-S1-001",
+        "land_present": false
+      }
+    ],
+    "cache_hits": 1
+  },
+  "real_fixture_runs": [
+    {
+      "fixture": "mvp_demo_project_v2.json",
+      "status": "SUCCESS",
+      "candidates": 3,
+      "winner": "SCN-001",
+      "search_enabled": false,
+      "route_length_m": 3790.072407414292,
+      "active_loss_mw": 0.018108711290145685,
+      "physical_poles": 51
+    },
+    {
+      "fixture": "constraint_demo_project_v2.json",
+      "status": "SUCCESS",
+      "candidates": 1,
+      "winner": "SCN-001",
+      "search_enabled": false,
+      "route_length_m": 231.54865300531458,
+      "active_loss_mw": 0.00017683950837454887,
+      "physical_poles": 5
+    }
+  ],
+  "real_closed_loop_repair": {
+    "status": "SUCCESS",
+    "initial_sizing_cables": {
+      "SEG-FDR001-0001": "SMALL"
+    },
+    "repair_actions": [
+      {
+        "segment": "SEG-FDR001-0001",
+        "from": "SMALL",
+        "to": "LARGE"
+      }
+    ],
+    "final_max_voltage_pu": 1.004560081775049,
+    "presentation_repair_log_length": 0,
+    "segment_geojson_has_cable_type": [
+      false
+    ]
+  },
+  "artifact_hash_matches_metadata": true,
+  "missing_pole_config": {
+    "status": "NO_FEASIBLE_CANDIDATE",
+    "failure_codes": [
+      "POLE_CONFIG_MISSING",
+      "POLE_CONFIG_MISSING"
+    ]
+  }
+}

@@ -9,6 +9,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.reporting.schema_version import CURRENT_REPORT_SCHEMA_VERSION
+
 
 class PresentationModel(BaseModel):
     """Strict base for the public JSON boundary."""
@@ -98,7 +100,7 @@ class RepairActionResult(PresentationModel):
 
 
 class ProjectOptimizationResult(PresentationModel):
-    schema_version: str = "1.0.0"
+    schema_version: str = CURRENT_REPORT_SCHEMA_VERSION
     project_id: str
     network_summary: NetworkSummary
     pole_summary: PoleSummary | None = None

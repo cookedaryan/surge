@@ -247,9 +247,7 @@ def test_distinguishes_an_exhausted_catalogue_from_an_unfixable_design() -> None
             load_flow_result=None,
             repair_log=(),
             initial_cable_sizing=None,
-            exhaustion_reason=(
-                RepairExhaustionReason.NO_LARGER_CONDUCTOR_FOR_OVERLOAD
-            ),
+            exhaustion_reason=(RepairExhaustionReason.NO_LARGER_CONDUCTOR_FOR_OVERLOAD),
         ),
         _config(),
     )["no_upgrade_reason"]

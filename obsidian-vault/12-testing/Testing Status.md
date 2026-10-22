@@ -17,8 +17,8 @@ Every tier maintains automated test suites, strict static analysis, and zero-def
 ```mermaid
 graph TD
     subgraph CI["GitHub Actions CI Pipeline (.github/workflows/ci.yml)"]
-        J["Job 1: Java Backend<br/>290 Tests (Maven Verify)<br/>Security, MockMvc (Flyway not exercised: tests use H2)"]
-        P["Job 2: Python Optimizer<br/>601 Tests (Pytest)<br/>Ruff (0 errors), Mypy (0 issues)"]
+        J["Job 1: Java Backend<br/>376 Tests (Maven Verify)<br/>Security, MockMvc (Flyway not exercised: tests use H2)"]
+        P["Job 2: Python Optimizer<br/>1,750 Tests (Pytest)<br/>Ruff (0 errors), Mypy (0 issues)"]
         F["Job 3: Frontend (web-map-next)<br/>144 Tests (Vitest)<br/>TypeScript Check, Vite Build"]
         D["Job 4: Docker Image Build<br/>4 Containers: DB, Backend,<br/>Optimizer, Frontend (Nginx)"]
     end
@@ -35,9 +35,9 @@ graph TD
 
 | Service Tier | Tech Stack | Source Files | Test Count | Static Analysis / Lint | Coverage Focus |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Java Backend** | Java 21, Spring Boot 3.3.2, PostGIS | 130 files | **290 tests** (`./mvnw verify`) | No static-analysis plugin configured | Security filter chain, SSE lifecycle, Async Executor, Transaction Commit Hooks, Scenario Profiles, Admin & Audit |
-| **Python Optimizer** | Python 3.11, FastAPI, Pandapower, Shapely | 104 files | **601 tests** (`pytest -q`) | **0 Ruff errors**, **0 Mypy issues** (Strict) | CRS/UTM projections, A* raster routing, MILP grouping, Kruskal MST, Pandapower AC load flow, Pole placement & deduplication, Candidate metrics, Decimal lifecycle costing |
-| **Frontend (`web-map-next`)** | React 18, TypeScript, Vite, Leaflet Canvas | 81 files | **144 tests** (`npm run test`) | TypeScript `tsc --noEmit` (no ESLint configured) | TanStack Query v5 hooks, Zustand store state transitions, BOM calculation, Auth state, PDF/CSV authorized blob handling |
+| **Java Backend** | Java 21, Spring Boot 3.3.2, PostGIS | 145 files | **376 tests** (`./mvnw verify`) | No static-analysis plugin configured | Security filter chain, SSE lifecycle, Async Executor, Transaction Commit Hooks, Scenario Profiles, Admin & Audit |
+| **Python Optimizer** | Python 3.11, FastAPI, Pandapower, Shapely | 148 files | **1,750 tests** (`pytest -q`) | **0 Ruff errors**, **0 Mypy issues** (Strict) | CRS/UTM projections, A* raster routing, MILP grouping, Kruskal MST, Pandapower AC load flow, Pole placement & deduplication, Candidate metrics, Decimal lifecycle costing |
+| **Frontend (`web-map-next`)** | React 18, TypeScript, Vite, Leaflet Canvas | 82 files | **144 tests** (`npm run test`) | TypeScript `tsc --noEmit` (no ESLint configured) | TanStack Query v5 hooks, Zustand store state transitions, BOM calculation, Auth state, PDF/CSV authorized blob handling |
 | **Legacy Frontend (`web-map`)** | Vanilla JS, HTML5, CSS3 | 4 files | *Deprecated* | Manual smoke testing only | Preserved as baseline prototype reference |
 
 ---
@@ -51,7 +51,7 @@ cd backend-java
 ```
 
 ### Architecture & Test Categories
-The Java test suite contains **290 automated tests** executed via the Maven Surefire plugin with an isolated H2 spatial database test profile (`application-test.yml`) and MockMvc integration harnesses:
+The Java test suite contains **376 automated tests** executed via the Maven Surefire plugin with an isolated H2 spatial database test profile (`application-test.yml`) and MockMvc integration harnesses:
 
 1. **Security & Authentication Boundary (`SecurityBoundaryTest`, `JwtTokenProviderTest`)**:
    - Tests the complete Spring Security 6 filter chain against real HTTP mock invocations.
@@ -88,14 +88,14 @@ cd optimisation-python
 ```
 
 ### Static Analysis & Type Safety
-- **Ruff**: Clean linting across all 104 source files and test modules with zero warnings.
+- **Ruff**: Clean linting across all 148 source files and test modules with zero warnings.
 - **Strict Mypy**: Complete type checking with zero errors under strict mode (`disallow_untyped_defs = true`, `warn_unused_ignores = true`).
 
-### Module Test Breakdown (601 Tests)
+### Module Test Breakdown (1,750 Tests)
 
 ```mermaid
 graph LR
-    subgraph PythonTests["Pytest Test Suite (601 Tests)"]
+    subgraph PythonTests["Pytest Test Suite (1,750 Tests)"]
         GIS["GIS & CRS<br/>test_crs.py<br/>test_geometry.py<br/>test_geojson.py<br/>test_cost_surface.py"]
         GRP["Grouping & Topology<br/>test_wtg_grouping.py<br/>test_topology.py<br/>test_capacity_constraints.py"]
         RTE["A* & Refinement<br/>test_routing.py<br/>test_route_refinement.py<br/>test_avoidance_layers.py"]

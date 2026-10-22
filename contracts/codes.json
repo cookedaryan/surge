@@ -1,0 +1,89 @@
+{
+  "codes": {
+    "CatalogueIncompletenessCode": [
+      "UNPRICED_CONDUCTOR",
+      "UNPRICED_POLE_TYPE",
+      "MISSING_LAND_POLICY",
+      "CURRENCY_MISMATCH"
+    ],
+    "CohortExclusionCode": [
+      "EVALUATION_FAILED",
+      "INELIGIBLE",
+      "MISSING_REQUIRED_METRIC",
+      "INCOMPLETE_LIFECYCLE_COST",
+      "DUPLICATE_FINAL_DESIGN"
+    ],
+    "ContractErrorCode": [
+      "PROFILE_NOT_SUPPORTED",
+      "UNKNOWN_PROFILE",
+      "UNKNOWN_PROFILE_VERSION",
+      "PROFILE_SCENARIO_MISMATCH",
+      "UNKNOWN_METRIC",
+      "NON_FINITE_VALUE",
+      "VALUE_OUT_OF_RANGE",
+      "PAYLOAD_TOO_LARGE",
+      "INVALID_TYPED_IDENTITY",
+      "RUN_NOT_FOUND",
+      "NOT_IMPLEMENTED"
+    ],
+    "ExtraFeederOutcome": [
+      "ACCEPTED",
+      "NOT_APPLICABLE",
+      "CAPACITY_INFEASIBLE",
+      "SOLVER_LIMIT_REACHED",
+      "DUPLICATE_TOPOLOGY",
+      "EVALUATION_FAILED"
+    ],
+    "GuardPoint": [
+      "BEFORE_SEED_GENERATION",
+      "BEFORE_SEED_EVALUATION",
+      "BEFORE_CHILD_ROUTING",
+      "BEFORE_CHILD_EVALUATION"
+    ],
+    "JobStatus": [
+      "PENDING",
+      "RUNNING",
+      "COMPLETED",
+      "FAILED",
+      "CANCELLED",
+      "TIMED_OUT"
+    ],
+    "MetricDirection": [
+      "minimise",
+      "maximise"
+    ],
+    "ProfilePolicyMode": [
+      "UNIFIED_ENGINEERING",
+      "COST_AWARE"
+    ],
+    "RunTerminationReason": [
+      "COMPLETED",
+      "SEARCH_DISABLED",
+      "MAX_ROUNDS_REACHED",
+      "EVALUATION_BUDGET_EXHAUSTED",
+      "PROPOSAL_BUDGET_EXHAUSTED",
+      "ROUTED_PROPOSAL_BUDGET_EXHAUSTED",
+      "SEED_BUDGET_EXHAUSTED",
+      "CHILD_BUDGET_EXHAUSTED",
+      "ARCHIVE_LIMIT_REACHED",
+      "NO_NEW_UNIQUE_CANDIDATES",
+      "NO_FEASIBLE_SEARCH_CANDIDATES",
+      "ADMISSION_DEADLINE_REACHED",
+      "SOLVER_LIMIT_REACHED",
+      "CANCELLED",
+      "NO_ELIGIBLE_CANDIDATE"
+    ],
+    "SizingBasis": [
+      "INITIAL_ONLY",
+      "FINAL_INSTALLED"
+    ],
+    "SolverStatus": [
+      "OPTIMAL",
+      "INFEASIBLE",
+      "LIMIT_REACHED",
+      "UNBOUNDED",
+      "ERROR"
+    ]
+  },
+  "contract_pack_version": "1.0.0"
+}

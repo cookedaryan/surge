@@ -12,6 +12,7 @@ from app.algorithms.pole_placement import (
     place_poles_on_network,
 )
 from app.algorithms.route_refinement import RefinedPhysicalRoute
+from app.contracts.request import CanonicalFeatureType
 from app.electrical.load_flow.config import LoadFlowConfig
 from app.electrical.load_flow.models import LoadFlowNetworkResult
 from app.gis.constraints import (
@@ -79,6 +80,7 @@ def build_candidate_engineering_metrics(
     owner_interaction_count: int = 0,
     pole_config: PolePlacementConfig | None = None,
     pole_result: CollectorPoleResult | None = None,
+    micro_siting_failed: bool = False,
 ) -> CandidateEngineeringAssessment:
     """Extract canonical engineering metrics for one candidate.
 
@@ -114,6 +116,7 @@ def build_candidate_engineering_metrics(
     road_crossing_count = 0
     soft_overlap_length_m = 0.0
     environmental_overlap_m2 = 0.0
+    affected_parcel_row_area_m2 = 0.0
     hard_violation_ids: tuple[str, ...] = ()
     parcel_exposures: tuple[ParcelEngineeringExposure, ...] = ()
 
@@ -129,6 +132,7 @@ def build_candidate_engineering_metrics(
         road_crossing_count = spatial_result.road_crossing_count
         soft_overlap_length_m = spatial_result.soft_overlap_length_m
         environmental_overlap_m2 = spatial_result.environmental_overlap_m2
+        affected_parcel_row_area_m2 = spatial_result.affected_parcel_row_area_m2
         hard_violation_ids = spatial_result.hard_violation_ids
         parcel_exposures = spatial_result.parcel_exposures
     if pole_result is None:
@@ -226,6 +230,7 @@ def build_candidate_engineering_metrics(
                 total_active_loss_mw=loss,
                 maximum_loading_percent=loading,
                 voltage_margin_pu=voltage_margin,
+                affected_parcel_row_area_m2=affected_parcel_row_area_m2,
             )
         except ValueError as exc:
             failures.append(
@@ -235,6 +240,15 @@ def build_candidate_engineering_metrics(
                 )
             )
 
+    notices: list[EngineeringMetricFailure] = []
+    if micro_siting_failed:
+        notices.append(
+            EngineeringMetricFailure(
+                EngineeringMetricFailureCode.MICRO_SITING_FAILED,
+                "Micro-siting failed; candidate uses base pole positions.",
+            )
+        )
+
     return CandidateEngineeringAssessment(
         scenario_id=scenario.scenario_id,
         metrics=metrics,
@@ -243,6 +257,7 @@ def build_candidate_engineering_metrics(
         extraction_failures=tuple(failures),
         pole_result=pole_result,
         parcel_exposures=parcel_exposures,
+        degradation_notices=tuple(notices),
     )
 
 
@@ -260,11 +275,13 @@ def extract_spatial_metrics(
         features=tuple(
             ConstraintFeature(
                 feature_id=layer.layer_id,
-                layer_type=_row_layer_type(layer.layer_type),
+                layer_type=_row_layer_type_for(layer),
                 geometry=effective_constraint_geometry(layer),
                 severity=(
                     "hard" if layer.mode == ConstraintMode.HARD_EXCLUSION else "soft"
                 ),
+                source_id=layer.source_id,
+                feature_type=layer.feature_type,
             )
             for layer in constraint_layers
         ),
@@ -290,10 +307,21 @@ def extract_spatial_metrics(
             or intersection.intersection_area_m2 > 0.0
         )
     }
+    # WP2-6: one union, so two environmental layers that overlap each other, or two
+    # corridors crossing the same layer, contribute their shared ground once. The
+    # union is over the ROW-clipped geometry, never the whole constraint.
     environmental_geometries = [
         intersection.geometry
         for intersection in soft_intersections
         if intersection.layer_type in {"environmental", "forest"}
+        and intersection.intersection_area_m2 > 0.0
+    ]
+    # WP2-5: the same rule for land. Overlapping parcels and overlapping corridors
+    # are deduplicated, so this is the ground taken, not the sum of the paperwork.
+    parcel_row_geometries = [
+        intersection.geometry
+        for intersection in soft_intersections
+        if intersection.layer_type == "parcel"
         and intersection.intersection_area_m2 > 0.0
     ]
     hard_ids = {
@@ -340,6 +368,11 @@ def extract_spatial_metrics(
         ),
         hard_violation_ids=tuple(sorted(hard_ids)),
         parcel_exposures=tuple(parcel_exposures_list),
+        affected_parcel_row_area_m2=(
+            float(unary_union(parcel_row_geometries).area)
+            if parcel_row_geometries
+            else 0.0
+        ),
     )
 
 
@@ -372,3 +405,36 @@ def _row_layer_type(layer_type: ConstraintType) -> ConstraintLayerType:
         ConstraintType.RESTRICTED_AREA: "restricted",
     }
     return mapping[layer_type]
+
+
+# WP2-4: C1 identity onto the ROW analysis classes. ``forest`` and ``environmental``
+# already existed in ``ConstraintLayerType`` and nothing ever produced them, because
+# every hard exclusion arrived as ``RESTRICTED_AREA`` regardless of what it was.
+_FEATURE_TYPE_ROW_LAYERS: dict[str, ConstraintLayerType] = {
+    CanonicalFeatureType.ROAD.value: "road",
+    CanonicalFeatureType.WATERCOURSE.value: "water",
+    CanonicalFeatureType.WATER_BODY.value: "water",
+    CanonicalFeatureType.PARCEL.value: "parcel",
+    CanonicalFeatureType.FOREST.value: "forest",
+    CanonicalFeatureType.PROTECTED_AREA.value: "environmental",
+    CanonicalFeatureType.ENVIRONMENTAL.value: "environmental",
+    CanonicalFeatureType.SETTLEMENT.value: "restricted",
+    CanonicalFeatureType.AVIATION.value: "restricted",
+    CanonicalFeatureType.RESTRICTED_AREA.value: "restricted",
+}
+
+
+def _row_layer_type_for(layer: ConstraintLayer) -> ConstraintLayerType:
+    """Prefer the typed identity; fall back to the routing class.
+
+    ``HT_LINE`` is deliberately not routed through the typed table: its legacy
+    mapping onto ``environmental`` is wrong on its face, but correcting it changes
+    metric inputs for requests that send no typed identity, which is a V0 behaviour
+    change and belongs to its own task. A layer without ``feature_type`` keeps
+    exactly the mapping it had before this change.
+    """
+    if layer.feature_type is not None:
+        row_layer = _FEATURE_TYPE_ROW_LAYERS.get(layer.feature_type)
+        if row_layer is not None:
+            return row_layer
+    return _row_layer_type(layer.layer_type)

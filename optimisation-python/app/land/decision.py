@@ -90,9 +90,7 @@ def assess_candidate_land(
     unique_exposures = {exposure.parcel_id: exposure for exposure in parcel_exposures}
     decisions = tuple(
         _assess_parcel(
-            unique_exposures[parcel_id],
-            profiles.get(parcel_id),
-            lifecycle_config
+            unique_exposures[parcel_id], profiles.get(parcel_id), lifecycle_config
         )
         for parcel_id in sorted(unique_exposures)
     )

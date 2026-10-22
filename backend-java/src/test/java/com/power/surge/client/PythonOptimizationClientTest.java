@@ -1,5 +1,6 @@
 package com.power.surge.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.power.surge.dto.client.python.PythonOptimisationRequest;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
@@ -10,6 +11,7 @@ import org.springframework.web.client.ResourceAccessException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
@@ -48,8 +50,11 @@ class PythonOptimizationClientTest {
     void giveUpWhenTheEngineDoesNotAnswerInTime() {
         String url = "http://127.0.0.1:" + engine.getAddress().getPort();
         PythonOptimizationClient client = new PythonOptimizationClient(url, 1, 1);
-        PythonOptimisationRequest request = new PythonOptimisationRequest(
-                "job-1", "project-1", "Balanced", null, null, null, null, null, null, null, null);
+        // Built from JSON rather than the canonical constructor: the request gains optional fields
+        // as contracts are added, and this test is about the transport, not the payload shape.
+        PythonOptimisationRequest request = new ObjectMapper().convertValue(
+                Map.of("request_id", "job-1", "project_id", "project-1", "scenario", "Balanced"),
+                PythonOptimisationRequest.class);
 
         assertTimeoutPreemptively(Duration.ofSeconds(4), () ->
                 assertThatThrownBy(() -> client.runOptimization(request))

@@ -17,13 +17,13 @@ network) rather than only against fixtures.
 
 | Component | State |
 | --- | --- |
-| Java backend | 130 source files, 290 tests, Flyway V1–V20 |
-| Python optimiser | 104 source files, 601 tests |
-| Web map | 81 source files, 144 tests |
+| Java backend | 145 source files, 376 tests, Flyway V1–V23 (V21–V22 reserved) |
+| Python optimiser | 148 source files, 1,750 tests |
+| Web map | 82 source files, 144 tests |
 | CI | Four jobs — Java, Python, frontend, container builds |
 
 **Not production-ready.** The deployment checklist is in
-[§5.7 of the gap closure plan](docs/MVP%20Gap%20Closure%20Plan.md). Credential defaults and login
+[§5.7 of the gap closure plan](docs/planning/MVP%20Gap%20Closure%20Plan.md). Credential defaults and login
 throttling were closed on 2026-08-16 (the throttle is a speed bump, not a wall — see the README);
 what remains there is TLS. Known open issues are listed in [`docs/Project Review.md`](docs/Project%20Review.md).
 
@@ -212,4 +212,4 @@ with greedy rebalancing, so feeders obey `feeder_capacity_mw` and cables are not
 Subsequently: SURGE-PY-014 PNC assembly, PY-015 pandapower AC load flow, PY-016 map-ready result
 packaging, PY-017 deterministic candidate scenario generation, PY-019 orchestration, PY-026
 canonical candidate engineering metrics, PY-028 lifecycle cost model. See
-[`docs/Surge MVP Ticket Plan.md`](docs/Surge%20MVP%20Ticket%20Plan.md).
+[`docs/planning/Surge MVP Ticket Plan.md`](docs/planning/Surge%20MVP%20Ticket%20Plan.md).

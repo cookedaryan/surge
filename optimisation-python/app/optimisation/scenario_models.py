@@ -14,14 +14,17 @@ incompatible comparisons.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
+
+from app.algorithms.solver_models import SolverOptions, SolverTelemetry
 
 # ---------------------------------------------------------------------------
 # Re-export GroupingObjective from wtg_grouping so callers only need to
 # import from this package.
 # ---------------------------------------------------------------------------
 from app.algorithms.wtg_grouping import GroupingObjective  # noqa: F401
+from app.contracts.codes import ExtraFeederOutcome
 from app.optimisation.search_models import CandidateLineage
 from app.pnc.models import ProjectPNCNetwork
 
@@ -60,6 +63,11 @@ class ScenarioStrategy(StrEnum):
         Combines a different KMeans seed with the BALANCE_WTG_COUNT MILP
         objective.  Used for candidate_count 5 to provide a fifth distinct
         personality.
+
+    EXTRA_FEEDER
+        The explicit ``k+1`` candidate (WP5-3): the BASELINE grouping inputs
+        with exactly one feeder more than the minimum capacity-feasible count.
+        Only the ``V1`` generation schedule uses it.
     """
 
     BASELINE = "baseline"
@@ -68,6 +76,7 @@ class ScenarioStrategy(StrEnum):
     LONG_EDGE_PENALTY = "long_edge_penalty"
     ALTERNATIVE_GROUPING_BALANCED = "alternative_grouping_balanced"
     SEARCH = "search"
+    EXTRA_FEEDER = "extra_feeder"
 
 
 class TopologyWeightProfile(StrEnum):
@@ -158,6 +167,64 @@ PARAMETER_SCHEDULE: tuple[
 )
 
 
+class GenerationSchedule(StrEnum):
+    """Which parameter schedule generation runs (WP5-2, decision C12).
+
+    V0
+        ``PARAMETER_SCHEDULE``, unchanged. The default, and the only schedule
+        when both C5 flags are off, so V0 output stays byte-equivalent.
+
+    V1
+        ``V1_PARAMETER_SCHEDULE``. Selected server-side only when the profiles
+        or search flag is on (``Settings.new_generation_schedule_enabled``).
+    """
+
+    V0 = "v0"
+    V1 = "v1"
+
+
+#: The V1 schedule (WP5-2). Each entry is a ``PARAMETER_SCHEDULE``-shaped tuple
+#: plus the number of feeders added to the minimum capacity-feasible count.
+#:
+#: PS-004 and PS-005 are gated out, not deleted: the audit (F2) found that the
+#: long-edge transform preserves edge order and so never changes the MST, and
+#: that the balance MILP ignores its KMeans seed, so PS-005 repeats PS-003.
+#: Both still run under V0.
+#:
+#: The ``k+1`` candidate comes second so that every request for two or more
+#: candidates tries it; placed last, the default ``candidate_count`` of 3 would
+#: stop before reaching it whenever the first three were accepted.
+V1_PARAMETER_SCHEDULE: tuple[
+    tuple[
+        tuple[
+            str,
+            ScenarioStrategy,
+            int,
+            GroupingObjective,
+            TopologyWeightProfile,
+            float,
+        ],
+        int,
+    ],
+    ...,
+] = (
+    (PARAMETER_SCHEDULE[0], 0),
+    (
+        (
+            "PS-006",
+            ScenarioStrategy.EXTRA_FEEDER,
+            42,
+            GroupingObjective.MINIMIZE_DISTANCE,
+            TopologyWeightProfile.DEFAULT,
+            0.0,
+        ),
+        1,
+    ),
+    (PARAMETER_SCHEDULE[1], 0),
+    (PARAMETER_SCHEDULE[2], 0),
+)
+
+
 # ---------------------------------------------------------------------------
 # Configuration model
 # ---------------------------------------------------------------------------
@@ -178,6 +245,9 @@ class ScenarioGenerationConfig:
     project_id:
         Identifier stored on every returned ``ProjectPNCNetwork``.  Must be
         non-blank.
+    generation_schedule:
+        Which parameter schedule runs. Set server-side from the C5 flags, never
+        from the request; ``V0`` by default.
 
     Determinism guarantee
     ---------------------
@@ -189,6 +259,9 @@ class ScenarioGenerationConfig:
     candidate_count: int = 3
     base_seed: int = 42
     project_id: str = "PROJECT"
+    # Limits passed to every grouping MILP (S5). ``None`` applies no limit.
+    solver_options: SolverOptions | None = None
+    generation_schedule: GenerationSchedule = GenerationSchedule.V0
 
     def __post_init__(self) -> None:
         # Reject bool subclass — isinstance(True, int) is True in Python.
@@ -215,6 +288,11 @@ class ScenarioGenerationConfig:
             )
         if not self.project_id or not self.project_id.strip():
             raise InvalidScenarioConfigError("project_id must be non-blank")
+        if not isinstance(self.generation_schedule, GenerationSchedule):
+            raise InvalidScenarioConfigError(
+                "generation_schedule must be a GenerationSchedule, "
+                f"got {self.generation_schedule!r}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +327,9 @@ class ScenarioParameters:
         The feeder capacity passed to ``group_wtgs``.  Always equals the
         caller-supplied project feeder capacity; scenario generation never
         silently changes this constraint.
+    feeder_count_offset:
+        Feeders added to the minimum capacity-feasible count. ``0`` keeps the
+        minimum; ``1`` is the explicit ``k+1`` candidate.
     """
 
     parameter_set_id: str
@@ -258,8 +339,18 @@ class ScenarioParameters:
     topology_weight_profile: TopologyWeightProfile
     topology_penalty: float
     effective_feeder_capacity_mw: float
+    feeder_count_offset: int = 0
 
     def __post_init__(self) -> None:
+        if (
+            isinstance(self.feeder_count_offset, bool)
+            or not isinstance(self.feeder_count_offset, int)
+            or self.feeder_count_offset < 0
+        ):
+            raise ValueError(
+                "feeder_count_offset must be a non-negative int, "
+                f"got {self.feeder_count_offset!r}"
+            )
         if not math.isfinite(self.topology_penalty) or self.topology_penalty < 0.0:
             raise ValueError(
                 f"topology_penalty must be finite and non-negative, "
@@ -387,6 +478,9 @@ class ScenarioAttempt:
         Fingerprint if topology was computed, else ``None``.
     detail:
         Human-readable explanation for non-accepted outcomes.
+    extra_feeder_outcome:
+        The C3 ``k+1`` outcome for an explicit extra-feeder attempt; ``None``
+        for every other attempt.
     """
 
     parameter_set_id: str
@@ -394,6 +488,7 @@ class ScenarioAttempt:
     outcome: AttemptOutcome
     topology_fingerprint: str | None
     detail: str
+    extra_feeder_outcome: ExtraFeederOutcome | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -422,6 +517,9 @@ class ScenarioGenerationResult:
     candidates: tuple[PNCScenario, ...]
     attempts: tuple[ScenarioAttempt, ...]
     comparison_group_id: str
+    # Every grouping MILP solve across all attempts, in order (S5). Excluded
+    # from equality because wall time varies between identical runs.
+    solver_runs: tuple[SolverTelemetry, ...] = field(default=(), compare=False)
 
 
 # ---------------------------------------------------------------------------

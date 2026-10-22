@@ -3,6 +3,8 @@
 .superpowers/
 .claude/
 .codex/
+.agents/*
+!.agents/skills/
 
 # .github/ is deliberately NOT ignored. Unlike the agent/editor directories above, which are
 # per-developer settings that should not travel, .github/ is configuration GitHub itself reads

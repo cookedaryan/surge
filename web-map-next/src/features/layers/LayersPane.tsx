@@ -10,7 +10,7 @@ const LAYER_TOGGLES: { key: LayerName; label: string }[] = [
 
 // Roads/HT-lines and parcels are soft, crossable-with-penalty constraints; restricted zones
 // are hard exclusions the router must never enter. Kept as separate toggles/styles per
-// docs/whats-next.md §7.4 rather than one generic "constraints" layer.
+// docs/planning/whats-next.md §7.4 rather than one generic "constraints" layer.
 const CONSTRAINT_TOGGLES: { key: LayerName; label: string; hint: string }[] = [
   { key: 'referenceLines', label: 'Roads / HT-lines', hint: 'Soft — crossable with penalty' },
   { key: 'parcels', label: 'Parcels', hint: 'Soft — crossable with penalty' },

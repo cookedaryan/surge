@@ -1,0 +1,56 @@
+{
+  "definitions": [
+    {
+      "generation_settings": {
+        "note": "vector only — café"
+      },
+      "placeholder": true,
+      "policy_mode": "UNIFIED_ENGINEERING",
+      "profile_id": "minimum_land_impact",
+      "terms": [
+        {
+          "direction": "minimise",
+          "lexicographic_rank": 1,
+          "metric": "affected_parcel_row_area_m2",
+          "reference_max": "5000.5",
+          "reference_min": "0",
+          "tolerance": "25",
+          "weight": "0.6"
+        },
+        {
+          "direction": "minimise",
+          "lexicographic_rank": 2,
+          "metric": "AFFECTED_PARCEL_COUNT",
+          "reference_max": "40",
+          "reference_min": "0",
+          "tolerance": null,
+          "weight": "0.4"
+        }
+      ],
+      "tie_breaks": [
+        "ROUTE_LENGTH",
+        "candidate_id"
+      ],
+      "version": "1"
+    },
+    {
+      "generation_settings": {},
+      "placeholder": true,
+      "policy_mode": "UNIFIED_ENGINEERING",
+      "profile_id": "balanced",
+      "terms": [
+        {
+          "direction": "minimise",
+          "lexicographic_rank": null,
+          "metric": "ROUTE_LENGTH",
+          "reference_max": "90000",
+          "reference_min": "-1.25",
+          "tolerance": null,
+          "weight": "1"
+        }
+      ],
+      "tie_breaks": [],
+      "version": "1"
+    }
+  ]
+}
