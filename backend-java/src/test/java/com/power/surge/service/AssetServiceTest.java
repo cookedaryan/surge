@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.power.surge.domain.AssetType;
 import com.power.surge.domain.EvacuationTower;
 import com.power.surge.domain.Project;
+import com.power.surge.domain.RestrictedArea;
 import com.power.surge.domain.Substation;
 import com.power.surge.domain.WtgLocation;
 import com.power.surge.domain.WtgStatus;
@@ -322,6 +323,44 @@ class AssetServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Could not classify")
                 .hasMessageContaining("Feeder 4");
+    }
+
+    /**
+     * A reserve forest used to be stored as PROTECTED_AREA, so typed transport faithfully sent the
+     * wrong class and the forest/protected-area distinction (finding F7) was lost at ingest.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void keepsForestDistinctFromProtectedAreaOnImport() {
+        UUID projectId = UUID.randomUUID();
+        Project project = new Project("Uravakonda", null);
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(restrictedAreaRepository.saveAll(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        String geoJson = """
+                {
+                  "type": "FeatureCollection",
+                  "features": [
+                    { "type": "Feature",
+                      "properties": { "externalId": "Reserve Forest 1", "kmlFolderPath": "Site / Forest" },
+                      "geometry": { "type": "Polygon", "coordinates": [[[77.10, 14.30], [77.11, 14.30], [77.11, 14.31], [77.10, 14.30]]] } },
+                    { "type": "Feature",
+                      "properties": { "externalId": "Wildlife Sanctuary", "kmlFolderPath": "Site / Sanctuary" },
+                      "geometry": { "type": "Polygon", "coordinates": [[[77.20, 14.30], [77.21, 14.30], [77.21, 14.31], [77.20, 14.30]]] } }
+                  ]
+                }
+                """;
+
+        assetService.importGeoJson(projectId, geoJson);
+
+        ArgumentCaptor<List<RestrictedArea>> captor = ArgumentCaptor.forClass(List.class);
+        verify(restrictedAreaRepository).saveAll(captor.capture());
+        assertThat(captor.getValue())
+                .extracting(RestrictedArea::getRestrictionType)
+                .containsExactly("FOREST", "PROTECTED_AREA");
+        assertThat(captor.getValue())
+                .extracting(area -> CanonicalFeatureType.fromRestrictionType(area.getRestrictionType()).wireValue())
+                .containsExactly("forest", "protected_area");
     }
 
     @Test
