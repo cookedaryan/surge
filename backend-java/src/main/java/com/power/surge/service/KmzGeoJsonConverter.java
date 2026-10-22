@@ -28,6 +28,14 @@ public class KmzGeoJsonConverter {
     private static final byte[] ZIP_MAGIC = new byte[]{0x50, 0x4B, 0x03, 0x04};
 
     /**
+     * Largest KML accepted once unpacked from a KMZ. The upload limit applies to the compressed
+     * archive only; the unpacked bytes are held in memory and then expanded into a DOM, so without
+     * this a small, highly compressible archive could exhaust the heap. A raw .kml is already capped
+     * by the 25 MB upload limit.
+     */
+    static final int MAX_UNPACKED_KML_BYTES = 64 * 1024 * 1024;
+
+    /**
      * Separator used to join KML folder names into {@code kmlFolderPath}. Deliberately padded with
      * spaces so a bare slash inside a folder name (e.g. "220/11KV") is not read as a separator.
      */
@@ -311,7 +319,14 @@ public class KmzGeoJsonConverter {
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
                 if (!entry.isDirectory() && entry.getName().toLowerCase().endsWith(".kml")) {
-                    return zis.readAllBytes();
+                    // One byte past the limit is enough to know it was exceeded, and stops the
+                    // inflater there instead of expanding the rest.
+                    byte[] kml = zis.readNBytes(MAX_UNPACKED_KML_BYTES + 1);
+                    if (kml.length > MAX_UNPACKED_KML_BYTES) {
+                        throw new IllegalArgumentException("KML inside the KMZ is larger than "
+                                + MAX_UNPACKED_KML_BYTES / (1024 * 1024) + " MB when unpacked");
+                    }
+                    return kml;
                 }
             }
             throw new IllegalArgumentException("KMZ archive does not contain a .kml file");

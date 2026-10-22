@@ -210,7 +210,11 @@ replaced. Both sides had to move together.
 - **No invented currency.** Both money formatters hardcoded `$` while the catalogue prices in INR,
   so every cost carried the wrong unit. The currency now travels with the figures and is stated once
   per column; unknown means unprefixed, not a guessed symbol. **This closes the INR/`$` mismatch that
-  P-1 flagged for C-2.**
+  P-1 flagged for C-2** for the catalogue-priced figures.
+  *Correction, 2026-10-22:* parcel acquisition rates and compensation are still labelled `$` — in the
+  map popup (`popupValues.ts`, `asRatePerM2`), the CSV (`ReportService`) and the PDF table header
+  (`PdfReportService`). Parcel rates are entered by hand with no currency recorded, so those labels
+  assert a unit nobody supplied. Open: see `Project Review.md`, F-12.
 
 Two defects found while wiring it: the feeder roll-up folded money from `BigDecimal.ZERO`, so a
 feeder nobody priced reported `0.000`; and the CSV totals row appended the `BigDecimal` directly,

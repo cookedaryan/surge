@@ -1,6 +1,6 @@
 # MVP Gap Closure Plan
 
-**Status date:** 2026-08-15
+**Status date:** 2026-08-16 (the §5.7 items struck below were closed that day; the sections they sit under date from 2026-08-15)
 **Author context:** written after a full functional pass through the running
 stack (Docker Compose, real Uravakonda KMZ import, live optimisation runs)
 and direct source verification of every claim below — not derived from

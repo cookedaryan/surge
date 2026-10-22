@@ -16,7 +16,9 @@ flowchart LR
 ```
 
 The frontend talks only to the backend; nginx proxies `/api/` internally, so the whole app is one
-origin. The optimiser is never exposed to the browser.
+origin. The optimiser is never reached by the browser. The backend, optimiser and database ports are
+published on `127.0.0.1` only (for local tools and the Vite dev server); `:3000` is the one
+network-facing entry point.
 
 ---
 
@@ -84,8 +86,9 @@ Wait for all four services to report healthy, then open **http://localhost:3000*
 ### First login
 
 A fresh database seeds a single administrator from `SURGE_BOOTSTRAP_ADMIN_USERNAME` /
-`SURGE_BOOTSTRAP_ADMIN_PASSWORD`. **If you do not set those, it seeds `admin` / `admin`.** Set them
-before the first start, or change the password immediately afterwards in the Users tab. Every other
+`SURGE_BOOTSTRAP_ADMIN_PASSWORD`. **The password has no default:** on a fresh database the backend
+refuses to start unless you set one (at least 8 characters, and not `admin`). Put it in `.env`
+before the first start. An existing database already has the account and needs neither. Every other
 account is created by an administrator from inside the app; nothing here overwrites a password that
 already exists, so credentials you change survive a restart.
 
@@ -106,7 +109,7 @@ cd web-map-next && npm ci && npm run dev
 >
 > - `http://localhost:3000` — the `frontend` container, serving a bundle baked at image build
 >   time. It does **not** pick up source edits.
-> - `http://localhost:5174` — the Vite dev server above, with hot reload.
+> - `http://localhost:5173` — the Vite dev server above, with hot reload.
 >
 > After changing anything under `web-map-next/src`, rebuild the container before testing on 3000:
 >
@@ -114,7 +117,7 @@ cd web-map-next && npm ci && npm run dev
 > docker compose up -d --build frontend
 > ```
 >
-> This has already caused a fix to be reported as working on 5174 while 3000 still served the
+> This has already caused a fix to be reported as working on 5173 while 3000 still served the
 > broken version. Verify on the port you actually intend to use.
 
 ### Java backend
@@ -138,9 +141,9 @@ python -m ruff check app tests && python -m mypy app && python -m pytest -q
 
 | Suite | Count | Command |
 | --- | --- | --- |
-| Java backend | 209 | `./mvnw verify` |
-| Python optimiser | ~489 | `python -m pytest -q` |
-| Web map | 26 | `npm run test` |
+| Java backend | 290 | `./mvnw verify` |
+| Python optimiser | 601 | `python -m pytest -q` |
+| Web map | 144 | `npm run test` |
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs all three plus `docker compose build`
 on every push and pull request.
@@ -153,22 +156,28 @@ could catch an accidental `permitAll`.
 
 ## Security: before you deploy
 
-This runs safely on a laptop. Three things must change before it is reachable from the internet,
-tracked in [§5.7 of the gap closure plan](docs/MVP%20Gap%20Closure%20Plan.md):
+This runs safely on a laptop. Before it is reachable from the internet, see
+[§5.7 of the gap closure plan](docs/MVP%20Gap%20Closure%20Plan.md) and:
 
-1. **Credential defaults.** `SURGE_BOOTSTRAP_ADMIN_PASSWORD` defaults to `admin` and `DB_PASSWORD`
-   to `postgres`. A fresh database seeds `admin`/`admin` unless you say otherwise.
-2. **No brute-force protection.** Login has no rate limit, lockout or delay. Unlimited guessing
-   against an 8-character minimum.
-3. **No TLS of its own.** nginx serves plain HTTP and tokens travel in headers, so whatever sits in
-   front must terminate TLS.
+1. **TLS.** nginx serves plain HTTP and tokens travel in headers, so whatever sits in front must
+   terminate TLS.
+2. **Replace the example values.** `.env.example` ships `DB_PASSWORD=postgres`; Compose requires the
+   variable but not that it be strong.
+3. **Treat the login throttle as a speed bump.** Five failed sign-ins from one client address in
+   15 minutes lock that address out for 15 minutes (HTTP 429). The counter is in memory, so it
+   assumes a single backend replica, and the address is whatever nginx reports: behind a tunnel or
+   another proxy, configure nginx's real-IP handling, and rate-limit at the edge.
 
-Already handled: the JWT signing key has no default and the backend refuses to start without one;
-the authentication filter resolves the account behind every token, so disabling, demoting or
-resetting a user takes effect immediately rather than whenever their token expires.
+Already handled: the bootstrap administrator and the JWT signing key have no defaults and the
+backend refuses to start without them; the authentication filter resolves the account behind every
+token, so disabling, demoting or resetting a user takes effect immediately rather than whenever
+their token expires.
 
-The upload path, cross-user project access and the export endpoints have never had a security
-review. Fine behind a VPN; not fine on a public URL holding client survey data.
+Known open issues are listed in [`docs/Project Review.md`](docs/Project%20Review.md) — notably that
+only administrators are distinguished by role (a viewer can still change data), that the audit log
+is readable by every signed-in user, and that the upload path and export endpoints have had a
+read-through review, not a penetration test. Fine behind a VPN; not fine on a public URL holding
+client survey data.
 
 ---
 
@@ -180,6 +189,5 @@ review. Fine behind a VPN; not fine on a public URL holding client survey data.
 - [`docs/MVP - Minimum Viable Product.md`](docs/MVP%20-%20Minimum%20Viable%20Product.md) — scope
 - [`docs/Python Engine - Architecture.md`](docs/Python%20Engine%20-%20Architecture.md) — optimiser internals
 - [`docs/Surge MVP Ticket Plan.md`](docs/Surge%20MVP%20Ticket%20Plan.md) — the SURGE-PY ticket sequence
+- [`docs/Project Review.md`](docs/Project%20Review.md) — completeness, known flaws and stale-doc audit
 - `obsidian-vault/` — design notes and research
-
-`web-map/` is the previous vanilla-JS frontend. Kept for reference, no longer built or deployed.

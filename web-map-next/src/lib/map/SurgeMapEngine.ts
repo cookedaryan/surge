@@ -10,6 +10,7 @@ import {
   asMw,
   asPercent,
   asRatePerM2,
+  escapeHtml as esc,
   isHighUtilisation,
   shown
 } from './popupValues';
@@ -87,9 +88,9 @@ export class SurgeMapEngine {
         marker.bindPopup(`
           <div class="popup-card">
             <h4>${SVG_ICONS.wtg} Wind Turbine Generator</h4>
-            <div class="popup-row"><span>Turbine ID:</span> <strong>${props.externalId || props.id || feature.id}</strong></div>
+            <div class="popup-row"><span>Turbine ID:</span> <strong>${esc(props.externalId || props.id || feature.id)}</strong></div>
             <div class="popup-row"><span>Capacity:</span> <strong>${shown(props.capacityMw, asMw)}</strong></div>
-            <div class="popup-row"><span>Status:</span> <strong>${status.replace(/_/g, ' ')}</strong></div>
+            <div class="popup-row"><span>Status:</span> <strong>${esc(status.replace(/_/g, ' '))}</strong></div>
             <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
             ${excluded ? '<div class="popup-note">Excluded from optimisation by status.</div>' : ''}
           </div>
@@ -115,7 +116,7 @@ export class SurgeMapEngine {
         marker.bindPopup(`
           <div class="popup-card">
             <h4>${SVG_ICONS.substation} Substation</h4>
-            <div class="popup-row"><span>Substation ID:</span> <strong>${props.externalId || props.id || feature.id}</strong></div>
+            <div class="popup-row"><span>Substation ID:</span> <strong>${esc(props.externalId || props.id || feature.id)}</strong></div>
             <div class="popup-row"><span>Grid Capacity:</span> <strong>${shown(props.capacityMw, asMw)}</strong></div>
             <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
           </div>
@@ -142,9 +143,9 @@ export class SurgeMapEngine {
         marker.bindPopup(`
           <div class="popup-card">
             <h4>${SVG_ICONS.tower} Evacuation Tower</h4>
-            <div class="popup-row"><span>Tower ID:</span> <strong>${props.externalId || feature.id}</strong></div>
-            <div class="popup-row"><span>Structure:</span> <strong>${towerType}</strong></div>
-            ${props.lineSection ? `<div class="popup-row"><span>Line section:</span> <strong>${props.lineSection}</strong></div>` : ''}
+            <div class="popup-row"><span>Tower ID:</span> <strong>${esc(props.externalId || feature.id)}</strong></div>
+            <div class="popup-row"><span>Structure:</span> <strong>${esc(towerType)}</strong></div>
+            ${props.lineSection ? `<div class="popup-row"><span>Line section:</span> <strong>${esc(props.lineSection)}</strong></div>` : ''}
             <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
             <div class="popup-note">Existing asset — not part of collector optimisation.</div>
           </div>
@@ -177,8 +178,8 @@ export class SurgeMapEngine {
         layer.bindPopup(`
           <div class="popup-card">
             <h4>${style.label}</h4>
-            <div class="popup-row"><span>Name:</span> <strong>${props.externalId || 'unnamed'}</strong></div>
-            ${props.voltageKv ? `<div class="popup-row"><span>Voltage:</span> <strong>${props.voltageKv} kV</strong></div>` : ''}
+            <div class="popup-row"><span>Name:</span> <strong>${esc(props.externalId || 'unnamed')}</strong></div>
+            ${props.voltageKv ? `<div class="popup-row"><span>Voltage:</span> <strong>${esc(props.voltageKv)} kV</strong></div>` : ''}
             <div class="popup-note">${
               props.crossingConstraint ? 'Crossing this feature adds cost to a route.' : 'Reference only — no routing constraint.'
             }</div>
@@ -221,7 +222,7 @@ export class SurgeMapEngine {
           <div class="popup-card">
             <h4>${SVG_ICONS.route} Feeder Route</h4>
             <div class="popup-row"><span>Feeder:</span> <strong>${shown(props.feederName ?? props.feeder_id)}</strong></div>
-            ${props.segmentId ? `<div class="popup-row"><span>Segment:</span> <strong>${props.segmentId}</strong></div>` : ''}
+            ${props.segmentId ? `<div class="popup-row"><span>Segment:</span> <strong>${esc(props.segmentId)}</strong></div>` : ''}
             <div class="popup-row"><span>Length:</span> <strong>${shown(
               lengthMeters,
               asKm
@@ -240,7 +241,7 @@ export class SurgeMapEngine {
             )}</strong></div>
             ${
               props.cableRequiredCurrentA !== null && props.cableRequiredCurrentA !== undefined
-                ? `<div class="popup-row"><span>Current:</span> <strong>${props.cableRequiredCurrentA} A of ${shown(props.cableEffectiveAmpacityA)} A</strong></div>`
+                ? `<div class="popup-row"><span>Current:</span> <strong>${esc(props.cableRequiredCurrentA)} A of ${shown(props.cableEffectiveAmpacityA)} A</strong></div>`
                 : ''
             }
             <div class="popup-row"><span>Conductor cost:</span> <strong>${shown(
@@ -286,10 +287,10 @@ export class SurgeMapEngine {
       marker.bindPopup(`
         <div class="popup-card">
           <h4>${SVG_ICONS.genericPoint} Pole</h4>
-          <div class="popup-row"><span>Pole ID:</span> <strong>${poleId}</strong></div>
-          ${props.feederName ? `<div class="popup-row"><span>Feeder:</span> <strong>${props.feederName}</strong></div>` : ''}
+          <div class="popup-row"><span>Pole ID:</span> <strong>${esc(poleId)}</strong></div>
+          ${props.feederName ? `<div class="popup-row"><span>Feeder:</span> <strong>${esc(props.feederName)}</strong></div>` : ''}
           ${sequenceMatch ? `<div class="popup-row"><span>Sequence:</span> <strong>${parseInt(sequenceMatch[1], 10)}</strong></div>` : ''}
-          <div class="popup-row"><span>Type:</span> <strong>${props.recommendedPoleType || role}</strong></div>
+          <div class="popup-row"><span>Type:</span> <strong>${esc(props.recommendedPoleType || role)}</strong></div>
           <div class="popup-note">Preliminary geometry-based recommendation — not a structural design.</div>
         </div>
       `);
@@ -308,7 +309,7 @@ export class SurgeMapEngine {
         layer.bindPopup(`
           <div class="popup-card">
             <h4>${SVG_ICONS.parcel} Cadastral Land Parcel</h4>
-            <div class="popup-row"><span>Parcel ID:</span> <strong>${props.parcelId || feature.id}</strong></div>
+            <div class="popup-row"><span>Parcel ID:</span> <strong>${esc(props.parcelId || feature.id)}</strong></div>
             <div class="popup-row"><span>Owner:</span> <strong>${shown(props.ownerName)}</strong></div>
             <div class="popup-row"><span>Acquisition Rate:</span> <strong>${shown(
               props.acquisitionCostPerM2,
@@ -331,9 +332,9 @@ export class SurgeMapEngine {
         layer.bindPopup(`
           <div class="popup-card">
             <h4>${SVG_ICONS.restricted} Restricted Area</h4>
-            <div class="popup-row"><span>Zone Name:</span> <strong>${props.name || 'Exclusion Zone'}</strong></div>
-            <div class="popup-row"><span>Restriction Type:</span> <strong>${props.restrictionType || 'ENVIRONMENTAL'}</strong></div>
-            <div class="popup-row"><span>Buffer Distance:</span> <strong>${props.bufferMeters || 0} m</strong></div>
+            <div class="popup-row"><span>Zone Name:</span> <strong>${esc(props.name || 'Exclusion Zone')}</strong></div>
+            <div class="popup-row"><span>Restriction Type:</span> <strong>${esc(props.restrictionType || 'ENVIRONMENTAL')}</strong></div>
+            <div class="popup-row"><span>Buffer Distance:</span> <strong>${esc(props.bufferMeters || 0)} m</strong></div>
           </div>
         `);
       }
@@ -377,8 +378,8 @@ export class SurgeMapEngine {
         const title = props.externalId || props.name || props.id || 'Imported Feature';
         marker.bindPopup(`
           <div class="popup-card">
-            <h4>${SVG_ICONS.genericPoint} ${title}</h4>
-            <div class="popup-row"><span>Type:</span> <strong>${feature.geometry ? feature.geometry.type : 'Point'}</strong></div>
+            <h4>${SVG_ICONS.genericPoint} ${esc(title)}</h4>
+            <div class="popup-row"><span>Type:</span> <strong>${esc(feature.geometry ? feature.geometry.type : 'Point')}</strong></div>
             <div class="popup-row"><span>Coordinates:</span> <strong>${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</strong></div>
           </div>
         `);
@@ -388,11 +389,11 @@ export class SurgeMapEngine {
         if (feature.geometry && feature.geometry.type.includes('Point')) return;
         const props = (feature.properties || {}) as Record<string, any>;
         const keys = Object.keys(props).slice(0, 4);
-        const rowsHtml = keys.map((k) => `<div class="popup-row"><span>${k}:</span> <strong>${props[k]}</strong></div>`).join('');
+        const rowsHtml = keys.map((k) => `<div class="popup-row"><span>${esc(k)}:</span> <strong>${esc(props[k])}</strong></div>`).join('');
         layer.bindPopup(`
           <div class="popup-card">
             <h4><i class="fa-solid fa-layer-group text-cyan"></i> Imported GeoJSON Feature</h4>
-            ${rowsHtml || '<div class="popup-row"><span>Geometry:</span> <strong>' + feature.geometry.type + '</strong></div>'}
+            ${rowsHtml || '<div class="popup-row"><span>Geometry:</span> <strong>' + esc(feature.geometry.type) + '</strong></div>'}
           </div>
         `);
       }

@@ -8,9 +8,9 @@
 
 > [!success] Milestone Delivery Status (as of 2026-08-16)
 > The end-to-end KMZ-to-33kV optimization pipeline is **fully delivered and operational** across all three tiers:
-> 1. **Python GIS & Optimization Microservice**: 79 source files, ~489 automated tests. Features: Multi-layer avoidance rasterization (road/HT line/watercourse crossings and restricted areas), capacity-constrained K-Means/MILP grouping, per-feeder MST topology, cost-surface A* routing with supercover shortcutting, Pandapower AC Newton-Raphson load-flow validation, network-level pole placement with endpoint deduplication (`pnc_pole`), canonical engineering metrics (PY-026), 4-group unified benefit scoring (PY-027), 25-year Decimal lifecycle costing (PY-028/029), and backwards-compatible V1 + explicit V2 REST endpoints.
-> 2. **Java Backend Microservice**: Spring Boot 3.3.2 / Java 21, Flyway migrations V1–V13, 112 source files, 209 tests. Features: JWT auth, async executor, SSE progress streaming, PDFBox/CSV reporting, audit logging, admin user management, and `ScenarioProfile` bias integration.
-> 3. **Modern Frontend (`web-map-next`)**: React 18, TypeScript, Vite, Leaflet with `preferCanvas`, TanStack Query v5, Zustand v4, Radix UI, Tailwind CSS v3, 65 source files, 26 Vitest tests. Features: Multi-layer GIS toggles (turbines, substations, feeder routes, 4 pole classes, parcels, restricted zones), interactive BoM strip & pane with AC losses and corridor intersection compensation, "Why this route?" decision summary card, and live SSE progress tracking.
+> 1. **Python GIS & Optimization Microservice**: 104 source files, 601 automated tests. Features: Multi-layer avoidance rasterization (road/HT line/watercourse crossings and restricted areas), capacity-constrained K-Means/MILP grouping, per-feeder MST topology, cost-surface A* routing with supercover shortcutting, Pandapower AC Newton-Raphson load-flow validation, network-level pole placement with endpoint deduplication (`pnc_pole`), canonical engineering metrics (PY-026), 4-group unified benefit scoring (PY-027), 25-year Decimal lifecycle costing (PY-028/029), and backwards-compatible V1 + explicit V2 REST endpoints.
+> 2. **Java Backend Microservice**: Spring Boot 3.3.2 / Java 21, Flyway migrations V1–V20, 130 source files, 290 tests. Features: JWT auth, async executor, SSE progress streaming, PDFBox/CSV reporting, audit logging, admin user management, and `ScenarioProfile` bias integration.
+> 3. **Modern Frontend (`web-map-next`)**: React 18, TypeScript, Vite, Leaflet with `preferCanvas`, TanStack Query v5, Zustand v4, Radix UI, Tailwind CSS v3, 81 source files, 144 Vitest tests. Features: Multi-layer GIS toggles (turbines, substations, feeder routes, 4 pole classes, parcels, restricted zones), interactive BoM strip & pane with AC losses and corridor intersection compensation, "Why this route?" decision summary card, and live SSE progress tracking.
 
 ---
 
@@ -44,7 +44,7 @@ A point-only KMZ is insufficient for road/land avoidance. Roads and land zones m
 - [x] SURGE-PY-026 extracts canonical candidate engineering metrics across spatial, infrastructure, and electrical domains.
 - [x] SURGE-PY-027 unifies spatial and electrical metrics into a 4-group normalized benefit policy with 12-decimal precision tie-breaking.
 - [x] SURGE-PY-028 computes 25-year discounted lifecycle costs (CAPEX + OPEX NPV) using `Decimal` arithmetic.
-- [x] ~489 automated tests passing with Ruff, black, and strict MyPy typing.
+- [x] 601 automated tests passing with Ruff, black, and strict MyPy typing.
 
 ### 2. Java Backend Integration (P0 - Delivered)
 - [x] Loads project reference lines, cadastral parcels, and restricted areas from PostGIS on job execution.

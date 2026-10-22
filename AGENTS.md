@@ -1,4 +1,4 @@
-# AGENT.md
+# AGENTS.md
 
 ## Purpose
 
@@ -25,17 +25,17 @@ The goal is to ensure that every agent makes safe, minimal, verifiable, and repo
 
 ## 1. Scope and Instruction Priority
 
-This file applies to the entire repository unless a more specific `AGENT.md` exists inside a subdirectory.
+This file applies to the entire repository unless a more specific `AGENTS.md` exists inside a subdirectory.
 
 When multiple instruction files apply, use the following priority:
 
 1. Explicit instructions from the user
-2. The nearest subdirectory-level `AGENT.md`
-3. This root-level `AGENT.md`
+2. The nearest subdirectory-level `AGENTS.md`
+3. This root-level `AGENTS.md`
 4. Existing repository conventions
 5. General language or framework best practices
 
-A nested `AGENT.md` may add to or override these instructions for its own directory.
+A nested `AGENTS.md` may add to or override these instructions for its own directory.
 
 Do not ignore existing repository conventions merely because another implementation appears cleaner.
 

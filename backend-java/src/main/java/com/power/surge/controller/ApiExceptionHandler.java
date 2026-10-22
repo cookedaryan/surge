@@ -2,6 +2,8 @@ package com.power.surge.controller;
 
 import com.power.surge.dto.ApiErrorResponse;
 import com.power.surge.service.ProjectNotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -14,6 +16,8 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 
     @ExceptionHandler(ProjectNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleProjectNotFound(
@@ -67,8 +71,13 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleDataIntegrityViolation(
             org.springframework.dao.DataIntegrityViolationException exception
     ) {
-        String msg = exception.getMostSpecificCause() != null ? exception.getMostSpecificCause().getMessage() : exception.getMessage();
-        return errorResponse(HttpStatus.BAD_REQUEST, "Database constraint error: " + msg, Map.of());
+        // The database's own text names tables, constraints and the offending value, so it goes to
+        // the log and not to the caller.
+        log.warn("Data integrity violation", exception);
+        return errorResponse(
+                HttpStatus.BAD_REQUEST,
+                "The request conflicts with existing data or breaks a database constraint.",
+                Map.of());
     }
 
     /**
@@ -88,7 +97,8 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleGenericException(
             Exception exception
     ) {
-        return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An error occurred: " + exception.getMessage(), Map.of());
+        log.error("Unhandled exception while serving a request", exception);
+        return errorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred.", Map.of());
     }
 
     private ResponseEntity<ApiErrorResponse> errorResponse(

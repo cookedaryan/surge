@@ -10,7 +10,7 @@ Two public entry points
     Assembly only: validates pre-computed topology and refined routes, then
     constructs and returns the ``ProjectPNCNetwork``.  No routing algorithms
     are executed.  Use when topology and routing have already been performed,
-    for example inside ``OptimisationService``, to avoid repeating A* and
+    for example inside scenario generation, to avoid repeating A* and
     refinement on data that is already available.
 
 Separation of concerns
@@ -151,7 +151,7 @@ def assemble_pnc_network(
     topology.  Structural compatibility is verified; provenance cannot be
     proven without additional metadata at the result level.
 
-    This is the entry point ``OptimisationService`` should use so that A* and
+    This is the entry point scenario generation uses so that A* and
     route refinement are not repeated on already-computed data.
 
     Parameters

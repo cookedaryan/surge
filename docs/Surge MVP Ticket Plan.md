@@ -2,7 +2,7 @@
 
 **Canonical as of:** 2026-08-13
 **MVP freeze:** SURGE-PY-020
-**Current ticket:** SURGE-PY-024 (in progress)
+**Current ticket:** none open — SURGE-PY-014 through SURGE-PY-025 are all Complete (table below)
 
 This document is authoritative for Python ticket numbering and MVP scope from
 SURGE-PY-014 onward. Earlier day-based plans are historical context only.

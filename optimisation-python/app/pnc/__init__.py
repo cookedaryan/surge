@@ -10,7 +10,7 @@ build_pnc_network
     refinement → assembly.
 assemble_pnc_network
     Assembly from pre-computed topology and refined routes.  No routing
-    algorithms are re-executed.  Use inside OptimisationService or any
+    algorithms are re-executed.  Used by scenario generation, or any
     caller that already holds both intermediate results.
 """
 
