@@ -127,8 +127,12 @@ public class ReportService {
             String priceBasis = null;
             String priceDate = null;
             Double affectedArea = 0.0;
-            if (landOutcome != null && landOutcome.parcelDecisions().containsKey(p.getParcelId())) {
-                LandOutcome.LandParcelDecision d = landOutcome.parcelDecisions().get(p.getParcelId());
+            // The engine keys decisions by the constraint_id Java sent (OptimizationJobService:
+            // "parcel-" + db id); the cadastral id is kept for engines that echo source_id instead.
+            LandOutcome.LandParcelDecision d = landOutcome == null ? null
+                    : landOutcome.parcelDecisions().getOrDefault("parcel-" + p.getId(),
+                            landOutcome.parcelDecisions().get(p.getParcelId()));
+            if (d != null) {
                 ownerId = d.ownerId();
                 availabilityStatus = d.availabilityStatus();
                 transactionMode = d.selectedMode();

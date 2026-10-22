@@ -182,6 +182,55 @@ class ReportServiceTest {
         assertThat(summary.estimatedCompensationCost()).isEqualByComparingTo("3000.00");
     }
 
+    /**
+     * The engine keys parcel decisions by the constraint_id Java sent ({@code parcel-<db id>}), not
+     * by the cadastral parcel id. Looking up only the cadastral id reported 0 m2 and ₹0 compensation
+     * for every parcel a real run crossed.
+     */
+    @Test
+    void parcelImpactMatchesTheConstraintIdTheEngineEchoes() {
+        UUID projectId = UUID.randomUUID();
+        UUID jobId = UUID.randomUUID();
+        UUID parcelDbId = UUID.randomUUID();
+
+        Project project = new Project("Test Project", "Description");
+        org.springframework.test.util.ReflectionTestUtils.setField(project, "id", projectId);
+        OptimizationJob job = new OptimizationJob(project, "MULTI_OBJECTIVE_A_STAR", null, null, null, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "id", jobId);
+        org.springframework.test.util.ReflectionTestUtils.setField(job, "resultSummaryJson", """
+            {
+              "recommendation": { "recommended_scenario_id": "SCN-001" },
+              "candidates": [
+                { "scenario_id": "SCN-001",
+                  "land": { "parcel_count": 1,
+                            "parcel_decisions": [ { "parcel_id": "parcel-%s", "affected_area_m2": 1096.65 } ] } }
+              ]
+            }
+        """.formatted(parcelDbId));
+
+        LinearRing ring = geometryFactory.createLinearRing(new Coordinate[]{
+                new Coordinate(77.20, 28.60),
+                new Coordinate(77.21, 28.60),
+                new Coordinate(77.21, 28.61),
+                new Coordinate(77.20, 28.60)
+        });
+        CadastralParcel parcel = new CadastralParcel(
+                project, "Parcel Survey No 101", null, new BigDecimal("45.00"), geometryFactory.createPolygon(ring));
+        org.springframework.test.util.ReflectionTestUtils.setField(parcel, "id", parcelDbId);
+
+        when(projectRepository.findById(projectId)).thenReturn(Optional.of(project));
+        when(jobRepository.findById(jobId)).thenReturn(Optional.of(job));
+        when(routeRepository.findAllByJobIdOrderByFeederNameAsc(jobId)).thenReturn(List.of());
+        when(poleRepository.findAllByJobIdOrderByPoleIdentifierAsc(jobId)).thenReturn(List.of());
+        when(parcelRepository.findAllByProjectIdOrderByParcelIdAsc(projectId)).thenReturn(List.of(parcel));
+
+        ParcelImpactSummary summary = reportService.generateBomReport(projectId, jobId).parcelImpactSummaries().get(0);
+
+        assertThat(summary.parcelId()).isEqualTo("Parcel Survey No 101");
+        assertThat(summary.affectedAreaM2()).isEqualTo(1096.65);
+        assertThat(summary.estimatedCompensationCost()).isEqualByComparingTo("49349.25");
+    }
+
     /** A spatial failure must not invent an area that would feed a compensation figure. */
     @Test
     void parcelImpactReportsZeroWhenTheCorridorOverlapCannotBeComputed() {
