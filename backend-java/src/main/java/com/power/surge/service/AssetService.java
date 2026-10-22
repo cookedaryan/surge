@@ -500,8 +500,12 @@ public class AssetService {
                 || haystack.contains("CANAL") || haystack.contains("TANK")) {
             return "WATER_BODY";
         }
-        if (haystack.contains("FOREST") || haystack.contains("SANCTUARY") || haystack.contains("WILDLIFE")) {
+        // Sanctuary first: "Wildlife Sanctuary Forest" is the stricter class. Forest stays distinct (F7).
+        if (haystack.contains("SANCTUARY") || haystack.contains("WILDLIFE")) {
             return "PROTECTED_AREA";
+        }
+        if (haystack.contains("FOREST")) {
+            return "FOREST";
         }
         if (haystack.contains("VILLAGE") || haystack.contains("SETTLEMENT")) {
             return "SETTLEMENT";
