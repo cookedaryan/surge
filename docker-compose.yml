@@ -10,7 +10,8 @@ services:
       # ever notices is using it.
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      # Loopback only. The database has no business being reachable from the network.
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - surge_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -26,7 +27,10 @@ services:
     container_name: surge-backend-java
     restart: always
     ports:
-      - "8080:8080"
+      # Loopback only, so the sign-in throttle can trust the headers nginx writes: a caller that
+      # reached this port directly could set X-Real-IP / X-Forwarded-For to anything. Browsers use
+      # :3000, which proxies /api. This stays published for local tools and the Vite dev server.
+      - "127.0.0.1:8080:8080"
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:-surgedb}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-postgres}
@@ -60,7 +64,9 @@ services:
     container_name: surge-optimizer-python
     restart: always
     ports:
-      - "8000:8000"
+      # Loopback only. The optimiser has no authentication of its own and is meant to be reached
+      # by the backend alone; the published port exists for local debugging.
+      - "127.0.0.1:8000:8000"
     environment:
       ENVIRONMENT: production
       LOG_LEVEL: INFO
