@@ -137,7 +137,8 @@ class FakeJava:
         if method == "POST" and path.endswith("/jobs"):
             job_id = f"job-{len(self.jobs) + 1}"
             self.jobs[job_id] = 0
-            return self._json(201, {"id": job_id, "status": "PENDING"})
+            # Java queues the run and answers 202 Accepted (OptimizationJobController).
+            return self._json(202, {"id": job_id, "status": "PENDING"})
         if path.endswith("/routes/geojson"):
             self.clock.advance(0.25)
             return self._json(200, {"features": [{}] * 30})

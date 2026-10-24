@@ -373,8 +373,12 @@ class SurgeApi:
         return {k: v for k, v in body.items() if isinstance(v, int)}
 
     def submit_job(self, project_id: str, scenario: str) -> str:
+        # Java queues the run and answers 202 Accepted, not 201.
         body = self._call(
-            "POST", f"/api/v1/projects/{project_id}/jobs", {"scenario": scenario}
+            "POST",
+            f"/api/v1/projects/{project_id}/jobs",
+            {"scenario": scenario},
+            expect=(202,),
         ).json()
         return str(body["id"])
 
