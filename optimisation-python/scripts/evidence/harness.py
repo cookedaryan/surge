@@ -224,6 +224,9 @@ class ComposeStack:
     env: Mapping[str, str] | None = None
 
     def __post_init__(self) -> None:
+        # Compose runs with cwd=root: a relative file would resolve twice, under root.
+        self.root = self.root.resolve()
+        self.files = [file.resolve() for file in self.files]
         if self.env is None:
             self.env = throwaway_secrets()
 
