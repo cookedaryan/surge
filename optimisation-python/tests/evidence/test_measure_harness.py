@@ -137,7 +137,8 @@ class FakeJava:
         if method == "POST" and path.endswith("/jobs"):
             job_id = f"job-{len(self.jobs) + 1}"
             self.jobs[job_id] = 0
-            return self._json(201, {"id": job_id, "status": "PENDING"})
+            # Java queues the run and answers 202 Accepted (OptimizationJobController).
+            return self._json(202, {"id": job_id, "status": "PENDING"})
         if path.endswith("/routes/geojson"):
             self.clock.advance(0.25)
             return self._json(200, {"features": [{}] * 30})
@@ -220,6 +221,29 @@ def run_measure(
 
 
 # --- procedure ------------------------------------------------------------------------
+
+
+def test_relative_paths_reach_compose_absolute(
+    clock: FakeClock, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Compose runs with cwd=root, so a relative compose file used to resolve again
+    # under root: --repo ../../surge-base looked for D:\surge-base\docker-compose.yml.
+    (tmp_path / "work").mkdir()
+    monkeypatch.chdir(tmp_path / "work")
+    docker = FakeDocker(clock)
+    stack = ComposeStack(
+        root=Path("../base"),
+        project="surge-evidence",
+        files=[Path("../base/docker-compose.yml")],
+        runner=docker,
+        clock=clock,
+    )
+
+    stack.down()
+
+    compose_file = docker.calls[0][docker.calls[0].index("-f") + 1]
+    assert Path(compose_file) == (tmp_path / "base" / "docker-compose.yml").resolve()
+    assert stack.root == (tmp_path / "base").resolve()
 
 
 def test_images_are_built_once_then_every_variant_gets_a_clean_stack(

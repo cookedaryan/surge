@@ -224,6 +224,9 @@ class ComposeStack:
     env: Mapping[str, str] | None = None
 
     def __post_init__(self) -> None:
+        # Compose runs with cwd=root: a relative file would resolve twice, under root.
+        self.root = self.root.resolve()
+        self.files = [file.resolve() for file in self.files]
         if self.env is None:
             self.env = throwaway_secrets()
 
@@ -370,8 +373,12 @@ class SurgeApi:
         return {k: v for k, v in body.items() if isinstance(v, int)}
 
     def submit_job(self, project_id: str, scenario: str) -> str:
+        # Java queues the run and answers 202 Accepted, not 201.
         body = self._call(
-            "POST", f"/api/v1/projects/{project_id}/jobs", {"scenario": scenario}
+            "POST",
+            f"/api/v1/projects/{project_id}/jobs",
+            {"scenario": scenario},
+            expect=(202,),
         ).json()
         return str(body["id"])
 
